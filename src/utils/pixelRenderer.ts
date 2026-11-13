@@ -1298,7 +1298,7 @@ export function drawEntitySprite(
 ) {
   const pixel = size / 16;
 
-  if (cleared && type !== 'npc') return;
+  if (cleared && type !== 'npc' && type !== 'decorative') return;
 
   // VISIBLE ROAMING WILD SPIRITS
   if ((type === 'wild_encounter' || sprite.startsWith('wild_')) && !sprite.startsWith('deco_')) {
@@ -1321,6 +1321,58 @@ export function drawEntitySprite(
     ctx.fillStyle = '#facc15';
     ctx.fillRect(x + size / 2 - pixel * 0.75, y - pixel * 2 + bob * 0.5, pixel * 1.5, pixel * 2.5);
     ctx.fillRect(x + size / 2 - pixel * 0.75, y + pixel * 1.5 + bob * 0.5, pixel * 1.5, pixel * 1.5);
+    return;
+  }
+
+  if (sprite === 'item_hp') {
+    const floatY = Math.sin(stepFrame * 0.45) * pixel * 1.1;
+    const glow = Math.sin(stepFrame * 0.4) * 0.18 + 0.35;
+    ctx.fillStyle = `rgba(244, 63, 94, ${glow})`;
+    ctx.beginPath();
+    ctx.arc(x + size / 2, y + size / 2, size * 0.46, 0, Math.PI * 2);
+    ctx.fill();
+    // Ruby Health Potion / Elixir Flask
+    ctx.fillStyle = '#e4e4e7';
+    ctx.fillRect(x + pixel * 6.5, y + pixel * 2 + floatY, pixel * 3, pixel * 2.5);
+    ctx.fillStyle = '#78350f';
+    ctx.fillRect(x + pixel * 6.8, y + pixel * 1 + floatY, pixel * 2.4, pixel * 1.4);
+    ctx.fillStyle = '#ef4444';
+    ctx.fillRect(x + pixel * 4, y + pixel * 4.5 + floatY, pixel * 8, pixel * 8.5);
+    ctx.fillStyle = '#f87171';
+    ctx.fillRect(x + pixel * 5, y + pixel * 5.5 + floatY, pixel * 2.2, pixel * 4);
+    // White cross emblem
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(x + pixel * 7.2, y + pixel * 6.5 + floatY, pixel * 1.6, pixel * 4.5);
+    ctx.fillRect(x + pixel * 5.8, y + pixel * 7.9 + floatY, pixel * 4.4, pixel * 1.6);
+    return;
+  }
+
+  if (sprite === 'item_mana') {
+    const floatY = Math.cos(stepFrame * 0.45) * pixel * 1.1;
+    const glow = Math.sin(stepFrame * 0.4) * 0.18 + 0.38;
+    ctx.fillStyle = `rgba(56, 189, 248, ${glow})`;
+    ctx.beginPath();
+    ctx.arc(x + size / 2, y + size / 2, size * 0.46, 0, Math.PI * 2);
+    ctx.fill();
+    // Glowing Sapphire Mana Crystal
+    ctx.fillStyle = '#0284c7';
+    ctx.beginPath();
+    ctx.moveTo(x + pixel * 8, y + pixel * 1.5 + floatY);
+    ctx.lineTo(x + pixel * 13, y + pixel * 7.5 + floatY);
+    ctx.lineTo(x + pixel * 8, y + pixel * 14 + floatY);
+    ctx.lineTo(x + pixel * 3, y + pixel * 7.5 + floatY);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = '#38bdf8';
+    ctx.beginPath();
+    ctx.moveTo(x + pixel * 8, y + pixel * 3 + floatY);
+    ctx.lineTo(x + pixel * 11, y + pixel * 7.5 + floatY);
+    ctx.lineTo(x + pixel * 8, y + pixel * 12 + floatY);
+    ctx.lineTo(x + pixel * 5, y + pixel * 7.5 + floatY);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = '#e0f2fe';
+    ctx.fillRect(x + pixel * 7, y + pixel * 5.5 + floatY, pixel * 2, pixel * 3);
     return;
   }
 
@@ -2057,8 +2109,8 @@ export function drawEntitySprite(
       ctx.lineTo(x + pixel * 4.5, y + pixel * 9);
       ctx.closePath();
       ctx.fill();
-    } else if (sprite === 'deco_cerro_santa_isabel') {
-      // Cerro Santa Isabel southern wooded hill
+    } else if (sprite === 'deco_cerro_santa_isabel' || sprite === 'deco_cerro_verde') {
+      // Green wooded coastal/regional hill
       ctx.fillStyle = '#15803d';
       ctx.beginPath();
       ctx.moveTo(x + pixel * 8, y + pixel * 3.5);
@@ -2068,6 +2120,63 @@ export function drawEntitySprite(
       ctx.fill();
       ctx.fillStyle = '#fde047';
       ctx.fillRect(x + pixel * 7.2, y + pixel * 2, pixel * 1.6, pixel * 2.5);
+    } else if (sprite === 'deco_volcan') {
+      // Iconic Chilean Volcano Cone (Snow flanks + glowing crater + faint fumarole plume)
+      const puff = (stepFrame * 0.35) % 8;
+      ctx.fillStyle = '#334155';
+      ctx.beginPath();
+      ctx.moveTo(x + pixel * 5.2, y + pixel * 3.2);
+      ctx.lineTo(x + pixel * 10.8, y + pixel * 3.2);
+      ctx.lineTo(x + pixel * 15.2, y + pixel * 15);
+      ctx.lineTo(x + pixel * 0.8, y + pixel * 15);
+      ctx.closePath();
+      ctx.fill();
+      // Glacial snow cap on slopes
+      ctx.fillStyle = '#f8fafc';
+      ctx.beginPath();
+      ctx.moveTo(x + pixel * 5.2, y + pixel * 3.2);
+      ctx.lineTo(x + pixel * 10.8, y + pixel * 3.2);
+      ctx.lineTo(x + pixel * 12.6, y + pixel * 8);
+      ctx.lineTo(x + pixel * 9.5, y + pixel * 6.6);
+      ctx.lineTo(x + pixel * 8, y + pixel * 8.2);
+      ctx.lineTo(x + pixel * 6.3, y + pixel * 6.6);
+      ctx.lineTo(x + pixel * 3.4, y + pixel * 8);
+      ctx.closePath();
+      ctx.fill();
+      // Glowing volcanic crater rim
+      ctx.fillStyle = '#ea580c';
+      ctx.fillRect(x + pixel * 5.6, y + pixel * 2.5, pixel * 4.8, pixel * 1.5);
+      ctx.fillStyle = '#facc15';
+      ctx.fillRect(x + pixel * 6.8, y + pixel * 2.3, pixel * 2.4, pixel * 1.1);
+      // Drifting steam puff
+      ctx.fillStyle = `rgba(226, 232, 240, ${Math.max(0.15, 0.7 - puff * 0.08)})`;
+      ctx.beginPath();
+      ctx.arc(x + pixel * 8 + Math.sin(stepFrame * 0.25) * pixel, y + pixel * 2 - puff * pixel * 0.5, pixel * 1.8, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (sprite === 'deco_ruca') {
+      // Traditional oval thatched Mapuche Ruca with timber posts & hearth smoke
+      const smoke = (stepFrame * 0.3) % 6;
+      ctx.fillStyle = '#78350f';
+      ctx.fillRect(x + pixel * 2, y + pixel * 7, pixel * 12, pixel * 7.5);
+      // Steep coirón straw dome roof
+      ctx.fillStyle = '#a16207';
+      ctx.beginPath();
+      ctx.moveTo(x + pixel * 8, y + pixel * 1.5);
+      ctx.lineTo(x + pixel * 15, y + pixel * 8.5);
+      ctx.lineTo(x + pixel * 1, y + pixel * 8.5);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = '#ca8a04';
+      ctx.fillRect(x + pixel * 4, y + pixel * 5.5, pixel * 8, pixel * 2);
+      // East doorway & carved timber posts
+      ctx.fillStyle = '#292524';
+      ctx.fillRect(x + pixel * 6.2, y + pixel * 9.5, pixel * 3.6, pixel * 5);
+      ctx.fillStyle = '#e5e7eb';
+      ctx.fillRect(x + pixel * 3, y + pixel * 9.5, pixel * 1.2, pixel * 5);
+      ctx.fillRect(x + pixel * 11.8, y + pixel * 9.5, pixel * 1.2, pixel * 5);
+      // Hearth smoke
+      ctx.fillStyle = `rgba(244, 244, 245, ${Math.max(0.1, 0.65 - smoke * 0.1)})`;
+      ctx.fillRect(x + pixel * 7.2, y + pixel * 0.5 - smoke * pixel * 0.5, pixel * 1.8, pixel * 1.5);
     } else if (sprite === 'deco_mostrador') {
       // Shop interior wooden counter with cash box & bottles
       ctx.fillStyle = '#78350f';

@@ -104,12 +104,12 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
           <div className="text-center">
             <h2 className="font-silkscreen text-xs sm:text-sm text-zinc-100 flex items-center gap-1.5 justify-center">
               <Award className="w-4 h-4 text-zinc-100" />
-              <span>PERFIL Y MEDALLAS</span>
+              <span>PERFIL Y AMULETOS</span>
             </h2>
           </div>
 
           <span className="px-2 py-0.5 bg-zinc-100 text-zinc-950 rounded font-silkscreen text-[9px] font-bold">
-            {medalsEarned.length}/5 MEDALLAS
+            {medalsEarned.length}/5 AMULETOS
           </span>
         </div>
 
@@ -207,7 +207,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
           <div className="flex items-center justify-between mb-2">
             <span className="font-silkscreen text-[11px] text-zinc-200 flex items-center gap-1.5">
               <Shield className="w-3.5 h-3.5 text-zinc-100" />
-              <span>MEDALLAS DE GUARDIANES DE CHILE</span>
+              <span>AMULETOS ESPIRITUALES DE GUARDIANES</span>
             </span>
             <span className="text-[10px] font-mono text-zinc-400 hidden sm:inline">
               Derrota a los Jefes y Maestros Vínculo
@@ -285,7 +285,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
 
           {timelineRecords.length === 0 ? (
             <div className="p-3 bg-zinc-950/80 border border-zinc-800 rounded-xl text-[11px] font-mono text-zinc-400 text-center">
-              Derrota al Guardián Regional de cada etapa para registrar tus medallas y hazañas aquí en orden cronológico.
+              Derrota al Guardián Regional de cada etapa para registrar tus Amuletos Espirituales y hazañas aquí en orden cronológico.
             </div>
           ) : (
             <div className="space-y-1.5 max-h-40 overflow-y-auto pr-0.5">

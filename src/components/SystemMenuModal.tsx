@@ -8,7 +8,7 @@
 
 import React from 'react';
 import { sound } from '../services/audioService';
-import { MapRegion, RegionId } from '../types/game';
+import { MapRegion, RegionId, SpiritCreature } from '../types/game';
 import { getCurrentQuest, getRegionPendingMissions } from '../data/questData';
 import { ELEMENT_META } from '../data/spiritsData';
 import {
@@ -31,6 +31,7 @@ import {
 interface SystemMenuModalProps {
   currentRegion: MapRegion;
   unlockedRegions: RegionId[];
+  partySpirits?: SpiritCreature[];
   isMuted: boolean;
   medalsCount?: number;
   onToggleMute: () => void;
@@ -45,6 +46,7 @@ interface SystemMenuModalProps {
 export const SystemMenuModal: React.FC<SystemMenuModalProps> = ({
   currentRegion,
   unlockedRegions,
+  partySpirits = [],
   isMuted,
   medalsCount = 0,
   onToggleMute,
@@ -55,8 +57,8 @@ export const SystemMenuModal: React.FC<SystemMenuModalProps> = ({
   onOpenGuide,
   onClose,
 }) => {
-  const currentQuest = getCurrentQuest(currentRegion, unlockedRegions);
-  const pendingMissions = getRegionPendingMissions(currentRegion);
+  const currentQuest = getCurrentQuest(currentRegion, unlockedRegions, partySpirits);
+  const pendingMissions = getRegionPendingMissions(currentRegion, partySpirits);
 
   return (
     <div className="fixed inset-0 z-50 bg-zinc-950/88 backdrop-blur-md flex items-center justify-center p-2.5 sm:p-4">
@@ -163,10 +165,10 @@ export const SystemMenuModal: React.FC<SystemMenuModalProps> = ({
               </div>
               <div>
                 <div className="font-silkscreen text-[11px] text-zinc-100">
-                  PERFIL Y MEDALLAS
+                  PERFIL Y AMULETOS
                 </div>
                 <div className="text-[9px] text-zinc-400">
-                  Estadísticas, Bestiario y {medalsCount}/5 Medallas
+                  Estadísticas, Bestiario y {medalsCount}/5 Amuletos Espirituales
                 </div>
               </div>
             </div>

@@ -274,7 +274,7 @@ export const EvolutionSanctuary: React.FC<EvolutionSanctuaryProps> = ({
                     <div className="p-2.5 bg-zinc-900 border border-zinc-600 rounded-lg text-zinc-200 text-center font-mono text-[11px]">
                       {maxStages === 1
                         ? 'Esta especie no posee evoluciones adicionales (Etapa Única).'
-                        : `¡Este espíritu alcanzó su Etapa ${maxStages} máxima como Titán Ancestral!`}
+                        : `¡Esta Criatura Espiritual alcanzó su Etapa ${maxStages} máxima como Titán Ancestral!`}
                     </div>
                   )}
                 </div>

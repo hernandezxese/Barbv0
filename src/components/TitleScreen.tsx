@@ -98,7 +98,7 @@ export const TitleScreen: React.FC<TitleScreenProps> = ({
               CRÓNICAS ELEMENTALES DE CHILE
             </h3>
             <p className="text-zinc-300 text-xs leading-relaxed mb-3">
-              Elige a Bárbara, Felipe o Isabella desde su Hogar (Escenario 0) y recorre 5 regiones chilenas entre el Océano Pacífico y la Cordillera de los Andes para reunir las 5 Medallas de Guardianes.
+              Elige a Bárbara, Felipe o Isabella desde su Hogar (Escenario 0) y recorre 5 regiones chilenas entre el Océano Pacífico y la Cordillera de los Andes para reunir los 5 Amuletos Espirituales de Guardianes.
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3 text-[11px] font-mono">
               <div className="p-2 bg-zinc-950/80 border border-zinc-700 rounded-lg">
@@ -133,7 +133,7 @@ export const TitleScreen: React.FC<TitleScreenProps> = ({
             <div className="relative w-full max-w-md aspect-video rounded-2xl overflow-hidden border-2 border-zinc-500/80 shadow-2xl mb-3.5 bg-gradient-to-br from-zinc-800 via-zinc-900 to-zinc-950">
               <img
                 src={titleBannerImg}
-                alt="Explorador chileno y tres espíritus elementales contemplando el Pacífico y los Andes nevados"
+                alt="Explorador chileno y tres Criaturas Espirituales contemplando el Pacífico y los Andes nevados"
                 referrerPolicy="no-referrer"
                 className="w-full h-full object-cover animate-banner-float image-render-pixel"
               />

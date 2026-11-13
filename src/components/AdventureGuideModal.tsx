@@ -191,9 +191,9 @@ export const AdventureGuideModal: React.FC<AdventureGuideModalProps> = ({ onClos
                 <PixelPreviewCanvas kind="maestro" />
                 <div>
                   <div className="font-silkscreen text-[10px] text-zinc-100 flex items-center gap-1">
-                    <Award className="w-3 h-3" /> 5 MEDALLAS
+                    <Award className="w-3 h-3" /> 5 AMULETOS
                   </div>
-                  <p className="text-[10px] text-zinc-400 font-mono">Cada Jefe Regional otorga su Medalla de Guardián.</p>
+                  <p className="text-[10px] text-zinc-400 font-mono">Cada Jefe Regional otorga su Amuleto Espiritual de Guardián.</p>
                 </div>
               </div>
             </div>
@@ -292,11 +292,11 @@ export const AdventureGuideModal: React.FC<AdventureGuideModalProps> = ({ onClos
               </div>
               <div className="p-2.5 bg-zinc-950 rounded-xl border border-zinc-700">
                 <span className="text-zinc-100 font-bold block">Habilidades del Líder Activo</span>
-                <span className="text-zinc-400">Equipa al espíritu del elemento necesario como Líder Activo en Equipo para liberar pasos bloqueados.</span>
+                <span className="text-zinc-400">Equipa la Criatura Espiritual del elemento necesario como Líder Activo en Equipo para liberar pasos bloqueados.</span>
               </div>
               <div className="p-2.5 bg-zinc-950 rounded-xl border border-zinc-700">
                 <span className="text-zinc-100 font-bold block">Niebla de Exploración</span>
-                <span className="text-zinc-400">El mapa y topografía se revelan progresivamente a medida que avanzas.</span>
+                <span className="text-zinc-400">Visita el cerro o volcán regional para despejar por completo la sombra de exploración del mapa.</span>
               </div>
               <div className="p-2.5 bg-zinc-950 rounded-xl border border-zinc-700">
                 <span className="text-zinc-100 font-bold block">Mensajes y ACCIÓN</span>

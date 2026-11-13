@@ -1,29 +1,26 @@
 /**
  * World Maps & Chilean Regions Repository (Stage 0 Casa + 5 Chilean Biogeographic Regions + Interiors)
  *
- * Scaled Map Dimensions:
- * - Interiors (Muy pequeños): casa, hospital, santuario, tienda -> 11×9
- * - Stage 2 (Pequeño): biobio -> 19×17
- * - Stages 3 & 4 (Medianos): araucania, losrios -> 23×21
- * - Stage 1 (Grande): santiago -> 27×25
- * - Stage 5 (Muy grande): loslagos -> 33×29
- *
- * Geographic Borders (All 5 Outdoor Stages):
- * - West border (col x = 0): Pacific Ocean (tile 2)
- * - East border (col x = width - 1): Andes Cordillera (tile 3)
+ * Map Dimensions:
+ * - Interiors: casa, hospital, santuario, tienda -> 11×9
+ * - Stage 1 (R. Metropolitana / Santiago) -> 29×25
+ * - Stage 2 (R. del Biobío) -> 25×21
+ * - Stage 3 (R. de La Araucanía) -> 27×23
+ * - Stage 4 (R. de Los Ríos) -> 29×25
+ * - Stage 5 (R. de Los Lagos + Isla de Chiloé) -> 37×31
  *
  * Tile Legend:
- * 0 = Ground / Region Grass / Rock Base (1% - 3% encounter)
+ * 0 = Ground / Region Grass (1% - 3% encounter)
  * 1 = Winding Stone / Dirt Trail / Bridges (0% encounter)
- * 2 = Water / Pacific Ocean / River / Fjord (impassable)
- * 3 = Mountain / Andes Cordillera / Cliff / Wall Barrier (impassable)
+ * 2 = Water / Pacific Ocean / River / Lake / Fjord (impassable)
+ * 3 = Mountain / Andes Cordillera / Cerro / Cliff / Wall Barrier (impassable)
  * 4 = Forest / Dense Tree (impassable)
  * 5 = Volcanic Lava Pocket (impassable)
  * 6 = Snow / Ice High Plains (1% - 3% encounter)
  * 7 = Wildflowers / Ferns / Crops (1% - 3% encounter)
- * 8 = Building / Wall / Interior Structure (impassable)
+ * 8 = Building / Urban Structure / Ruca Base / Wall (impassable)
  * 9 = Prehistoric / Amber Earth (1% - 3% encounter)
- * 10 = Indoor Safe Room Floor (Casa / Hospital / Santuario / Tienda - 0% encounter)
+ * 10 = Indoor Safe Room Floor (0% encounter)
  * 11 = Railway Tracks / Línea de Tren (Biobío - 0% encounter, walkable)
  */
 
@@ -65,7 +62,7 @@ function drawVLine(grid: number[][], x: number, y1: number, y2: number, tile: nu
 
 /**
  * Applies geographic Chilean borders to outdoor stages:
- * Top & bottom cliff walls (3) with optional portal gaps,
+ * Top & bottom cliff walls (3),
  * West column (x = 0) -> Pacific Ocean (2),
  * East column (x = width - 1) -> Andes Cordillera (3).
  */
@@ -95,11 +92,9 @@ function carveCompactBossEnclosure3x3(
 ) {
   const h = grid.length;
   const w = grid[0].length;
-  // Wall separating main map from southern boss sanctuary
   drawHLine(grid, 1, w - 2, wallY, 3);
-  setTile(grid, cx, wallY, 1); // Gate tile (obstacle stands here)
+  setTile(grid, cx, wallY, 1);
 
-  // Compact 3x3 arena box + thick flanking walls
   fillRect(grid, 1, wallY + 1, w - 2, h - 1, 3);
   fillRect(grid, cx - 2, wallY + 1, cx + 2, h - 1, 3);
   fillRect(grid, cx - 1, wallY + 1, cx + 1, wallY + 3, 1);
@@ -110,24 +105,8 @@ function carveCompactBossEnclosure3x3(
   }
 }
 
-/**
- * Builds a compact 5×3 Twin-Boss Enclosure for Los Lagos (Cai Cai & Vilu Vilu).
- */
-function carveCompactTwinEnclosure5x3(grid: number[][], cx: number, wallY: number) {
-  const h = grid.length;
-  const w = grid[0].length;
-  drawHLine(grid, 1, w - 2, wallY, 3);
-  setTile(grid, cx, wallY, 1); // Gate tile
-
-  fillRect(grid, 1, wallY + 1, w - 2, h - 1, 3);
-  // 5x3 walkable chamber: x = cx-2..cx+2, y = wallY+1..wallY+3
-  fillRect(grid, cx - 2, wallY + 1, cx + 2, wallY + 3, 1);
-  // Decorative southern fjord waters visible outside
-  setTile(grid, cx, wallY + 3, 2);
-}
-
 // ============================================================================
-// 0. CASA (11×9 - Muy pequeño)
+// 0. CASA (11×9)
 // ============================================================================
 const casaTiles = (() => {
   const g = createGrid(11, 9, 10);
@@ -139,14 +118,13 @@ const casaTiles = (() => {
     g[y][0] = 8;
     g[y][10] = 8;
   }
-  // Cozy central rug
   fillRect(g, 3, 4, 7, 5, 1);
   drawVLine(g, 5, 5, 8, 1);
   return g;
 })();
 
 // ============================================================================
-// INTERIORES: HOSPITAL, SANTUARIO, TIENDA (11×9 - Muy pequeños)
+// INTERIORES: HOSPITAL, SANTUARIO, TIENDA (11×9)
 // ============================================================================
 function buildSmallInteriorGrid(): number[][] {
   const g = createGrid(11, 9, 10);
@@ -167,244 +145,393 @@ const santuarioTiles = buildSmallInteriorGrid();
 const tiendaTiles = buildSmallInteriorGrid();
 
 // ============================================================================
-// 1. REGIÓN METROPOLITANA / SANTIAGO (27×25 - Grande)
+// 1. REGIÓN METROPOLITANA / SANTIAGO (29×25)
+// - Pacífico (x=0) + 1 cuadro libre costero (x=1) + par de cerros (x=2..3)
+// - Pueblos rurales (NO y SO) + Ciudad urbana (Centro-Este)
+// - Cerro San Cristóbal (23, 4) rodeado de cerros (tile 3) con acceso sur
+// - Río Mapocho (y=12) con puentes (x=8, x=14, x=21)
+// - Flores (tile 7) y árboles (tile 4) dispersos
 // ============================================================================
 const santiagoTiles = (() => {
-  const g = createGrid(27, 25, 0);
+  const g = createGrid(29, 25, 0);
   applyChileanBorders(g);
 
-  // Wildflower & agricultural fields + scattered trees
-  fillRect(g, 2, 1, 7, 3, 7);
-  fillRect(g, 20, 1, 24, 3, 7);
-  fillRect(g, 24, 1, 25, 4, 4);
-  fillRect(g, 2, 13, 6, 16, 7);
-  fillRect(g, 19, 13, 24, 16, 7);
-  fillRect(g, 23, 15, 25, 18, 4);
-  fillRect(g, 1, 16, 3, 19, 4);
+  // Pair of west coastal cerros near the sea with 1 walkable tile gap (x=1 stays grass/path)
+  fillRect(g, 2, 5, 3, 6, 3);
+  fillRect(g, 2, 15, 3, 16, 3);
 
-  // Home building (north center) & Tienda (west 2x2)
-  fillRect(g, 10, 0, 16, 1, 8);
-  fillRect(g, 2, 4, 3, 5, 8);
+  // Cerro San Cristóbal surrounded by cerros at NE (x=21..26, y=2..6), open south entrance at (23, 5..6)
+  fillRect(g, 21, 2, 26, 5, 3);
+  setTile(g, 23, 5, 1);
+  setTile(g, 23, 6, 1);
 
-  // Main roads north of Mapocho
-  drawHLine(g, 3, 23, 2, 1);
-  drawVLine(g, 13, 2, 8, 1);
-  drawVLine(g, 3, 2, 3, 1);
-  drawHLine(g, 3, 13, 6, 1);
-  drawVLine(g, 8, 2, 10, 1);
-  drawVLine(g, 18, 2, 10, 1);
+  // Protagonist Home (North Center, x=11..17, y=0..1)
+  fillRect(g, 11, 0, 17, 1, 8);
 
-  // Río Mapocho across width at row 11 with bridges at x=8 and x=18 (keeping x=0 Ocean & x=26 Cordillera)
-  drawHLine(g, 1, 25, 11, 2);
-  setTile(g, 8, 11, 1);
-  setTile(g, 18, 11, 1);
+  // Pueblo Rural Noroeste (x=5..7, y=3..4) & Pueblo Suroeste (x=5..7, y=14..15)
+  setTile(g, 5, 3, 8);
+  setTile(g, 7, 3, 8);
+  setTile(g, 5, 14, 8);
+  setTile(g, 7, 14, 8);
 
-  // Roads south of Mapocho leading to central gate (13, 19)
-  drawVLine(g, 8, 12, 14, 1);
-  drawVLine(g, 18, 12, 14, 1);
-  drawHLine(g, 8, 21, 14, 1);
-  drawVLine(g, 13, 14, 19, 1);
-  drawVLine(g, 21, 14, 18, 1);
+  // Tienda 2×2 (x=4..5, y=8..9)
+  fillRect(g, 4, 8, 5, 9, 8);
 
-  // Wildflowers near southern valley & Cerro Santa Isabel
-  fillRect(g, 10, 15, 12, 17, 7);
-  fillRect(g, 15, 15, 17, 17, 7);
+  // Ciudad Urbana (Santiago Centro-Providencia, x=16..20, y=5..9 & x=16..19, y=14..16)
+  fillRect(g, 16, 5, 17, 6, 8);
+  fillRect(g, 19, 5, 20, 6, 8);
+  fillRect(g, 16, 8, 17, 9, 8);
+  fillRect(g, 19, 8, 20, 9, 8);
+  fillRect(g, 16, 15, 17, 16, 8);
+  fillRect(g, 19, 15, 20, 16, 8);
 
-  // Compact 3x3 Boss Enclosure at south (wallY = 19, rows 20..22 walkable, exit at (13, 24))
-  carveCompactBossEnclosure3x3(g, 13, 19, true);
-  setTile(g, 13, 23, 1);
-  setTile(g, 13, 24, 1);
+  // Scattered flora (7) and trees (4) across valleys
+  fillRect(g, 2, 2, 4, 3, 7);
+  fillRect(g, 9, 3, 10, 4, 7);
+  fillRect(g, 19, 2, 20, 3, 7);
+  fillRect(g, 25, 8, 27, 10, 4);
+  fillRect(g, 26, 14, 27, 17, 4);
+  fillRect(g, 2, 13, 3, 14, 7);
+  fillRect(g, 10, 14, 12, 16, 7);
+  fillRect(g, 22, 14, 24, 16, 7);
+  setTile(g, 9, 8, 4);
+  setTile(g, 10, 9, 4);
+  setTile(g, 21, 10, 4);
+  setTile(g, 4, 17, 4);
+  setTile(g, 24, 17, 4);
+
+  // Río Mapocho across y=12 (Pacific on x=0, Cordillera on x=28) with bridges at x=8, x=14, x=21
+  drawHLine(g, 1, 27, 12, 2);
+  setTile(g, 8, 12, 1);
+  setTile(g, 14, 12, 1);
+  setTile(g, 21, 12, 1);
+
+  // Paved city avenues & rural roads
+  drawHLine(g, 5, 20, 2, 1);
+  drawVLine(g, 14, 2, 19, 1);
+  drawHLine(g, 4, 23, 7, 1);
+  drawVLine(g, 8, 4, 17, 1);
+  drawVLine(g, 21, 7, 17, 1);
+  drawVLine(g, 4, 10, 11, 1);
+  drawHLine(g, 4, 23, 10, 1);
+  drawVLine(g, 18, 4, 17, 1);
+  drawHLine(g, 5, 22, 14, 1);
+  drawHLine(g, 8, 22, 17, 1);
+
+  // Compact 3×3 Boss Enclosure at South (wallY=19, arena rows 20..22, exit (14, 24))
+  carveCompactBossEnclosure3x3(g, 14, 19, true);
+  setTile(g, 14, 23, 1);
+  setTile(g, 14, 24, 1);
 
   return g;
 })();
 
 // ============================================================================
-// 2. REGIÓN DEL BIOBÍO (19×17 - Pequeño)
+// 2. REGIÓN DEL BIOBÍO (25×21)
+// - Más grande (25×21)
+// - Río que cruza (y=7) con puentes + Línea de Tren (tile 11, y=10)
+// - Más árboles (4), flora local (7), bolsillos jurásicos (9), ciudad (8)
+// - Volcán Antuco (21, 4) rodeado de montañas (tile 3)
+// - Hospital (NO) y Santuario (Norte-Centro-Este)
 // ============================================================================
 const biobioTiles = (() => {
-  const g = createGrid(19, 17, 0);
+  const g = createGrid(25, 21, 0);
   applyChileanBorders(g);
 
-  // North entrance gap from RM at (9, 0)
-  setTile(g, 9, 0, 1);
-  drawVLine(g, 9, 0, 11, 1);
+  // North entrance from RM at (12, 0)
+  setTile(g, 12, 0, 1);
+  drawVLine(g, 12, 0, 15, 1);
 
-  // Prehistoric amber pockets & ferns
-  fillRect(g, 13, 1, 17, 3, 9);
-  fillRect(g, 6, 1, 8, 2, 7);
-  fillRect(g, 2, 8, 5, 10, 9);
-  fillRect(g, 12, 8, 16, 10, 9);
-  fillRect(g, 1, 5, 2, 6, 4);
-  fillRect(g, 16, 5, 17, 6, 4);
+  // Volcán Antuco surrounded by mountains at NE (x=19..23, y=2..5), open south path at (21, 5..6)
+  fillRect(g, 19, 2, 23, 5, 3);
+  setTile(g, 21, 5, 1);
+  setTile(g, 21, 6, 1);
 
-  // Hospital 2x2 NW (x=2..3, y=3..4) & Santuario 2x2 NE (x=15..16, y=3..4)
-  fillRect(g, 2, 3, 3, 4, 8);
+  // Hospital 2×2 NW (x=3..4, y=3..4) & Santuario 2×2 NE-Center (x=15..16, y=3..4)
+  fillRect(g, 3, 3, 4, 4, 8);
   fillRect(g, 15, 3, 16, 4, 8);
 
-  // North paths connecting Hospital, Santuario & Ches
-  drawHLine(g, 3, 15, 2, 1);
-  drawHLine(g, 3, 15, 5, 1);
+  // City blocks (Concepción / Los Ángeles) south of river
+  fillRect(g, 5, 12, 6, 13, 8);
+  fillRect(g, 8, 12, 9, 13, 8);
+  setTile(g, 15, 12, 8);
+  setTile(g, 17, 12, 8);
 
-  // Horizontal Railway Tracks (tile 11) across row 7 (x=1..17), Ocean on x=0, Cordillera on x=18
-  drawHLine(g, 1, 17, 7, 11);
+  // More trees & local flora + prehistoric amber earth
+  fillRect(g, 1, 2, 2, 5, 4);
+  fillRect(g, 6, 1, 8, 2, 4);
+  fillRect(g, 1, 11, 2, 14, 4);
+  fillRect(g, 22, 8, 23, 14, 4);
+  setTile(g, 10, 4, 4);
+  setTile(g, 18, 8, 4);
+  setTile(g, 3, 14, 7);
+  fillRect(g, 15, 8, 17, 9, 7);
+  fillRect(g, 2, 8, 5, 9, 9);
+  fillRect(g, 13, 11, 17, 14, 9);
 
-  // Paths south of railway
-  drawVLine(g, 5, 6, 10, 1);
-  drawVLine(g, 13, 6, 10, 1);
-  drawHLine(g, 5, 15, 10, 1);
+  // Crossing River (Río Biobío) across row 7 with timber bridges at x=6, x=12, x=19
+  drawHLine(g, 1, 23, 7, 2);
+  setTile(g, 6, 7, 1);
+  setTile(g, 12, 7, 1);
+  setTile(g, 19, 7, 1);
 
-  // Bonus pocket water + secret chest at east
-  setTile(g, 15, 9, 2);
+  // Railway Tracks (tile 11) across row 10
+  drawHLine(g, 1, 23, 10, 11);
 
-  // Compact 3x3 Boss Enclosure at south (wallY = 11, arena rows 12..14, exit (9, 16))
-  carveCompactBossEnclosure3x3(g, 9, 11, true);
-  setTile(g, 9, 15, 1);
-  setTile(g, 9, 16, 1);
+  // Paths connecting Hospital, Santuario, Antuco, City & Boss Gate
+  drawHLine(g, 3, 17, 2, 1);
+  drawHLine(g, 3, 21, 6, 1);
+  drawVLine(g, 6, 2, 14, 1);
+  drawVLine(g, 19, 6, 14, 1);
+  drawHLine(g, 5, 21, 14, 1);
+
+  // Optional secret fossil pocket at East (22, 13)
+  setTile(g, 21, 13, 1);
+  setTile(g, 22, 13, 9);
+
+  // Compact 3×3 Boss Enclosure at South (wallY=15, arena rows 16..18, exit (12, 20))
+  carveCompactBossEnclosure3x3(g, 12, 15, true);
+  setTile(g, 12, 19, 1);
+  setTile(g, 12, 20, 1);
 
   return g;
 })();
 
 // ============================================================================
-// 3. REGIÓN DE LA ARAUCANÍA (23×21 - Mediano)
+// 3. REGIÓN DE LA ARAUCANÍA (27×23)
+// - Más grande (27×23)
+// - Muchos árboles (araucarias, tile 4) + flora (7)
+// - Par de cerros + Volcán Villarrica (22, 5) rodeado de cerros (3)
+// - Pequeño Lago (tile 2)
+// - Ciudad (8) + Pueblo étnico Mapuche (Rucas + Mapuche NPCs)
+// - Tienda (2×2)
 // ============================================================================
 const araucaniaTiles = (() => {
-  const g = createGrid(23, 21, 0);
+  const g = createGrid(27, 23, 0);
   applyChileanBorders(g);
 
-  // North entrance gap at (11, 0)
-  setTile(g, 11, 0, 1);
-  drawVLine(g, 11, 0, 15, 1);
+  // North entrance at (13, 0)
+  setTile(g, 13, 0, 1);
+  drawVLine(g, 13, 0, 17, 1);
 
-  // Araucaria forest clusters & wildflower meadows
-  fillRect(g, 1, 1, 5, 2, 7);
-  fillRect(g, 17, 1, 20, 3, 4);
-  fillRect(g, 14, 5, 15, 6, 5); // Volcanic pocket
-  setTile(g, 13, 5, 3);
-  setTile(g, 16, 5, 3);
-  fillRect(g, 17, 9, 20, 10, 5); // East volcano ridge
-  setTile(g, 17, 8, 3);
-  setTile(g, 18, 8, 3);
+  // Volcán Villarrica surrounded by cerros at NE (x=20..24, y=3..6), approach at (22, 6)
+  fillRect(g, 20, 3, 24, 6, 3);
+  setTile(g, 22, 6, 1);
+  setTile(g, 22, 7, 1);
 
-  fillRect(g, 3, 10, 6, 12, 7);
+  // Pair of cerros (West & South-East)
+  fillRect(g, 2, 8, 3, 9, 3);
+  fillRect(g, 21, 14, 22, 15, 3);
+
+  // Tienda 2×2 NW (x=3..4, y=3..4)
+  fillRect(g, 3, 3, 4, 4, 8);
+
+  // Ciudad (Temuco urban cluster, x=15..18, y=3..5)
+  fillRect(g, 15, 3, 16, 4, 8);
+  setTile(g, 18, 3, 8);
+  setTile(g, 18, 5, 8);
+
+  // Small Lake (Lago Villarrica, x=8..11, y=11..13)
+  fillRect(g, 8, 11, 11, 13, 2);
+
+  // Lots of Araucaria trees (tile 4) & wildflower meadows (tile 7)
+  fillRect(g, 1, 1, 2, 6, 4);
+  fillRect(g, 6, 1, 11, 2, 4);
+  fillRect(g, 24, 1, 25, 15, 4);
+  fillRect(g, 1, 11, 2, 16, 4);
+  fillRect(g, 15, 9, 17, 11, 4);
+  fillRect(g, 20, 9, 22, 11, 4);
+  fillRect(g, 17, 15, 19, 16, 4);
+  setTile(g, 6, 7, 4);
+  setTile(g, 8, 7, 4);
+  setTile(g, 19, 12, 4);
+
+  fillRect(g, 5, 3, 7, 5, 7);
   fillRect(g, 14, 12, 17, 14, 7);
-  fillRect(g, 1, 13, 2, 14, 4);
+  fillRect(g, 3, 15, 7, 16, 7);
 
-  // 2x2 Tienda building NW (x=2..3, y=3..4)
-  fillRect(g, 2, 3, 3, 4, 8);
+  // Winding trails around lake, city, Mapuche village (SW around x=3..7, y=10..14) & Villarrica
+  drawHLine(g, 3, 19, 2, 1);
+  drawHLine(g, 3, 19, 6, 1);
+  drawHLine(g, 18, 22, 7, 1);
+  drawVLine(g, 6, 6, 14, 1);
+  drawVLine(g, 18, 6, 13, 1);
+  drawHLine(g, 4, 18, 10, 1);
+  drawHLine(g, 6, 20, 14, 1);
 
-  // Winding trails
-  drawHLine(g, 3, 15, 2, 1);
-  drawHLine(g, 3, 11, 5, 1);
-  drawVLine(g, 7, 5, 12, 1);
-  drawHLine(g, 7, 18, 12, 1);
-  drawVLine(g, 18, 8, 12, 1);
-
-  // Compact 3x3 Boss Enclosure at south (wallY = 15, arena rows 16..18, exit (11, 20))
-  carveCompactBossEnclosure3x3(g, 11, 15, true);
-  setTile(g, 11, 19, 1);
-  setTile(g, 11, 20, 1);
+  // Compact 3×3 Boss Enclosure at South (wallY=17, arena rows 18..20, exit (13, 22))
+  carveCompactBossEnclosure3x3(g, 13, 17, true);
+  setTile(g, 13, 21, 1);
+  setTile(g, 13, 22, 1);
 
   return g;
 })();
 
 // ============================================================================
-// 4. REGIÓN DE LOS RÍOS (23×21 - Mediano)
+// 4. REGIÓN DE LOS RÍOS (29×25)
+// - Más grande (29×25)
+// - Hospital (NO) y Santuario (NE)
+// - 2 Ríos que cruzan (y=7 y y=15) + 1 Lago (x=18..22, y=10..12)
+// - 1 Pueblo (Oeste) + 1 Ciudad (Centro)
+// - Flora local (7) + árboles (4)
+// - Par de cerros + 2 Volcanes: Volcán Mocho-Choshuenco (24,4) + Volcán Puyehue (25,11)
 // ============================================================================
 const losriosTiles = (() => {
-  const g = createGrid(23, 21, 0);
+  const g = createGrid(29, 25, 0);
   applyChileanBorders(g);
 
-  // North entrance gap at (11, 0)
-  setTile(g, 11, 0, 1);
-  drawVLine(g, 11, 0, 15, 1);
+  // North entrance at (14, 0)
+  setTile(g, 14, 0, 1);
+  drawVLine(g, 14, 0, 19, 1);
 
-  // Valdivian rainforest & lush ferns
-  fillRect(g, 5, 1, 7, 2, 4);
-  fillRect(g, 15, 1, 17, 2, 4);
-  fillRect(g, 2, 1, 4, 2, 7);
-  fillRect(g, 19, 1, 21, 2, 7);
-  fillRect(g, 3, 11, 6, 13, 7);
-  fillRect(g, 15, 11, 18, 13, 7);
+  // Hospital 2×2 NW (x=3..4, y=3..4) & Santuario 2×2 Center-NE (x=17..18, y=3..4)
+  fillRect(g, 3, 3, 4, 4, 8);
+  fillRect(g, 17, 3, 18, 4, 8);
 
-  // 2x2 Hospital NW (x=2..3, y=3..4) & 2x2 Santuario NE (x=19..20, y=3..4)
-  fillRect(g, 2, 3, 3, 4, 8);
-  fillRect(g, 19, 3, 20, 4, 8);
+  // Volcán Mocho-Choshuenco surrounded by hills at NE (x=22..26, y=2..5), approach (24, 5..6)
+  fillRect(g, 22, 2, 26, 5, 3);
+  setTile(g, 24, 5, 1);
+  setTile(g, 24, 6, 1);
 
-  // River branches (Calle-Calle) across rows 8..9 with timber bridges at x=5, x=11, x=17
-  drawHLine(g, 1, 21, 8, 2);
-  drawHLine(g, 2, 9, 9, 2);
-  drawHLine(g, 13, 20, 9, 2);
-  setTile(g, 5, 8, 1);
-  setTile(g, 5, 9, 1);
-  setTile(g, 11, 8, 1);
-  setTile(g, 17, 8, 1);
-  setTile(g, 17, 9, 1);
+  // Second Volcano: Volcán Puyehue at (25, 11) with rocky collar
+  fillRect(g, 24, 10, 26, 11, 3);
+  setTile(g, 25, 12, 1);
 
-  // Trails connecting Hospital, Santuario, bridges & bonus pocket
-  drawHLine(g, 3, 19, 2, 1);
-  drawHLine(g, 3, 19, 5, 1);
-  drawVLine(g, 5, 5, 13, 1);
-  drawVLine(g, 17, 5, 13, 1);
-  drawHLine(g, 2, 17, 13, 1);
-  setTile(g, 1, 13, 0);
+  // Pair of cerros (West-South & East-South)
+  fillRect(g, 2, 16, 3, 17, 3);
+  fillRect(g, 23, 16, 24, 17, 3);
 
-  // Compact 3x3 Boss Enclosure at south (wallY = 15, arena rows 16..18, exit (11, 20))
-  carveCompactBossEnclosure3x3(g, 11, 15, true);
-  setTile(g, 11, 19, 1);
-  setTile(g, 11, 20, 1);
+  // Pueblo (x=3..5, y=9..11) & Ciudad (Valdivia center, x=8..11, y=9..12)
+  setTile(g, 3, 9, 8);
+  setTile(g, 5, 9, 8);
+  setTile(g, 4, 11, 8);
+  fillRect(g, 8, 9, 9, 10, 8);
+  fillRect(g, 11, 9, 12, 10, 8);
+  fillRect(g, 8, 12, 9, 13, 8);
+
+  // River 1 across row 7 (x=1..27) with bridges at x=6, x=14, x=22
+  drawHLine(g, 1, 27, 7, 2);
+  setTile(g, 6, 7, 1);
+  setTile(g, 14, 7, 1);
+  setTile(g, 22, 7, 1);
+
+  // Lake (Lago Ranco / Panguipulli) at x=18..21, y=10..12
+  fillRect(g, 18, 10, 21, 12, 2);
+
+  // River 2 across row 15 (x=1..27) with bridges at x=6, x=14, x=22
+  drawHLine(g, 1, 27, 15, 2);
+  setTile(g, 6, 15, 1);
+  setTile(g, 14, 15, 1);
+  setTile(g, 22, 15, 1);
+
+  // Dense Valdivian flora (7) and rainforest trees (4)
+  fillRect(g, 6, 1, 11, 2, 4);
+  fillRect(g, 1, 1, 2, 5, 4);
+  fillRect(g, 26, 12, 27, 14, 4);
+  fillRect(g, 5, 16, 9, 17, 7);
+  fillRect(g, 16, 16, 20, 17, 7);
+  fillRect(g, 2, 12, 6, 13, 7);
+  fillRect(g, 15, 9, 17, 11, 7);
+
+  // Connecting trails & bridge links
+  drawHLine(g, 3, 21, 2, 1);
+  drawHLine(g, 3, 24, 6, 1);
+  drawVLine(g, 6, 5, 17, 1);
+  drawVLine(g, 22, 6, 17, 1);
+  drawHLine(g, 6, 17, 11, 1);
+  drawHLine(g, 14, 25, 13, 1);
+  drawHLine(g, 4, 22, 17, 1);
+
+  // Compact 3×3 Boss Enclosure at South (wallY=19, arena rows 20..22, exit (14, 24))
+  carveCompactBossEnclosure3x3(g, 14, 19, true);
+  setTile(g, 14, 23, 1);
+  setTile(g, 14, 24, 1);
 
   return g;
 })();
 
 // ============================================================================
-// 5. REGIÓN DE LOS LAGOS (33×29 - Muy grande)
+// 5. REGIÓN DE LOS LAGOS (37×31)
+// - Continente se extiende al sur SÓLO por la mitad ESTE (Cordillera, x=18..35)
+// - Mitad OESTE / SUROESTE es Mar Pacífico abierto (tile 2) con una GRAN ISLA (Chiloé, x=2..14, y=9..23)
+//   conectada al continente por el puente/ferry en y=14 (x=14..19)
+// - Nieve (tile 6) marcada hacia la Cordillera (este)
+// - Volcán Osorno (32, 5) rodeado de cerros/montañas (3) + más cerros y árboles
+// - 3 Pueblos (Palafitos Castro en Isla, Quellón Sur en Isla, Ensenada Este) + 1 Ciudad (Puerto Montt/Varas NE)
+// - Tienda (2×2) + Santuario Gemelo 5×3 de Cai Cai & Vilu Vilu al sur del continente
 // ============================================================================
 const loslagosTiles = (() => {
-  const g = createGrid(33, 29, 0);
+  const g = createGrid(37, 31, 0);
   applyChileanBorders(g);
 
-  // North entrance gap at (16, 0)
-  setTile(g, 16, 0, 1);
-  drawVLine(g, 16, 0, 23, 1);
+  // North entrance from Los Ríos at (18, 0)
+  setTile(g, 18, 0, 1);
+  drawVLine(g, 18, 0, 6, 1);
 
-  // Snow plains, glacial fields & subantarctic forests
-  fillRect(g, 2, 1, 6, 3, 6);
-  fillRect(g, 25, 1, 30, 3, 6);
-  fillRect(g, 8, 1, 10, 2, 4);
-  fillRect(g, 21, 1, 23, 2, 4);
-  fillRect(g, 3, 11, 7, 14, 6);
-  fillRect(g, 25, 11, 30, 14, 6);
-  fillRect(g, 4, 17, 9, 20, 6);
-  fillRect(g, 23, 17, 29, 20, 6);
-  fillRect(g, 2, 18, 3, 21, 4);
-  fillRect(g, 29, 18, 31, 21, 4);
+  // Southern Pacific Gulf on the West (x = 0..17, y = 7..29)
+  fillRect(g, 0, 7, 17, 29, 2);
 
-  // Palafitos de Chiloé (colorful lakeside houses on stilts) + 2x2 Tienda Austral NE (x=27..28, y=4..5)
-  fillRect(g, 4, 5, 6, 5, 8);
-  fillRect(g, 27, 4, 28, 5, 8);
+  // Large Island (Isla Grande de Chiloé) sitting in the Western Sea: x = 2..14, y = 9..23
+  fillRect(g, 2, 9, 14, 23, 0);
+  fillRect(g, 4, 10, 12, 12, 7); // Island wildflower fields
+  fillRect(g, 2, 16, 4, 19, 4); // Chiloé National Park trees
+  fillRect(g, 11, 18, 13, 21, 4);
+  fillRect(g, 4, 11, 5, 11, 3); // Western island hill
 
-  // Southern Archipelago Fjords (water pools) with timber bridges
-  fillRect(g, 8, 7, 13, 9, 2);
-  fillRect(g, 19, 7, 24, 9, 2);
-  fillRect(g, 8, 15, 12, 16, 2);
-  fillRect(g, 20, 15, 24, 16, 2);
+  // Pueblo 1 (Castro Palafitos on Island, x=5..7, y=13) & Pueblo 2 (Quellón Sur on Island, x=6..8, y=20)
+  fillRect(g, 5, 13, 7, 13, 8);
+  fillRect(g, 6, 20, 8, 20, 8);
 
-  // Trails weaving across fjords & snowfields
-  drawHLine(g, 4, 28, 2, 1);
-  drawVLine(g, 6, 2, 19, 1);
-  drawVLine(g, 28, 2, 19, 1);
-  drawHLine(g, 6, 28, 6, 1);
-  drawHLine(g, 3, 28, 12, 1);
-  drawHLine(g, 6, 28, 19, 1);
-  drawVLine(g, 11, 12, 19, 1);
-  drawVLine(g, 21, 12, 19, 1);
+  // Bridge / Chacao Channel Crossing (x = 13..20, y = 14) linking Island <-> Mainland
+  drawHLine(g, 4, 26, 14, 1);
+  drawVLine(g, 8, 10, 22, 1);
 
-  // Glacial bonus pocket at west (x=1..3, y=12)
-  setTile(g, 2, 12, 1);
-  setTile(g, 1, 12, 6);
+  // Mainland Snow marked strongly toward the Cordillera (East side, x=26..35)
+  fillRect(g, 26, 1, 35, 24, 6);
+  fillRect(g, 22, 16, 35, 24, 6);
 
-  // Compact 5x3 Twin-Serpent Sanctuary at south (wallY = 23, arena rows 24..26)
-  carveCompactTwinEnclosure5x3(g, 16, 23);
+  // Mainland Trees (tile 4) & Wildflowers (tile 7)
+  fillRect(g, 2, 1, 7, 2, 4);
+  fillRect(g, 10, 1, 14, 2, 4);
+  fillRect(g, 20, 17, 23, 20, 4);
+  fillRect(g, 32, 11, 35, 15, 4);
+  fillRect(g, 19, 10, 21, 13, 7);
+
+  // Volcán Osorno surrounded by mountains at East (x=30..34, y=3..6), approach (32, 6..7)
+  fillRect(g, 30, 3, 34, 6, 3);
+  setTile(g, 32, 6, 1);
+  setTile(g, 32, 7, 1);
+
+  // Extra Cordillera Cerros / Mountains on Mainland
+  fillRect(g, 27, 11, 28, 12, 3);
+  fillRect(g, 31, 17, 32, 18, 3);
+
+  // Ciudad (Puerto Montt / Varas urban district, x=20..24, y=3..5)
+  fillRect(g, 20, 3, 21, 4, 8);
+  fillRect(g, 23, 3, 24, 4, 8);
+
+  // Tienda 2×2 on Mainland (x=22..23, y=8..9)
+  fillRect(g, 22, 8, 23, 9, 8);
+
+  // Pueblo 3 (Ensenada Cordillerana, x=28..30, y=8..9)
+  setTile(g, 28, 8, 8);
+  setTile(g, 30, 8, 8);
+
+  // Mainland Trails
+  drawHLine(g, 4, 29, 2, 1);
+  drawHLine(g, 18, 32, 6, 1);
+  drawHLine(g, 22, 32, 10, 1);
+  drawVLine(g, 20, 6, 16, 1);
+  drawVLine(g, 26, 6, 25, 1);
+  drawVLine(g, 30, 6, 21, 1);
+  drawHLine(g, 20, 30, 21, 1);
+
+  // Twin-Boss Sanctuary (5×3) ONLY on eastern mainland (x=18..35, wallY=25) so West Sea stays open!
+  drawHLine(g, 18, 35, 25, 3);
+  setTile(g, 26, 25, 1); // Gate at (26, 25)
+  fillRect(g, 18, 26, 35, 29, 3);
+  fillRect(g, 24, 26, 28, 28, 1); // Walkable 5x3 chamber
+  setTile(g, 26, 29, 2); // Southern fjord waters visible at bottom border
 
   return g;
 })();
@@ -470,7 +597,7 @@ export const REGIONS_DATA: Record<RegionId, MapRegion> = {
         sprite: 'npc_villager_f',
         dialog: [
           '¡Buenos días, tesoro! Hoy comienza tu gran travesía desde la R. Metropolitana hasta Los Lagos.',
-          'Recuerda: los caminos y puentes son seguros (0% encuentros), mientras que en el pasto o flores aparecen criaturas (1%-3%).',
+          'Recuerda: los caminos y puentes son seguros (0% encuentros), mientras que en el pasto o flores aparecen Criaturas Espirituales (1%-3%).',
           'Siempre puedes volver a dormir en tu cama para recuperar fuerzas. ¡Buen viaje!',
         ],
       },
@@ -483,7 +610,7 @@ export const REGIONS_DATA: Record<RegionId, MapRegion> = {
         sprite: 'deco_libro',
         dialog: [
           'Apuntes de Casa: Tiendas en Stages 1, 3 y 5; Hospitales y Santuarios de Evolución en Stages 2 y 4.',
-          'Al oeste de Chile se extiende el Océano Pacífico y al este la Cordillera de los Andes.',
+          'Inspecciona el cerro o volcán emblemático de cada región para despejar por completo la sombra del mapa.',
         ],
       },
       {
@@ -503,7 +630,7 @@ export const REGIONS_DATA: Record<RegionId, MapRegion> = {
         name: 'Salir a R. Metropolitana',
         sprite: 'portal_sign',
         destinationRegion: 'santiago',
-        destinationX: 13,
+        destinationX: 14,
         destinationY: 3,
       },
     ],
@@ -514,8 +641,8 @@ export const REGIONS_DATA: Record<RegionId, MapRegion> = {
     id: 'santiago',
     name: 'R. Metropolitana',
     subtitle: 'Stage 1 · Río Mapocho, Cerros y Urbe',
-    lore: 'El Río Mapocho cruza el Valle Central entre el Océano Pacífico al oeste, la Cordillera al este y los Cerros Blanco, San Cristóbal y Santa Isabel.',
-    width: 27,
+    lore: 'El Río Mapocho cruza el Valle Central entre el Océano Pacífico al oeste, pueblos rurales, la ciudad y el Cerro San Cristóbal rodeado de cumbres.',
+    width: 29,
     height: 25,
     ambientColor: '#15803d',
     themeColor: '#38bdf8',
@@ -527,7 +654,7 @@ export const REGIONS_DATA: Record<RegionId, MapRegion> = {
     entities: [
       {
         id: 'portal_santiago_to_casa',
-        x: 13,
+        x: 14,
         y: 2,
         type: 'portal',
         name: 'Tu Casa Familiar',
@@ -538,22 +665,22 @@ export const REGIONS_DATA: Record<RegionId, MapRegion> = {
       },
       {
         id: 'npc_profesor',
-        x: 13,
+        x: 14,
         y: 4,
         type: 'npc',
         name: 'Don Ignacio',
         sprite: 'npc_old_man',
         dialog: [
           '¡Qué gusto verte salir de casa! Soy Don Ignacio, guardián botánico de la R. Metropolitana.',
-          'Visita la Tienda de Don Manuel al oeste y usa a tu espíritu LÍDER activo de TIERRA para despejar la barrera hacia el Costanera Center.',
-          '¡Toma estos Amuletos de Vínculo para tu expedición!',
+          'Sube al mirador del Cerro San Cristóbal al noreste para revelar todo el mapa de la región sin sombras.',
+          '¡Toma estos Amuletos de Vínculo para reclutar un Quiltro de TIERRA y despejar la barrera del sur!',
         ],
         rewardItem: { id: 'orbe_resonancia', count: 3 },
       },
       {
         id: 'portal_tienda_santiago',
-        x: 3,
-        y: 6,
+        x: 4,
+        y: 10,
         type: 'portal',
         name: 'Tienda de Don Manuel',
         sprite: 'portal_tienda',
@@ -565,7 +692,7 @@ export const REGIONS_DATA: Record<RegionId, MapRegion> = {
       },
       {
         id: 'deco_cerro_blanco_rm',
-        x: 5,
+        x: 6,
         y: 2,
         type: 'decorative',
         name: 'Cerro Blanco (Norte)',
@@ -573,33 +700,55 @@ export const REGIONS_DATA: Record<RegionId, MapRegion> = {
         dialog: ['Cerro Blanco: mirador ancestral de piedra blanca en el sector norte de Santiago.'],
       },
       {
-        id: 'deco_san_cristobal_rm',
-        x: 22,
-        y: 2,
+        id: 'deco_cerro_costa_rm_1',
+        x: 2,
+        y: 5,
         type: 'decorative',
-        name: 'Cerro San Cristóbal',
+        name: 'Cerro Costero Norte',
+        sprite: 'deco_cerro_verde',
+        dialog: ['Mirador costero con brisa del Océano Pacífico a un paso de la playa.'],
+      },
+      {
+        id: 'deco_cerro_costa_rm_2',
+        x: 2,
+        y: 15,
+        type: 'decorative',
+        name: 'Cerro Costero Sur',
+        sprite: 'deco_cerro_verde',
+        dialog: ['Ladera frente al mar donde anidan las torcazas de la costa central.'],
+      },
+      {
+        id: 'landmark_san_cristobal_rm',
+        x: 23,
+        y: 4,
+        type: 'decorative',
+        name: 'Cerro San Cristóbal (Mirador)',
         sprite: 'deco_san_cristobal',
-        dialog: ['Desde el Cerro San Cristóbal se divisa el Río Mapocho y toda la Cordillera nevada al este.'],
+        revealsRegionMap: true,
+        dialog: [
+          '¡Subiste al mirador del Cerro San Cristóbal rodeado de cerros!',
+          'Desde aquí divisas toda la R. Metropolitana, el Río Mapocho, sus pueblos y la Cordillera. ¡La sombra del mapa ha desaparecido!',
+        ],
       },
       {
         id: 'deco_cerro_santa_isabel_rm',
-        x: 21,
+        x: 24,
         y: 18,
         type: 'decorative',
         name: 'Cerro Santa Isabel (Sur)',
         sprite: 'deco_cerro_santa_isabel',
-        dialog: ['Cerro Santa Isabel: loma verde al sur del Río Mapocho donde descansan torcazas y quiltros.'],
+        dialog: ['Cerro Santa Isabel: loma verde al sur del Río Mapocho donde descansan quiltros y loicas.'],
       },
       {
         id: 'npc_escolar_rm',
-        x: 9,
-        y: 6,
+        x: 10,
+        y: 7,
         type: 'npc',
         name: 'Tomás · Niño Escolar',
         sprite: 'npc_escolar',
         dialog: [
-          '¡Hola! En caminos y puentes sobre el Río Mapocho nunca aparecen monstruos salvajes (0%).',
-          'Si buscas Quiltros de Tierra para abrir la barrera del sur, explora el pasto o flores (1%-3%).',
+          '¡Hola! Entre el océano y los cerros de la costa queda un sendero de pasto tranquilo.',
+          'Al noreste está el Cerro San Cristóbal rodeado de cerros: ¡visítalo para ver el mapa completo!',
         ],
       },
       {
@@ -611,40 +760,48 @@ export const REGIONS_DATA: Record<RegionId, MapRegion> = {
         sprite: 'npc_obrero',
         dialog: [
           'Las rocas del bloque sur sellan el acceso al Costanera Center.',
-          'Recuerda llevar un espíritu de TIERRA (como un Quiltro) como LÍDER ACTIVO para abrir la barrera.',
+          'Recuerda vincular un Quiltro de TIERRA y ponerlo como LÍDER ACTIVO para abrir la barrera.',
         ],
       },
       {
         id: 'npc_maestro_santiago',
-        x: 14,
+        x: 15,
         y: 21,
         type: 'npc',
         name: 'Maestro Vínculo Rodrigo',
         sprite: 'npc_maestro_vinculo',
         dialog: [
-          'Soy Rodrigo, Maestro Vínculo de la R. Metropolitana. Custodio al coloso Edificio Costanera Center (Nv.5).',
-          'Vence esta prueba y obtendrás la Medalla Valle Central.',
+          'Soy Rodrigo, Maestro Vínculo de la R. Metropolitana. Custodio al coloso Costanera Center (Nv.5).',
+          'Vence esta prueba y obtendrás el Amuleto Espiritual Valle Central.',
         ],
       },
       {
         id: 'chest_santiago_1',
-        x: 3,
-        y: 2,
+        x: 6,
+        y: 4,
         type: 'chest',
-        name: 'Cofre del Cerro Blanco',
+        name: 'Cofre del Pueblo Norte',
         sprite: 'chest',
         rewardItem: { id: 'esencia_pewen', count: 1 },
-        rewardGold: 120,
+        rewardGold: 140,
       },
       {
-        id: 'chest_santiago_2',
-        x: 20,
-        y: 2,
+        id: 'item_hp_santiago_1',
+        x: 1,
+        y: 10,
         type: 'chest',
-        name: 'Cofre San Cristóbal',
-        sprite: 'chest',
-        rewardItem: { id: 'orbe_resonancia', count: 4 },
-        rewardGold: 100,
+        name: 'Baya de Vitalidad (+100% PS)',
+        sprite: 'item_hp',
+        healHpPercent: 100,
+      },
+      {
+        id: 'item_mana_santiago_1',
+        x: 23,
+        y: 10,
+        type: 'chest',
+        name: 'Cristal de Maná (+100% PM)',
+        sprite: 'item_mana',
+        healMpPercent: 100,
       },
       {
         id: 'wild_santiago_quiltro',
@@ -659,7 +816,7 @@ export const REGIONS_DATA: Record<RegionId, MapRegion> = {
       {
         id: 'wild_santiago_gato',
         x: 5,
-        y: 14,
+        y: 16,
         type: 'wild_encounter',
         name: 'Gato Güiña Silvestre (Nv.4)',
         sprite: 'wild_gato_chileno',
@@ -668,7 +825,7 @@ export const REGIONS_DATA: Record<RegionId, MapRegion> = {
       },
       {
         id: 'wild_santiago_loica',
-        x: 20,
+        x: 22,
         y: 15,
         type: 'wild_encounter',
         name: 'Loica Guardiana (Nv.4)',
@@ -678,18 +835,18 @@ export const REGIONS_DATA: Record<RegionId, MapRegion> = {
       },
       {
         id: 'obstacle_santiago_ruta',
-        x: 13,
+        x: 14,
         y: 19,
         type: 'obstacle',
         name: 'Barrera Sísmica de Hormigón (Misión)',
         sprite: 'obstacle_rock',
         elementRequired: 'tierra',
-        obstacleClearMessage: '¡Tu espíritu activo de TIERRA estabilizó la barrera y despejó el patio del Costanera Center!',
-        dialog: ['Bloques sísmicos sellan el acceso sur. Equipa como LÍDER ACTIVO a un espíritu de TIERRA (ej. Quiltro).'],
+        obstacleClearMessage: '¡Tu Criatura Espiritual de TIERRA estabilizó la barrera hacia el Costanera Center!',
+        dialog: ['Bloques sísmicos sellan el acceso sur. Equipa como LÍDER ACTIVO a una Criatura Espiritual de TIERRA (ej. Quiltro).'],
       },
       {
         id: 'boss_santiago',
-        x: 13,
+        x: 14,
         y: 21,
         type: 'boss',
         name: 'Coloso Costanera Center (Nv.5)',
@@ -697,17 +854,17 @@ export const REGIONS_DATA: Record<RegionId, MapRegion> = {
         bossSpiritId: 'costanera',
         customLevel: 5,
         requiresMissionsCleared: true,
-        dialog: ['¡EL ESPÍRITU DEL COSTANERA CENTER DESPIERTA SOBRE EL RÍO MAPOCHO!'],
+        dialog: ['¡EL COLOSO DEL COSTANERA CENTER DESPIERTA SOBRE EL RÍO MAPOCHO!'],
       },
       {
         id: 'portal_to_biobio',
-        x: 13,
+        x: 14,
         y: 24,
         type: 'portal',
         name: 'Ruta a R. del Biobío',
         sprite: 'portal_sign',
         destinationRegion: 'biobio',
-        destinationX: 9,
+        destinationX: 12,
         destinationY: 1,
       },
     ],
@@ -723,10 +880,10 @@ export const REGIONS_DATA: Record<RegionId, MapRegion> = {
   biobio: {
     id: 'biobio',
     name: 'R. del Biobío',
-    subtitle: 'Stage 2 · Vía Férrea, Neblina y Fósiles',
-    lore: 'Pequeño valle costero-andino entre el Océano Pacífico y la Cordillera, con línea férrea, neblina densa, Hospital, Santuario y fósiles jurásicos.',
-    width: 19,
-    height: 17,
+    subtitle: 'Stage 2 · Río, Vía Férrea y Volcán Antuco',
+    lore: 'Extenso valle entre el Pacífico y el Volcán Antuco, cruzado por un gran río y la antigua vía férrea, entre bosques, ciudad y fósiles jurásicos.',
+    width: 25,
+    height: 21,
     ambientColor: '#475569',
     themeColor: '#f97316',
     weather: 'lluvia_intermitente',
@@ -737,26 +894,26 @@ export const REGIONS_DATA: Record<RegionId, MapRegion> = {
     entities: [
       {
         id: 'portal_back_santiago',
-        x: 9,
+        x: 12,
         y: 0,
         type: 'portal',
         name: 'Volver a R. Metropolitana',
         sprite: 'portal_sign',
         destinationRegion: 'santiago',
-        destinationX: 13,
+        destinationX: 14,
         destinationY: 22,
       },
       {
         id: 'npc_lautaro_biobio',
-        x: 7,
+        x: 10,
         y: 2,
         type: 'npc',
         name: 'Lautaro · Guardián del Biobío',
         sprite: 'npc_ranger',
         dialog: [
-          '¡Bienvenido a la R. del Biobío! Al oeste tienes el Hospital y al este el Santuario de Evolución.',
-          'Cruza la línea del tren al centro y equipa un espíritu de FUEGO como LÍDER ACTIVO para abrir paso hacia el T-Rex.',
-          'Recibe estas Gotas Termales para recuperar maná.',
+          '¡Bienvenido a la R. del Biobío! Al oeste está el Hospital, al centro-este el Santuario de Evolución y más allá el Volcán Antuco.',
+          'Al visitar el Volcán Antuco despejarás toda la sombra del mapa regional.',
+          'Luego cruza el río y la vía férrea y lleva un Velociraptor Ígneo (FUEGO) como Líder Activo. ¡Toma estas Gotas Termales!',
         ],
         rewardItem: { id: 'gota_termal', count: 3 },
       },
@@ -783,83 +940,103 @@ export const REGIONS_DATA: Record<RegionId, MapRegion> = {
         destinationY: 7,
       },
       {
+        id: 'landmark_volcan_antuco_biobio',
+        x: 21,
+        y: 4,
+        type: 'decorative',
+        name: 'Volcán Antuco (Cumbre)',
+        sprite: 'deco_volcan',
+        revealsRegionMap: true,
+        dialog: [
+          '¡Contemplaste la cumbre nevada del Volcán Antuco rodeada de montañas!',
+          'El viento cordillerano disipa la neblina de toda la R. del Biobío. ¡Mapa regional completamente revelado!',
+        ],
+      },
+      {
         id: 'npc_agricultor_biobio',
-        x: 5,
+        x: 6,
         y: 6,
         type: 'npc',
         name: 'Raúl · Agricultor del Laja',
         sprite: 'npc_agricultor',
         dialog: [
-          'La vía férrea atraviesa el valle entre neblina y lluvia intermitente.',
-          'Tanto la línea del tren como los caminos de piedra tienen 0% de encuentros salvajes.',
+          'Los puentes sobre el Río Biobío y la línea del tren tienen 0% de encuentros salvajes.',
         ],
       },
       {
         id: 'npc_arqueologo_biobio',
-        x: 13,
-        y: 8,
+        x: 16,
+        y: 11,
         type: 'npc',
         name: 'Dr. Morales · Arqueólogo',
         sprite: 'npc_arqueologo',
         dialog: [
-          'Hemos hallado Huevos Dino y Velociraptores de fuego junto al ámbar prehistórico.',
-          'Pon un espíritu de FUEGO como LÍDER ACTIVO para quemar la maleza fósil que bloquea el estadio del T-Rex.',
+          'Cerca de la ciudad del Biobío hallamos Velociraptores de fuego y Cuellilargos junto al ámbar jurásico.',
+          'Pon una Criatura Espiritual de FUEGO como LÍDER ACTIVO para quemar la maleza fósil del estadio del T-Rex.',
         ],
       },
       {
         id: 'npc_musico_biobio',
-        x: 5,
-        y: 10,
+        x: 7,
+        y: 14,
         type: 'npc',
         name: 'Mateo · Músico Ferroviario',
         sprite: 'npc_musico',
-        dialog: ['Toco guitarra junto a las vías del antiguo tren al sur. ¡Éxito frente al T-Rex Tirano!'],
+        dialog: ['Toco guitarra entre la estación ferroviaria y la ciudad del Biobío. ¡Éxito frente al T-Rex Tirano!'],
       },
       {
         id: 'npc_maestro_biobio',
-        x: 10,
-        y: 13,
+        x: 13,
+        y: 17,
         type: 'npc',
         name: 'Maestro Vínculo Lautaro',
         sprite: 'npc_maestro_vinculo',
         dialog: [
-          'Custodio al T-Rex Tirano del Biobío (Nv.7). Demuestra tu estrategia elemental para ganar la Medalla Jurásica Biobío.',
+          'Custodio al T-Rex Tirano del Biobío (Nv.7). Demuestra tu estrategia elemental para ganar el Amuleto Espiritual Jurásico Biobío.',
         ],
       },
       {
-        id: 'chest_biobio_1',
-        x: 15,
-        y: 2,
-        type: 'chest',
-        name: 'Cofre del Claro Jurásico',
-        sprite: 'chest',
-        rewardItem: { id: 'infusion_calafate', count: 2 },
-        rewardGold: 160,
-      },
-      {
         id: 'obstacle_biobio',
-        x: 15,
-        y: 9,
+        x: 20,
+        y: 13,
         type: 'obstacle',
         name: 'Grieta Torrencial (Opcional)',
         sprite: 'obstacle_water',
         elementRequired: 'agua',
-        obstacleClearMessage: 'Tu espíritu activo de AGUA serenó la grieta y despejó el cofre secreto.',
+        obstacleClearMessage: 'Tu Criatura Espiritual de AGUA serenó la grieta y despejó el cofre secreto.',
       },
       {
         id: 'chest_biobio_bonus',
-        x: 16,
-        y: 9,
+        x: 22,
+        y: 13,
         type: 'chest',
-        name: 'Cofre Fósil Secreto',
+        name: 'Cofre Fósil del Antuco',
         sprite: 'chest',
         rewardItem: { id: 'corazon_basalto', count: 1 },
         rewardGold: 220,
       },
       {
-        id: 'wild_biobio_velociraptor',
-        x: 12,
+        id: 'item_hp_biobio_1',
+        x: 2,
         y: 9,
+        type: 'chest',
+        name: 'Poción de Vitalidad (+100% PS)',
+        sprite: 'item_hp',
+        healHpPercent: 100,
+      },
+      {
+        id: 'item_mana_biobio_1',
+        x: 18,
+        y: 9,
+        type: 'chest',
+        name: 'Cristal de Maná (+100% PM)',
+        sprite: 'item_mana',
+        healMpPercent: 100,
+      },
+      {
+        id: 'wild_biobio_velociraptor',
+        x: 14,
+        y: 11,
         type: 'wild_encounter',
         name: 'Velociraptor Ígneo (Nv.6)',
         sprite: 'wild_velociraptor',
@@ -868,8 +1045,8 @@ export const REGIONS_DATA: Record<RegionId, MapRegion> = {
       },
       {
         id: 'wild_biobio_cuellilargo',
-        x: 13,
-        y: 10,
+        x: 11,
+        y: 13,
         type: 'wild_encounter',
         name: 'Cuellilargo Ancestral (Nv.6)',
         sprite: 'wild_cuellilargo',
@@ -878,7 +1055,7 @@ export const REGIONS_DATA: Record<RegionId, MapRegion> = {
       },
       {
         id: 'wild_biobio_huevodino',
-        x: 7,
+        x: 4,
         y: 9,
         type: 'wild_encounter',
         name: 'Huevo Dino Fósil (Nv.6)',
@@ -888,19 +1065,19 @@ export const REGIONS_DATA: Record<RegionId, MapRegion> = {
       },
       {
         id: 'obstacle_biobio_ruta',
-        x: 9,
-        y: 11,
+        x: 12,
+        y: 15,
         type: 'obstacle',
         name: 'Maleza Jurásica Densa (Misión)',
         sprite: 'obstacle_vines',
         elementRequired: 'fuego',
-        obstacleClearMessage: '¡Tu espíritu activo de FUEGO quemó la maleza jurásica abriendo paso al T-Rex!',
-        dialog: ['Enredaderas prehistóricas sellan la arena del T-Rex. Equipa como LÍDER ACTIVO un espíritu de FUEGO (ej. Velociraptor).'],
+        obstacleClearMessage: '¡Tu Criatura Espiritual de FUEGO quemó la maleza jurásica abriendo paso al T-Rex!',
+        dialog: ['Enredaderas prehistóricas sellan la arena del T-Rex. Equipa como LÍDER ACTIVO una Criatura Espiritual de FUEGO (ej. Velociraptor).'],
       },
       {
         id: 'boss_biobio',
-        x: 9,
-        y: 13,
+        x: 12,
+        y: 17,
         type: 'boss',
         name: 'T-Rex Tirano del Biobío (Nv.7)',
         sprite: 'boss_trex',
@@ -911,13 +1088,13 @@ export const REGIONS_DATA: Record<RegionId, MapRegion> = {
       },
       {
         id: 'portal_to_araucania',
-        x: 9,
-        y: 16,
+        x: 12,
+        y: 20,
         type: 'portal',
         name: 'Ruta a R. de La Araucanía',
         sprite: 'portal_sign',
         destinationRegion: 'araucania',
-        destinationX: 11,
+        destinationX: 13,
         destinationY: 1,
       },
     ],
@@ -933,10 +1110,10 @@ export const REGIONS_DATA: Record<RegionId, MapRegion> = {
   araucania: {
     id: 'araucania',
     name: 'R. de La Araucanía',
-    subtitle: 'Stage 3 · Araucarias, Lluvia Fija y Volcanes',
-    lore: 'Praderas de pewén entre el Pacífico y los volcanes andinos bajo lluvia fija, con la Tienda de Doña Millaray.',
-    width: 23,
-    height: 21,
+    subtitle: 'Stage 3 · Araucarias, Rucas, Lago y Volcán Villarrica',
+    lore: 'Bosques densos de pewén, un lago andino, ciudad comercial, un pueblo étnico Mapuche con rucas tradicionales y el imponente Volcán Villarrica.',
+    width: 27,
+    height: 23,
     ambientColor: '#14532d',
     themeColor: '#22c55e',
     weather: 'lluvia_suave',
@@ -947,26 +1124,26 @@ export const REGIONS_DATA: Record<RegionId, MapRegion> = {
     entities: [
       {
         id: 'portal_back_biobio',
-        x: 11,
+        x: 13,
         y: 0,
         type: 'portal',
         name: 'Volver a R. del Biobío',
         sprite: 'portal_sign',
         destinationRegion: 'biobio',
-        destinationX: 9,
-        destinationY: 14,
+        destinationX: 12,
+        destinationY: 18,
       },
       {
         id: 'npc_minero_araucania',
-        x: 9,
+        x: 11,
         y: 2,
         type: 'npc',
         name: 'Nahuel · Guardián Volcánico',
         sprite: 'npc_miner',
         dialog: [
-          '¡Mari mari! Bajo la lluvia fija de La Araucanía visita la Tienda de Doña Millaray al oeste.',
-          'Equipa como LÍDER ACTIVO a un espíritu de AGUA (ej. Ranita de Darwin) para enfriar el muro volcánico.',
-          '¡Lleva este Corazón de Basalto contigo!',
+          '¡Mari mari! Explora el bosque de araucarias, la ciudad al este y la comunidad Mapuche al suroeste del lago.',
+          'Alcanza las faldas del Volcán Villarrica (noreste) para levantar la sombra del mapa de La Araucanía.',
+          'Recibe este Corazón de Basalto y vincula una Criatura Espiritual de AGUA (ej. Ranita de Darwin) para la barrera sur.',
         ],
         rewardItem: { id: 'corazon_basalto', count: 1 },
       },
@@ -984,71 +1161,132 @@ export const REGIONS_DATA: Record<RegionId, MapRegion> = {
         shopSubtitle: 'R. de La Araucanía · Stage 3',
       },
       {
+        id: 'landmark_volcan_villarrica',
+        x: 22,
+        y: 5,
+        type: 'decorative',
+        name: 'Volcán Villarrica (Ruka Pillán)',
+        sprite: 'deco_volcan',
+        revealsRegionMap: true,
+        dialog: [
+          '¡Llegaste al mirador del Volcán Villarrica rodeado de cerros y araucarias!',
+          'El resplandor del cráter aclara los cielos de La Araucanía. ¡Todo el mapa de la región ha quedado visible!',
+        ],
+      },
+      {
+        id: 'deco_cerro_araucania_w',
+        x: 3,
+        y: 8,
+        type: 'decorative',
+        name: 'Cerro Ñielol (Oeste)',
+        sprite: 'deco_cerro_verde',
+        dialog: ['Cerro Ñielol: santuario natural de copihues y robles antiguos.'],
+      },
+      {
+        id: 'deco_cerro_araucania_se',
+        x: 21,
+        y: 14,
+        type: 'decorative',
+        name: 'Cerro Quelhue (Sureste)',
+        sprite: 'deco_cerro_verde',
+        dialog: ['Mirador cubierto de helechos que vigila los senderos hacia Pucón y Villarrica.'],
+      },
+      // Mapuche Ethnic Village (Rucas + Mapuche NPCs)
+      {
+        id: 'deco_ruca_araucania_1',
+        x: 3,
+        y: 12,
+        type: 'decorative',
+        name: 'Ruca Ceremonial Nguillatún',
+        sprite: 'deco_ruca',
+        dialog: ['Ruca tradicional construida con madera de coigüe y techo de paja coirón orientando su puerta al amanecer.'],
+      },
+      {
+        id: 'deco_ruca_araucania_2',
+        x: 5,
+        y: 13,
+        type: 'decorative',
+        name: 'Ruca del Telar Pewén',
+        sprite: 'deco_ruca',
+        dialog: ['Del fogón interior emana un suave aroma a piñones tostados y canelo sagrado.'],
+      },
+      {
+        id: 'deco_ruca_araucania_3',
+        x: 3,
+        y: 14,
+        type: 'decorative',
+        name: 'Ruca de Medicina Ancestral',
+        sprite: 'deco_ruca',
+        dialog: ['En esta ruca se preparan infusiones de boldo, matico y hojas de laurel chileno.'],
+      },
+      {
         id: 'npc_mapuche_araucania',
-        x: 7,
-        y: 10,
+        x: 6,
+        y: 12,
         type: 'npc',
         name: 'Lonko Calfucura · Sabio Mapuche',
         sprite: 'npc_mapuche',
         dialog: [
-          'La Araucaria Madre es el corazón vivo del pewén. Enfría la roca magmática del acceso sur con tu espíritu activo de AGUA.',
+          'Mari mari, viajero. En nuestra comunidad junto al lago honramos el equilibrio del pewén y las aguas.',
+          'La Araucaria Madre responde al equilibrio: enfría el magma sur con tu Criatura Espiritual de AGUA.',
+        ],
+      },
+      {
+        id: 'npc_machi_araucania',
+        x: 5,
+        y: 11,
+        type: 'npc',
+        name: 'Machi Rayén · Guardiana de Hierbas',
+        sprite: 'npc_mapuche',
+        dialog: [
+          'El cultrún resuena en el bosque de araucarias. Si tus compañeros pierden vitalidad, busca el Elixir rojo y el Cristal de Maná en el valle.',
         ],
       },
       {
         id: 'npc_feriante_araucania',
-        x: 6,
-        y: 12,
+        x: 14,
+        y: 5,
         type: 'npc',
         name: 'Señora Rosa · Feriante de Temuco',
         sprite: 'npc_feriante',
         dialog: [
-          '¡Piñones frescos, matico y calafate! Si buscas provisiones antes de enfrentar a la Araucaria Madre, entra a la tienda del noroeste.',
+          '¡Piñones frescos en la ciudad! Si necesitas provisiones, nuestra Tienda está en la entrada noroeste.',
         ],
       },
       {
         id: 'npc_punk_araucania',
-        x: 15,
-        y: 8,
+        x: 18,
+        y: 9,
         type: 'npc',
         name: 'Nico · Punk Cordillerano',
         sprite: 'npc_punk',
-        dialog: ['¡Ey! Me encanta tocar riffs bajo la lluvia junto a las fumarolas volcánicas del Llaima.'],
+        dialog: ['¡Ey! Me encanta escuchar el viento volcánico bajo la lluvia junto al lago Villarrica.'],
       },
       {
         id: 'npc_maestro_araucania',
-        x: 12,
-        y: 17,
+        x: 14,
+        y: 19,
         type: 'npc',
         name: 'Maestro Vínculo Kallfü',
         sprite: 'npc_maestro_vinculo',
         dialog: [
-          'Acompaño a la Araucaria Madre (Nv.9). Demuestra tu dominio elemental y gana la Medalla Pewén Araucanía.',
+          'Acompaño a la Araucaria Madre (Nv.9). Demuestra tu dominio elemental y gana el Amuleto Espiritual Pewén Araucanía.',
         ],
       },
       {
-        id: 'chest_araucania_1',
-        x: 3,
-        y: 2,
-        type: 'chest',
-        name: 'Cofre de Piñones Dorados',
-        sprite: 'chest',
-        rewardItem: { id: 'orbe_resonancia', count: 4 },
-        rewardGold: 180,
-      },
-      {
         id: 'obstacle_araucania',
-        x: 18,
-        y: 12,
+        x: 20,
+        y: 14,
         type: 'obstacle',
         name: 'Roca Magmática (Opcional)',
         sprite: 'obstacle_magma',
         elementRequired: 'agua',
-        obstacleClearMessage: 'Tu espíritu activo de AGUA enfrió el basalto ardiente y liberó el cofre secreto.',
+        obstacleClearMessage: 'Tu Criatura Espiritual de AGUA enfrió el basalto ardiente y liberó el cofre secreto.',
       },
       {
         id: 'chest_araucania_bonus',
-        x: 19,
-        y: 12,
+        x: 20,
+        y: 15,
         type: 'chest',
         name: 'Cofre Volcánico Secreto',
         sprite: 'chest',
@@ -1056,17 +1294,35 @@ export const REGIONS_DATA: Record<RegionId, MapRegion> = {
         rewardGold: 250,
       },
       {
+        id: 'item_hp_araucania_1',
+        x: 7,
+        y: 15,
+        type: 'chest',
+        name: 'Baya de Vitalidad (+100% PS)',
+        sprite: 'item_hp',
+        healHpPercent: 100,
+      },
+      {
+        id: 'item_mana_araucania_1',
+        x: 19,
+        y: 7,
+        type: 'chest',
+        name: 'Cristal de Maná (+100% PM)',
+        sprite: 'item_mana',
+        healMpPercent: 100,
+      },
+      {
         id: 'deco_fumarola_1',
-        x: 16,
-        y: 9,
+        x: 23,
+        y: 7,
         type: 'decorative',
-        name: 'Fumarola del Llaima',
+        name: 'Fumarola del Villarrica',
         sprite: 'deco_fumarola',
       },
       {
         id: 'wild_araucania_ranita',
-        x: 15,
-        y: 12,
+        x: 12,
+        y: 14,
         type: 'wild_encounter',
         name: 'Ranita de Darwin (Nv.8)',
         sprite: 'wild_ranita',
@@ -1075,8 +1331,8 @@ export const REGIONS_DATA: Record<RegionId, MapRegion> = {
       },
       {
         id: 'wild_araucania_chucao',
-        x: 8,
-        y: 7,
+        x: 9,
+        y: 8,
         type: 'wild_encounter',
         name: 'Chucao del Bosque (Nv.8)',
         sprite: 'wild_chucao',
@@ -1085,7 +1341,7 @@ export const REGIONS_DATA: Record<RegionId, MapRegion> = {
       },
       {
         id: 'wild_araucania_gato',
-        x: 9,
+        x: 16,
         y: 13,
         type: 'wild_encounter',
         name: 'Gato Güiña Montés (Nv.8)',
@@ -1095,19 +1351,19 @@ export const REGIONS_DATA: Record<RegionId, MapRegion> = {
       },
       {
         id: 'obstacle_araucania_ruta',
-        x: 11,
-        y: 15,
+        x: 13,
+        y: 17,
         type: 'obstacle',
         name: 'Barrera Magmática del Volcán (Misión)',
         sprite: 'obstacle_magma',
         elementRequired: 'agua',
-        obstacleClearMessage: '¡Tu espíritu activo de AGUA enfrió la barrera magmática y abrió el claro de la Araucaria Madre!',
-        dialog: ['Lava solidificada bloquea el paso al sur. Equipa como LÍDER ACTIVO un espíritu de AGUA (ej. Ranita de Darwin o Hualita).'],
+        obstacleClearMessage: '¡Tu Criatura Espiritual de AGUA enfrió la barrera magmática y abrió el claro de la Araucaria Madre!',
+        dialog: ['Lava solidificada bloquea el paso al sur. Equipa como LÍDER ACTIVO una Criatura Espiritual de AGUA (ej. Ranita de Darwin).'],
       },
       {
         id: 'boss_araucania',
-        x: 11,
-        y: 17,
+        x: 13,
+        y: 19,
         type: 'boss',
         name: 'Araucaria Madre Milenaria (Nv.9)',
         sprite: 'boss_araucaria',
@@ -1118,13 +1374,13 @@ export const REGIONS_DATA: Record<RegionId, MapRegion> = {
       },
       {
         id: 'portal_to_losrios',
-        x: 11,
-        y: 20,
+        x: 13,
+        y: 22,
         type: 'portal',
         name: 'Ruta a R. de Los Ríos',
         sprite: 'portal_sign',
         destinationRegion: 'losrios',
-        destinationX: 11,
+        destinationX: 14,
         destinationY: 1,
       },
     ],
@@ -1140,10 +1396,10 @@ export const REGIONS_DATA: Record<RegionId, MapRegion> = {
   losrios: {
     id: 'losrios',
     name: 'R. de Los Ríos',
-    subtitle: 'Stage 4 · Selva Valdiviana y Lluvia con Viento',
-    lore: 'Selva verde entre el mar Pacífico y la Cordillera bajo viento y lluvia oblicua, con Hospital valdiviano, Santuario y el Torreón del Calle-Calle.',
-    width: 23,
-    height: 21,
+    subtitle: 'Stage 4 · Dos Ríos, Lago y Volcán Mocho-Choshuenco',
+    lore: 'Selva valdiviana surcada por dos ríos y un lago cristalino, con su ciudad fluvial, pueblo ribereño y los volcanes Mocho-Choshuenco y Puyehue.',
+    width: 29,
+    height: 25,
     ambientColor: '#064e3b',
     themeColor: '#a3e635',
     weather: 'lluvia_viento',
@@ -1154,26 +1410,26 @@ export const REGIONS_DATA: Record<RegionId, MapRegion> = {
     entities: [
       {
         id: 'portal_back_araucania',
-        x: 11,
+        x: 14,
         y: 0,
         type: 'portal',
         name: 'Volver a R. de La Araucanía',
         sprite: 'portal_sign',
         destinationRegion: 'araucania',
-        destinationX: 11,
-        destinationY: 18,
+        destinationX: 13,
+        destinationY: 20,
       },
       {
         id: 'npc_javiera_losrios',
-        x: 9,
+        x: 12,
         y: 2,
         type: 'npc',
         name: 'Javiera · Bióloga de Valdivia',
         sprite: 'npc_explorer',
         dialog: [
-          '¡Bienvenido a R. de Los Ríos! Al oeste tienes el Hospital y al este el Santuario de Evolución.',
-          'Equipa como LÍDER ACTIVO un espíritu de PLANTA (ej. Hongo Lumínico) para absorber el desborde hacia el Torreón.',
-          'Acepta esta Resina de Pewén para tus evoluciones.',
+          '¡Bienvenido a R. de Los Ríos! Tienes el Hospital al oeste y el Santuario de Evolución al centro-este.',
+          'Al noreste se alza el Volcán Mocho-Choshuenco: sube hasta su mirador para eliminar toda sombra del mapa.',
+          'Equipa una Criatura Espiritual de PLANTA (ej. Hongo Lumínico) como Líder Activo antes del Torreón. ¡Toma esta Resina de Pewén!',
         ],
         rewardItem: { id: 'esencia_pewen', count: 1 },
       },
@@ -1190,7 +1446,7 @@ export const REGIONS_DATA: Record<RegionId, MapRegion> = {
       },
       {
         id: 'portal_santuario_losrios',
-        x: 19,
+        x: 17,
         y: 5,
         type: 'portal',
         name: 'Entrar al Santuario de Evolución',
@@ -1200,64 +1456,93 @@ export const REGIONS_DATA: Record<RegionId, MapRegion> = {
         destinationY: 7,
       },
       {
+        id: 'landmark_volcan_mocho',
+        x: 24,
+        y: 4,
+        type: 'decorative',
+        name: 'Volcán Mocho-Choshuenco',
+        sprite: 'deco_volcan',
+        revealsRegionMap: true,
+        dialog: [
+          '¡Alcanzaste los glaciares del Volcán Mocho-Choshuenco!',
+          'Desde sus dos cumbres divisas los dos ríos, el lago, la ciudad y el pueblo valdiviano. ¡La sombra del mapa ha desaparecido!',
+        ],
+      },
+      {
+        id: 'deco_volcan_puyehue',
+        x: 25,
+        y: 11,
+        type: 'decorative',
+        name: 'Volcán Puyehue (Cordillera)',
+        sprite: 'deco_volcan',
+        dialog: ['Volcán Puyehue: gigante termal cuya fumarola entibia los bosques del sur de Los Ríos.'],
+      },
+      {
+        id: 'deco_cerro_losrios_w',
+        x: 3,
+        y: 17,
+        type: 'decorative',
+        name: 'Cerro Oncol (Costero)',
+        sprite: 'deco_cerro_verde',
+        dialog: ['Cerro Oncol: cumbre de selva siempreverde cubierta de musgos y pudúes.'],
+      },
+      {
+        id: 'deco_cerro_losrios_e',
+        x: 23,
+        y: 17,
+        type: 'decorative',
+        name: 'Cerro Mirador Calle-Calle',
+        sprite: 'deco_cerro_verde',
+        dialog: ['Desde aquí se observa el encuentro de los dos grandes ríos del sur.'],
+      },
+      {
         id: 'npc_soldado_losrios',
-        x: 5,
+        x: 7,
         y: 6,
         type: 'npc',
         name: 'Sargento Valdivia · Soldado',
         sprite: 'npc_soldado',
         dialog: [
-          'Vigilo los antiguos muros españoles junto al río. Con lluvia y viento, la defensa es lo primero.',
-          'Solo un espíritu activo de PLANTA absorbe el caudal que sella la plaza del Torreón.',
+          'Los dos ríos de la región protegen la ciudad y el pueblo ribereño. Recuerda equipar una Criatura Espiritual de PLANTA para la barrera sur.',
         ],
       },
       {
         id: 'npc_agricultor_losrios',
-        x: 15,
-        y: 10,
+        x: 5,
+        y: 11,
         type: 'npc',
-        name: 'Don Anselmo · Agricultor',
+        name: 'Don Anselmo · Pueblo Ribereño',
         sprite: 'npc_agricultor',
-        dialog: ['La lluvia constante hace crecer setas brillantes y jabalíes por toda la selva valdiviana.'],
+        dialog: ['La lluvia constante nutre helechos y Hongos Lumínicos por toda la selva valdiviana.'],
       },
       {
         id: 'npc_pescador_m_losrios',
-        x: 5,
-        y: 10,
+        x: 10,
+        y: 11,
         type: 'npc',
-        name: 'Don Lucho · Pescador',
+        name: 'Don Lucho · Pescador de Valdivia',
         sprite: 'npc_pescador_m',
-        dialog: ['Las hualas y los peces saltan cerca del muelle del Calle-Calle antes de cada temporal.'],
+        dialog: ['En nuestra ciudad fluvial se cruzan barcos y puentes de madera rumbo al lago.'],
       },
       {
         id: 'npc_pescadora_f_losrios',
-        x: 17,
-        y: 12,
+        x: 22,
+        y: 13,
         type: 'npc',
-        name: 'Señora Carmen · Pescadora',
+        name: 'Señora Carmen · Pescadora del Lago',
         sprite: 'npc_pescadora_f',
-        dialog: ['Con calma siempre pica algo bueno en el río. ¡Mucho éxito frente al Torreón!'],
+        dialog: ['El lago brilla hermoso incluso bajo la lluvia con viento. ¡Mucho éxito frente al Torreón!'],
       },
       {
         id: 'npc_maestro_losrios',
-        x: 12,
-        y: 17,
+        x: 15,
+        y: 21,
         type: 'npc',
         name: 'Maestra Vínculo Antonia',
         sprite: 'npc_maestro_vinculo',
         dialog: [
-          'Resguardo al Guardián del Torreón (Nv.11). Quien lo derrote obtendrá la Medalla Selva Valdiviana.',
+          'Resguardo al Guardián del Torreón (Nv.11). Quien lo derrote obtendrá el Amuleto Espiritual Selva Valdiviana.',
         ],
-      },
-      {
-        id: 'chest_losrios_1',
-        x: 19,
-        y: 2,
-        type: 'chest',
-        name: 'Cofre de la Niebla Valdiviana',
-        sprite: 'chest',
-        rewardItem: { id: 'infusion_calafate', count: 2 },
-        rewardGold: 220,
       },
       {
         id: 'obstacle_losrios',
@@ -1267,7 +1552,7 @@ export const REGIONS_DATA: Record<RegionId, MapRegion> = {
         name: 'Caudal del Calle-Calle (Opcional)',
         sprite: 'obstacle_water',
         elementRequired: 'agua',
-        obstacleClearMessage: 'Tu espíritu activo de AGUA serenó la corriente lateral revelando el cofre secreto.',
+        obstacleClearMessage: 'Tu Criatura Espiritual de AGUA serenó la corriente lateral revelando el cofre secreto.',
       },
       {
         id: 'chest_losrios_bonus',
@@ -1280,8 +1565,26 @@ export const REGIONS_DATA: Record<RegionId, MapRegion> = {
         rewardGold: 280,
       },
       {
+        id: 'item_hp_losrios_1',
+        x: 4,
+        y: 17,
+        type: 'chest',
+        name: 'Poción de Vitalidad (+100% PS)',
+        sprite: 'item_hp',
+        healHpPercent: 100,
+      },
+      {
+        id: 'item_mana_losrios_1',
+        x: 25,
+        y: 13,
+        type: 'chest',
+        name: 'Cristal de Maná (+100% PM)',
+        sprite: 'item_mana',
+        healMpPercent: 100,
+      },
+      {
         id: 'wild_losrios_hongo',
-        x: 8,
+        x: 9,
         y: 6,
         type: 'wild_encounter',
         name: 'Hongo Lumínico (Nv.10)',
@@ -1291,8 +1594,8 @@ export const REGIONS_DATA: Record<RegionId, MapRegion> = {
       },
       {
         id: 'wild_losrios_jabali',
-        x: 14,
-        y: 6,
+        x: 16,
+        y: 9,
         type: 'wild_encounter',
         name: 'Jabalí del Arrayán (Nv.10)',
         sprite: 'wild_jabali',
@@ -1301,8 +1604,8 @@ export const REGIONS_DATA: Record<RegionId, MapRegion> = {
       },
       {
         id: 'wild_losrios_puducito',
-        x: 8,
-        y: 12,
+        x: 11,
+        y: 17,
         type: 'wild_encounter',
         name: 'Pudú Valdiviano (Nv.10)',
         sprite: 'wild_puducito',
@@ -1311,19 +1614,19 @@ export const REGIONS_DATA: Record<RegionId, MapRegion> = {
       },
       {
         id: 'obstacle_losrios_ruta',
-        x: 11,
-        y: 15,
+        x: 14,
+        y: 19,
         type: 'obstacle',
         name: 'Desborde de Aguas del Torreón (Misión)',
         sprite: 'obstacle_water',
         elementRequired: 'planta',
-        obstacleClearMessage: '¡Tu espíritu activo de PLANTA tejió raíces absorbentes abriendo el paso hacia el Torreón!',
-        dialog: ['Un torrente cubre el puente al Torreón. Equipa como LÍDER ACTIVO un espíritu de PLANTA (ej. Hongo Lumínico o Brotín).'],
+        obstacleClearMessage: '¡Tu Criatura Espiritual de PLANTA tejió raíces absorbentes abriendo el paso hacia el Torreón!',
+        dialog: ['Un torrente cubre el puente al Torreón. Equipa como LÍDER ACTIVO una Criatura Espiritual de PLANTA (ej. Hongo Lumínico o Brotín).'],
       },
       {
         id: 'boss_losrios',
-        x: 11,
-        y: 17,
+        x: 14,
+        y: 21,
         type: 'boss',
         name: 'Guardián del Torreón (Nv.11)',
         sprite: 'boss_torreon',
@@ -1334,69 +1637,69 @@ export const REGIONS_DATA: Record<RegionId, MapRegion> = {
       },
       {
         id: 'portal_to_loslagos',
-        x: 11,
-        y: 20,
+        x: 14,
+        y: 24,
         type: 'portal',
         name: 'Ruta a R. de Los Lagos',
         sprite: 'portal_sign',
         destinationRegion: 'loslagos',
-        destinationX: 16,
+        destinationX: 18,
         destinationY: 1,
       },
     ],
     wildEncounterTable: [
-      { spiritId: 'jabali', minLevel: 8, maxLevel: 9, weight: 34 },
       { spiritId: 'hongo', minLevel: 8, maxLevel: 9, weight: 32 },
-      { spiritId: 'chucao', minLevel: 8, maxLevel: 9, weight: 18 },
-      { spiritId: 'culpeo', minLevel: 8, maxLevel: 9, weight: 10 },
-      { spiritId: 'puducito', minLevel: 8, maxLevel: 9, weight: 6 },
+      { spiritId: 'jabali', minLevel: 8, maxLevel: 9, weight: 28 },
+      { spiritId: 'ranita', minLevel: 8, maxLevel: 9, weight: 18 },
+      { spiritId: 'puducito', minLevel: 8, maxLevel: 9, weight: 12 },
+      { spiritId: 'chucao', minLevel: 8, maxLevel: 9, weight: 10 },
     ],
   },
 
   loslagos: {
     id: 'loslagos',
     name: 'R. de Los Lagos',
-    subtitle: 'Stage 5 · Tormenta, Fiordos y Serpientes',
-    lore: 'Extenso archipiélago austral entre el Océano Pacífico y la Cordillera nevada, con palafitos de Chiloé, la Tienda Austral y el santuario de Cai Cai y Vilu Vilu.',
-    width: 33,
-    height: 29,
+    subtitle: 'Stage 5 · Isla de Chiloé, Nieve Cordillerana y Volcán Osorno',
+    lore: 'El continente se extiende por la Cordillera nevada al este junto al Volcán Osorno, mientras al suroeste emerge la Isla de Chiloé sobre el Océano Pacífico.',
+    width: 37,
+    height: 31,
     ambientColor: '#1e293b',
-    themeColor: '#67e8f9',
+    themeColor: '#06b6d4',
     weather: 'ventisca_austral',
-    weatherLabel: 'Tormenta, Viento y Truenos',
+    weatherLabel: 'Tormenta y Relámpagos',
     bgmId: 'loslagos',
     isUnlocked: false,
     tiles: loslagosTiles,
     entities: [
       {
         id: 'portal_back_losrios',
-        x: 16,
+        x: 18,
         y: 0,
         type: 'portal',
         name: 'Volver a R. de Los Ríos',
         sprite: 'portal_sign',
         destinationRegion: 'losrios',
-        destinationX: 11,
-        destinationY: 18,
+        destinationX: 14,
+        destinationY: 22,
       },
       {
         id: 'npc_alercero',
-        x: 13,
+        x: 16,
         y: 2,
         type: 'npc',
-        name: 'Don Checho · Guardaparque',
-        sprite: 'npc_ranger',
+        name: 'Don Checho · Guardián del Alerce',
+        sprite: 'npc_old_man',
         dialog: [
-          '¡Llegaste a la gran región de Los Lagos entre viento y truenos! Al noreste está la Tienda Austral de Doña Fresia.',
-          'Equipa como LÍDER ACTIVO un espíritu de HIELO (ej. Ventisquero o Pingüino) para congelar un puente hacia Cai Cai y Vilu Vilu.',
-          'Toma esta Infusión de Calafate para el tramo final.',
+          '¡Llegaste a R. de Los Lagos! Al este la Cordillera se cubre de nieve alrededor del Volcán Osorno; al suroeste se extiende la Isla de Chiloé.',
+          'Visita la cumbre del Volcán Osorno (noreste) para despejar toda la sombra del mapa austral.',
+          'Equipa como Líder Activo un Ventisquero o Pingüino (HIELO) para cruzar el fiordo sur hacia Cai Cai y Vilu Vilu. ¡Toma esta Infusión de Calafate!',
         ],
         rewardItem: { id: 'infusion_calafate', count: 2 },
       },
       {
         id: 'portal_tienda_loslagos',
-        x: 28,
-        y: 6,
+        x: 22,
+        y: 10,
         type: 'portal',
         name: 'Tienda Austral (Doña Fresia)',
         sprite: 'portal_tienda',
@@ -1407,100 +1710,139 @@ export const REGIONS_DATA: Record<RegionId, MapRegion> = {
         shopSubtitle: 'R. de Los Lagos · Stage 5',
       },
       {
-        id: 'npc_chilote_loslagos',
-        x: 5,
-        y: 6,
-        type: 'npc',
-        name: 'Don Segundo · Chilote',
-        sprite: 'npc_chilote',
+        id: 'landmark_volcan_osorno',
+        x: 32,
+        y: 5,
+        type: 'decorative',
+        name: 'Volcán Osorno (Cumbre Nevada)',
+        sprite: 'deco_volcan',
+        revealsRegionMap: true,
         dialog: [
-          'En Chiloé contamos la leyenda de Cai Cai, señora de los mares, y Vilu Vilu, dueña de las cumbres.',
-          'Solo tu espíritu LÍDER ACTIVO de HIELO puede congelar un puente seguro sobre el fiordo del sur.',
+          '¡Escalas el cono perfecto del Volcán Osorno entre nieves cordilleranas!',
+          'Desde la cima observas Puerto Varas, la Isla de Chiloé, sus pueblos palafitos y el fin del océano. ¡Todo el mapa de Los Lagos ha quedado revelado!',
         ],
       },
       {
-        id: 'npc_pescadora_loslagos',
-        x: 22,
-        y: 12,
-        type: 'npc',
-        name: 'Marisol · Pescadora del Fiordo',
-        sprite: 'npc_pescadora_f',
-        dialog: ['Los Pingüinos Australes se refugian en estas caletas cuando caen relámpagos.'],
+        id: 'deco_cerro_chiloe_1',
+        x: 5,
+        y: 11,
+        type: 'decorative',
+        name: 'Colina de Dalcahue (Isla)',
+        sprite: 'deco_cerro_verde',
+        dialog: ['Colina verde en el corazón de la Isla de Chiloé mirando al Pacífico.'],
       },
       {
-        id: 'npc_buzo_loslagos',
-        x: 8,
+        id: 'deco_cerro_cordillera_ll',
+        x: 27,
         y: 12,
+        type: 'decorative',
+        name: 'Cerro Tronador Norte',
+        sprite: 'deco_cerro_blanco',
+        dialog: ['Cumbre blanca que anuncia las grandes nieves de la Cordillera de los Andes.'],
+      },
+      {
+        id: 'npc_chilote_loslagos',
+        x: 8,
+        y: 14,
         type: 'npc',
-        name: 'Rodrigo · Buzo Mariscador',
-        sprite: 'npc_buzo',
-        dialog: ['Con este traje amarillo soporto el agua helada del canal para recoger mariscos y erizos frescos.'],
+        name: 'Pedro · Carpintero de Chiloé',
+        sprite: 'npc_chilote',
+        dialog: [
+          '¡Bienvenido a la Isla de Chiloé! Construimos palafitos de colores sobre el mar y navegamos entre islas.',
+          'Al sur de la isla viven pudúes y jabalíes bajo los alerces centenarios.',
+        ],
       },
       {
         id: 'npc_cocinera_loslagos',
-        x: 21,
-        y: 19,
+        x: 8,
+        y: 21,
         type: 'npc',
-        name: 'Señora Meche · Cocinera de Curanto',
+        name: 'Señora Marisol · Pueblo Quellón',
         sprite: 'npc_cocinera',
-        dialog: ['¡Cuando vuelvas de vencer a las serpientes te espera un curanto bien calentito!'],
+        dialog: ['¡Curanto en hoyo y milcao caliente! Recupérate antes de regresar al continente hacia las Serpientes Australes.'],
       },
       {
-        id: 'npc_maestro_caicai',
-        x: 14,
-        y: 24,
+        id: 'npc_buzo_loslagos',
+        x: 21,
+        y: 6,
         type: 'npc',
-        name: 'Maestro Vínculo Kalfú',
+        name: 'Esteban · Buzo Mariscador',
+        sprite: 'npc_buzo',
+        dialog: ['En la ciudad de Puerto Montt los muelles unen el continente con el canal hacia la Isla de Chiloé.'],
+      },
+      {
+        id: 'npc_maestro_loslagos',
+        x: 26,
+        y: 27,
+        type: 'npc',
+        name: 'Maestros Kalfú y Llankal',
         sprite: 'npc_maestro_vinculo',
         dialog: [
-          'Custodio a Cai Cai Vilu (Nv.13), serpiente de las aguas australes. Usa Planta o Hielo con sabiduría.',
+          'Somos los Maestros de las Dos Serpientes de Los Lagos.',
+          'Derrota tanto a Cai Cai Vilu (oeste, Nv.13) como a Vilu Vilu (este, Nv.14) para obtener el Amuleto Espiritual Serpientes Australes.',
         ],
-      },
-      {
-        id: 'npc_maestro_viluvilu',
-        x: 18,
-        y: 24,
-        type: 'npc',
-        name: 'Maestro Vínculo Llankal',
-        sprite: 'npc_maestro_vinculo',
-        dialog: [
-          'Custodio a Vilu Vilu (Nv.14), serpiente de las cumbres. Cuando ambas caigan recibirás la Medalla Serpientes Australes.',
-        ],
-      },
-      {
-        id: 'chest_loslagos_1',
-        x: 28,
-        y: 2,
-        type: 'chest',
-        name: 'Cofre Glacial de Hornopirén',
-        sprite: 'chest',
-        rewardItem: { id: 'cristal_hielo', count: 1 },
-        rewardGold: 300,
       },
       {
         id: 'obstacle_loslagos',
-        x: 2,
-        y: 12,
+        x: 20,
+        y: 18,
         type: 'obstacle',
-        name: 'Bloque Glacial (Opcional)',
+        name: 'Bloque Glacial del Fiordo (Opcional)',
         sprite: 'obstacle_ice',
         elementRequired: 'fuego',
-        obstacleClearMessage: 'Tu espíritu activo de FUEGO derritió el bloque glacial revelando el cofre secreto.',
+        obstacleClearMessage: 'Tu Criatura Espiritual de FUEGO derritió el témpano liberando el cofre secreto.',
       },
       {
         id: 'chest_loslagos_bonus',
-        x: 1,
-        y: 12,
+        x: 19,
+        y: 18,
         type: 'chest',
-        name: 'Cofre Austral Secreto',
+        name: 'Cofre Glacial Secreto',
         sprite: 'chest',
-        rewardItem: { id: 'orbe_resonancia', count: 5 },
+        rewardItem: { id: 'infusion_calafate', count: 3 },
         rewardGold: 400,
       },
       {
+        id: 'item_hp_loslagos_1',
+        x: 5,
+        y: 18,
+        type: 'chest',
+        name: 'Baya de Vitalidad Austral (+100% PS)',
+        sprite: 'item_hp',
+        healHpPercent: 100,
+      },
+      {
+        id: 'item_mana_loslagos_1',
+        x: 29,
+        y: 15,
+        type: 'chest',
+        name: 'Cristal Glacial de Maná (+100% PM)',
+        sprite: 'item_mana',
+        healMpPercent: 100,
+      },
+      {
+        id: 'item_hp_loslagos_2',
+        x: 25,
+        y: 22,
+        type: 'chest',
+        name: 'Poción de Vitalidad (+100% PS)',
+        sprite: 'item_hp',
+        healHpPercent: 100,
+      },
+      {
+        id: 'wild_loslagos_ventisquero',
+        x: 29,
+        y: 9,
+        type: 'wild_encounter',
+        name: 'Ventisquero Polar (Nv.12)',
+        sprite: 'wild_ventisquero',
+        encounterSpiritId: 'ventisquero',
+        customLevel: 12,
+      },
+      {
         id: 'wild_loslagos_pinguino',
-        x: 18,
-        y: 6,
+        x: 24,
+        y: 17,
         type: 'wild_encounter',
         name: 'Pingüino Austral (Nv.12)',
         sprite: 'wild_pinguino',
@@ -1508,40 +1850,40 @@ export const REGIONS_DATA: Record<RegionId, MapRegion> = {
         customLevel: 12,
       },
       {
-        id: 'wild_loslagos_ventisquero',
-        x: 12,
-        y: 13,
-        type: 'wild_encounter',
-        name: 'Ventisquero Errante (Nv.12)',
-        sprite: 'wild_ventisquero',
-        encounterSpiritId: 'ventisquero',
-        customLevel: 12,
-      },
-      {
         id: 'wild_loslagos_jabali',
-        x: 12,
-        y: 19,
+        x: 10,
+        y: 18,
         type: 'wild_encounter',
-        name: 'Jabalí Austral (Nv.12)',
+        name: 'Jabalí de Chiloé (Nv.12)',
         sprite: 'wild_jabali',
         encounterSpiritId: 'jabali',
         customLevel: 12,
       },
       {
+        id: 'wild_loslagos_pudu',
+        x: 4,
+        y: 22,
+        type: 'wild_encounter',
+        name: 'Pudú de los Alerces (Nv.12)',
+        sprite: 'wild_puducito',
+        encounterSpiritId: 'puducito',
+        customLevel: 12,
+      },
+      {
         id: 'obstacle_loslagos_ruta',
-        x: 16,
-        y: 23,
+        x: 26,
+        y: 25,
         type: 'obstacle',
-        name: 'Fjord Helado sin Puente (Misión)',
+        name: 'Fiordo Austral Congelado (Misión)',
         sprite: 'obstacle_water',
         elementRequired: 'hielo',
-        obstacleClearMessage: '¡Tu espíritu activo de HIELO tendió un puente de escarcha hacia el Santuario de las Dos Serpientes!',
-        dialog: ['El canal hacia las Dos Serpientes ruge con olas heladas. Equipa como LÍDER ACTIVO un espíritu de HIELO (ej. Ventisquero o Pingüino).'],
+        obstacleClearMessage: '¡Tu Criatura Espiritual de HIELO congeló un puente perfecto hacia el Santuario de las Dos Serpientes!',
+        dialog: ['Un fiordo helado separa el santuario sur. Equipa como LÍDER ACTIVO una Criatura Espiritual de HIELO (ej. Ventisquero o Pingüino).'],
       },
       {
         id: 'boss_loslagos_caicai',
-        x: 14,
-        y: 25,
+        x: 24,
+        y: 27,
         type: 'boss',
         name: 'Cai Cai Vilu · Serpiente del Mar (Nv.13)',
         sprite: 'boss_caicai',
@@ -1552,8 +1894,8 @@ export const REGIONS_DATA: Record<RegionId, MapRegion> = {
       },
       {
         id: 'boss_loslagos_viluvilu',
-        x: 18,
-        y: 25,
+        x: 28,
+        y: 27,
         type: 'boss',
         name: 'Vilu Vilu · Serpiente de Tierra (Nv.14)',
         sprite: 'boss_viluvilu',
@@ -1576,7 +1918,7 @@ export const REGIONS_DATA: Record<RegionId, MapRegion> = {
     id: 'hospital',
     name: 'Hospital Regional',
     subtitle: 'Centro Médico · Curación Gratuita (0%)',
-    lore: 'Sala clínica luminosa equipada con camillas, monitores de signos vitales y asistencia médica gratuita para tus espíritus.',
+    lore: 'Sala clínica luminosa equipada con camillas, monitores de signos vitales y asistencia médica gratuita para tus Criaturas Espirituales.',
     width: 11,
     height: 9,
     ambientColor: '#1e293b',
@@ -1594,7 +1936,7 @@ export const REGIONS_DATA: Record<RegionId, MapRegion> = {
         type: 'decorative',
         name: 'Camilla de Recuperación A',
         sprite: 'deco_cama_hospital',
-        dialog: ['Sábanas limpias y mantas tibias listas para recibir a espíritus agotados.'],
+        dialog: ['Sábanas limpias y mantas tibias listas para recibir a Criaturas Espirituales agotadas.'],
       },
       {
         id: 'deco_hospital_monitor_1',
@@ -1647,7 +1989,7 @@ export const REGIONS_DATA: Record<RegionId, MapRegion> = {
         name: 'Enfermera Jefe · Atención 24h',
         sprite: 'npc_enfermera',
         isHospital: true,
-        dialog: ['¡Bienvenido al Hospital! Todo tu equipo ha sido sanado por completo (100% PS y PM) sin costo.'],
+        dialog: ['¡Bienvenido al Hospital! Todas tus Criaturas Espirituales han sido sanadas al 100% de PS y PM sin costo.'],
       },
       {
         id: 'shrine_cura_hospital',
@@ -1657,7 +1999,7 @@ export const REGIONS_DATA: Record<RegionId, MapRegion> = {
         name: 'Estación de Curación Rápida',
         sprite: 'portal_hospital',
         isHospital: true,
-        dialog: ['¡Sanación completada! Todos tus espíritus recuperaron el 100% de sus PS y PM.'],
+        dialog: ['¡Sanación completada! Todas tus Criaturas Espirituales recuperaron el 100% de sus PS y PM.'],
       },
       {
         id: 'portal_exit_hospital',
@@ -1678,7 +2020,7 @@ export const REGIONS_DATA: Record<RegionId, MapRegion> = {
     id: 'santuario',
     name: 'Santuario de Evolución',
     subtitle: 'Templo Ancestral · Despertar Evolutivo (0%)',
-    lore: 'Único recinto sagrado donde los cristales elementales resonantes despiertan la siguiente etapa evolutiva de tus espíritus.',
+    lore: 'Único recinto sagrado donde los cristales elementales resonantes despiertan la siguiente etapa evolutiva de tus Criaturas Espirituales.',
     width: 11,
     height: 9,
     ambientColor: '#064e3b',
@@ -1731,7 +2073,7 @@ export const REGIONS_DATA: Record<RegionId, MapRegion> = {
         name: 'Sabio del Santuario',
         sprite: 'npc_old_man',
         isEvolutionSanctuary: true,
-        dialog: ['El Altar de Evolución está encendido. Solo en este templo sagrado puedes despertar la siguiente etapa de tus espíritus.'],
+        dialog: ['El Altar de Evolución está encendido. Solo en este templo sagrado puedes despertar la siguiente etapa de tus Criaturas Espirituales.'],
       },
       {
         id: 'shrine_altar_evolucion',
@@ -1741,7 +2083,7 @@ export const REGIONS_DATA: Record<RegionId, MapRegion> = {
         name: 'Altar de Evolución',
         sprite: 'deco_santuario_evolucion',
         isEvolutionSanctuary: true,
-        dialog: ['Canalizando la energía del Santuario para evolucionar a tus criaturas.'],
+        dialog: ['Canalizando la energía del Santuario para evolucionar a tus Criaturas Espirituales.'],
       },
       {
         id: 'portal_exit_santuario',
@@ -1828,8 +2170,8 @@ export const REGIONS_DATA: Record<RegionId, MapRegion> = {
         name: 'Salir al Exterior',
         sprite: 'portal_salir',
         destinationRegion: 'santiago',
-        destinationX: 3,
-        destinationY: 7,
+        destinationX: 4,
+        destinationY: 11,
       },
     ],
     wildEncounterTable: [],

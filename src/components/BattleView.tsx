@@ -629,7 +629,7 @@ export const BattleView: React.FC<BattleViewProps> = ({
       sound.playCancel();
       const aliveAllies = updatedPartySnap.filter(s => s.uid !== currPlayer.uid && s.currentHp > 0);
       if (aliveAllies.length > 0) {
-        addLog(`⚠️ ¡${currPlayer.name} cayó! Selecciona otro espíritu.`, 'critical');
+        addLog(`⚠️ ¡${currPlayer.name} cayó! Selecciona otra Criatura Espiritual.`, 'critical');
         setForcedSwitch(true);
         setIsAnimating(false);
         setActionCategory('party_switch');
@@ -1209,7 +1209,7 @@ export const BattleView: React.FC<BattleViewProps> = ({
               {activeSummonCinematic.name.toUpperCase()}
             </h2>
             <p className="relative z-10 font-ui text-xs text-zinc-200 italic bg-zinc-900/80 p-3 rounded-xl border border-zinc-700">
-              &ldquo;Los espíritus responden al llamado de {barbara.name}, canalizando energía primordial.&rdquo;
+              &ldquo;Las Criaturas Espirituales responden al llamado de {barbara.name}, canalizando energía primordial.&rdquo;
             </p>
           </div>
         </div>

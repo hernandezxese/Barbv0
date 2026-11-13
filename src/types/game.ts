@@ -109,16 +109,16 @@ export const REGION_MEDALS: RegionMedalInfo[] = [
   {
     id: 'medalla_rm',
     regionId: 'santiago',
-    name: 'Medalla Valle Central',
+    name: 'Amuleto Espiritual Valle Central',
     regionLabel: 'R. Metropolitana',
     guardianName: 'Maestro Vínculo Rodrigo',
-    bossName: 'Espíritu Gran Torre Costanera',
-    icon: '🏅',
+    bossName: 'Criatura Gran Torre Costanera',
+    icon: '🧿',
   },
   {
     id: 'medalla_biobio',
     regionId: 'biobio',
-    name: 'Medalla Jurásica Biobío',
+    name: 'Amuleto Espiritual Jurásico Biobío',
     regionLabel: 'R. del Biobío',
     guardianName: 'Maestro Vínculo Lautaro',
     bossName: 'Rex Fósil del Biobío',
@@ -127,7 +127,7 @@ export const REGION_MEDALS: RegionMedalInfo[] = [
   {
     id: 'medalla_araucania',
     regionId: 'araucania',
-    name: 'Medalla Pewén Araucanía',
+    name: 'Amuleto Espiritual Pewén Araucanía',
     regionLabel: 'R. de La Araucanía',
     guardianName: 'Maestro Vínculo Kallfü',
     bossName: 'Araucaria Madre',
@@ -136,7 +136,7 @@ export const REGION_MEDALS: RegionMedalInfo[] = [
   {
     id: 'medalla_losrios',
     regionId: 'losrios',
-    name: 'Medalla Selva Valdiviana',
+    name: 'Amuleto Espiritual Selva Valdiviana',
     regionLabel: 'R. de Los Ríos',
     guardianName: 'Maestra Vínculo Antonia',
     bossName: 'Guardián del Torreón',
@@ -145,7 +145,7 @@ export const REGION_MEDALS: RegionMedalInfo[] = [
   {
     id: 'medalla_loslagos',
     regionId: 'loslagos',
-    name: 'Medalla Serpientes Australes',
+    name: 'Amuleto Espiritual Serpientes Australes',
     regionLabel: 'R. de Los Lagos',
     guardianName: 'Maestros Kalfú y Llankal',
     bossName: 'Cai Cai y Vilu Vilu',
@@ -214,6 +214,9 @@ export interface OverworldEntity {
   isShop?: boolean;
   isHospital?: boolean;
   isEvolutionSanctuary?: boolean;
+  revealsRegionMap?: boolean;
+  healHpPercent?: number;
+  healMpPercent?: number;
 }
 
 export interface MapRegion {

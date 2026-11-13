@@ -63,7 +63,7 @@ export const PartyMenu: React.FC<PartyMenuProps> = ({
           </button>
           <h2 className="font-pixel text-[11px] sm:text-sm text-zinc-100 flex items-center gap-1.5 truncate">
             <Swords className="w-4 h-4 text-zinc-200 shrink-0" />
-            <span className="truncate">EQUIPO DE ESPÍRITUS ({partySpirits.length})</span>
+            <span className="truncate">CRIATURAS ESPIRITUALES ({partySpirits.length})</span>
           </h2>
         </div>
 
@@ -269,7 +269,7 @@ export const PartyMenu: React.FC<PartyMenuProps> = ({
                   1. LÍDER ACTIVO EN MAPA
                 </span>
                 <p className="text-zinc-300 text-[10px] leading-relaxed">
-                  Solo tu <strong className="text-white">espíritu Líder Activo</strong> puede usar su técnica elemental para despejar barreras bloqueadas en el mapa.
+                  Solo tu <strong className="text-white">Criatura Espiritual Líder Activa</strong> puede usar su técnica elemental para despejar barreras bloqueadas en el mapa.
                 </p>
               </div>
 
@@ -278,7 +278,7 @@ export const PartyMenu: React.FC<PartyMenuProps> = ({
                   2. RELEVOS EN COMBATE
                 </span>
                 <p className="text-zinc-300 text-[10px] leading-relaxed">
-                  Si tu líder cae en batalla puedes relevar a otro espíritu sano de tu equipo sin perder el combate.
+                  Si tu líder cae en batalla puedes relevar a otra Criatura Espiritual sana de tu equipo sin perder el combate.
                 </p>
               </div>
 

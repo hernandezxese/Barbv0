@@ -154,11 +154,11 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
                   className="w-full py-3 bg-zinc-100 hover:bg-white text-zinc-950 rounded-xl font-pixel text-xs font-bold tracking-wider transition-all cursor-pointer shadow-lg flex items-center justify-center gap-2"
                 >
                   <Heart className="w-4 h-4 text-zinc-900" />
-                  <span>USAR EN UN ESPÍRITU</span>
+                  <span>USAR EN CRIATURA ESPIRITUAL</span>
                 </button>
               ) : selectedItem.category === 'esencia' ? (
                 <div className="p-3 bg-zinc-950 border border-zinc-800 rounded-xl text-center text-xs font-mono text-zinc-300">
-                  Lleva este catalizador al <span className="font-bold text-white">Santuario de Evolución</span> para despertar a tus espíritus.
+                  Lleva este catalizador al <span className="font-bold text-white">Santuario de Evolución</span> para despertar a tus Criaturas Espirituales.
                 </div>
               ) : (
                 <div className="p-3 bg-zinc-950 border border-zinc-800 rounded-xl text-center text-xs font-mono text-zinc-300">

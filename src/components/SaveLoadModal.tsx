@@ -148,7 +148,7 @@ export const SaveLoadModal: React.FC<SaveLoadModalProps> = ({
                             <span className="truncate">{REGION_NAMES[slot.regionId] || slot.regionId}</span>
                           </div>
                           <div className="text-[10px] font-mono text-zinc-500 mt-1">
-                            {new Date(slot.savedAt).toLocaleString()} &middot; {slot.spiritCount} espíritus
+                            {new Date(slot.savedAt).toLocaleString()} &middot; {slot.spiritCount} Criaturas Espirituales
                           </div>
                         </>
                       ) : (

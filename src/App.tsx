@@ -47,22 +47,22 @@ import { Trophy, RotateCcw, CheckCircle2, AlertTriangle, Compass, Sparkles, Book
 
 const SAFE_SPAWN_BY_REGION: Record<RegionId, { x: number; y: number }> = {
   casa: { x: 5, y: 6 },
-  santiago: { x: 13, y: 3 },
-  biobio: { x: 9, y: 2 },
-  araucania: { x: 11, y: 2 },
-  losrios: { x: 11, y: 2 },
-  loslagos: { x: 16, y: 2 },
+  santiago: { x: 14, y: 3 },
+  biobio: { x: 12, y: 2 },
+  araucania: { x: 13, y: 2 },
+  losrios: { x: 14, y: 2 },
+  loslagos: { x: 18, y: 2 },
   hospital: { x: 5, y: 7 },
   santuario: { x: 5, y: 7 },
   tienda: { x: 5, y: 7 },
 };
 
 const INTERIOR_DOORSTEP_EXIT: Partial<Record<RegionId, { x: number; y: number }>> = {
-  santiago: { x: 3, y: 7 },
+  santiago: { x: 4, y: 11 },
   biobio: { x: 3, y: 6 },
   araucania: { x: 3, y: 6 },
   losrios: { x: 3, y: 6 },
-  loslagos: { x: 28, y: 7 },
+  loslagos: { x: 22, y: 11 },
 };
 
 export default function App() {
@@ -222,6 +222,71 @@ export default function App() {
       return { ...prev, seenSpeciesIds: Array.from(existing) };
     });
   }, []);
+
+  const handleRevealRegionMap = React.useCallback(
+    (regionId: RegionId) => {
+      const reg = REGIONS_DATA[regionId];
+      if (!reg) return;
+      reg.entities.forEach(ent => {
+        if (ent.revealsRegionMap) ent.cleared = true;
+      });
+      const allCoords: string[] = [];
+      for (let y = 0; y < reg.height; y++) {
+        for (let x = 0; x < reg.width; x++) {
+          allCoords.push(`${x},${y}`);
+        }
+      }
+      setRevealedTiles(prev => ({ ...prev, [regionId]: allCoords }));
+
+      const speciesToSight: string[] = [];
+      reg.entities.forEach(ent => {
+        if (ent.encounterSpiritId) speciesToSight.push(ent.encounterSpiritId);
+        if (ent.bossSpiritId) speciesToSight.push(ent.bossSpiritId);
+      });
+      handleSightSpecies(speciesToSight);
+      showToast('🗺️ ¡Cima explorada! Sombra del mapa despejada en toda la región.');
+    },
+    [handleSightSpecies, showToast]
+  );
+
+  const handleCollectPickup = React.useCallback(
+    (entityId: string, healHpPercent?: number, healMpPercent?: number, label?: string) => {
+      const reg = REGIONS_DATA[currentRegionId];
+      const ent = reg?.entities.find(e => e.id === entityId);
+      if (ent) ent.cleared = true;
+
+      const hpPct = healHpPercent ?? 0;
+      const mpPct = healMpPercent ?? 0;
+
+      setPartySpirits(prev =>
+        prev.map(s => {
+          const addedHp = hpPct > 0 ? Math.max(1, Math.round((s.maxHp * hpPct) / 100)) : 0;
+          const addedMp = mpPct > 0 ? Math.max(1, Math.round((s.maxMp * mpPct) / 100)) : 0;
+          return {
+            ...s,
+            currentHp: Math.min(s.maxHp, s.currentHp + addedHp),
+            currentMp: Math.min(s.maxMp, s.currentMp + addedMp),
+          };
+        })
+      );
+
+      if (hpPct > 0) {
+        setBarbara(prev => ({
+          ...prev,
+          currentHp: Math.min(prev.maxHp, prev.currentHp + Math.max(1, Math.round((prev.maxHp * hpPct) / 100))),
+        }));
+      }
+
+      if (hpPct > 0 && mpPct > 0) {
+        showToast(`✨ ¡${label || 'Recurso'} recogido! +${hpPct}% PS y +${mpPct}% PM al equipo.`);
+      } else if (hpPct > 0) {
+        showToast(`💚 ¡${label || 'Hierba de Salud'} recogida! +${hpPct}% PS a tus Criaturas Espirituales.`);
+      } else if (mpPct > 0) {
+        showToast(`💧 ¡${label || 'Esencia de Maná'} recogida! +${mpPct}% PM a tus Criaturas Espirituales.`);
+      }
+    },
+    [currentRegionId, showToast]
+  );
 
   const handleToggleMute = () => {
     sound.init();
@@ -626,7 +691,7 @@ export default function App() {
             nextHeroState.medalRecords = existingRecords;
           }
           if (medalMeta) {
-            showToast(`🏅 ¡Obtuviste la ${medalMeta.name}!`);
+            showToast(`🏅 ¡Obtuviste el ${medalMeta.name}!`);
           }
         }
       }
@@ -648,7 +713,7 @@ export default function App() {
         pendingDialogue = {
           speaker: 'Maestro Vínculo Rodrigo',
           lines: [
-            `¡Extraordinario combate, ${nextHeroState.name}! Te entrego la Medalla Valle Central de la R. Metropolitana.`,
+            `¡Extraordinario combate, ${nextHeroState.name}! Te entrego el Amuleto Espiritual Valle Central de la R. Metropolitana.`,
             'El sendero nuboso hacia la R. del Biobío y su antigua vía férrea han sido despejados.',
           ],
           portraitSprite: 'npc_maestro_vinculo',
@@ -660,7 +725,7 @@ export default function App() {
         pendingDialogue = {
           speaker: 'Maestro Vínculo Lautaro',
           lines: [
-            '¡El Rex Fósil del Biobío reconoce tu fuerza! Recibes la Medalla Jurásica Biobío.',
+            '¡El Rex Fósil del Biobío reconoce tu fuerza! Recibes el Amuleto Espiritual Jurásico Biobío.',
             'Ahora puedes cruzar al sur hacia los bosques de pewén en la R. de La Araucanía.',
           ],
           portraitSprite: 'npc_maestro_vinculo',
@@ -672,7 +737,7 @@ export default function App() {
         pendingDialogue = {
           speaker: 'Maestro Vínculo Kallfü',
           lines: [
-            '¡La Araucaria Madre ha vuelto a florecer en equilibrio! Aquí tienes la Medalla Pewén Araucanía.',
+            '¡La Araucaria Madre ha vuelto a florecer en equilibrio! Aquí tienes el Amuleto Espiritual Pewén Araucanía.',
             'Tu siguiente destino es la R. de Los Ríos y su selva valdiviana.',
           ],
           portraitSprite: 'npc_maestro_vinculo',
@@ -684,7 +749,7 @@ export default function App() {
         pendingDialogue = {
           speaker: 'Maestra Vínculo Antonia',
           lines: [
-            '¡Las aguas del Calle-Calle brillan limpias! Recibes la Medalla Selva Valdiviana.',
+            '¡Las aguas del Calle-Calle brillan limpias! Recibes el Amuleto Espiritual Selva Valdiviana.',
             'El desafío final te espera en la R. de Los Lagos frente a Cai Cai y Vilu Vilu.',
           ],
           portraitSprite: 'npc_maestro_vinculo',
@@ -700,8 +765,8 @@ export default function App() {
             speaker: 'Maestros Kalfú y Llankal',
             lines: [
               !caiCai?.cleared
-                ? '¡Gran triunfo ante Vilu Vilu! Ahora derrota a Cai Cai Vilu para ganar la Medalla Serpientes Australes.'
-                : '¡Gran triunfo ante Cai Cai Vilu! Ahora derrota a Vilu Vilu para ganar la Medalla Serpientes Australes.',
+                ? '¡Gran triunfo ante Vilu Vilu! Ahora derrota a Cai Cai Vilu para ganar el Amuleto Espiritual Serpientes Australes.'
+                : '¡Gran triunfo ante Cai Cai Vilu! Ahora derrota a Vilu Vilu para ganar el Amuleto Espiritual Serpientes Australes.',
             ],
             portraitSprite: 'npc_maestro_vinculo',
           };
@@ -764,7 +829,7 @@ export default function App() {
     setHasCompletedStory(true);
     setGameState('exploration');
     sound.playBgm(currentRegionId);
-    showToast('🌿 ¡Espíritus y guardianes han reaparecido en todas las etapas!');
+    showToast('🌿 ¡Criaturas Espirituales y guardianes han reaparecido en todas las etapas!');
   };
 
   // Evolution Trigger (Temples only in Stages 2 & 4)
@@ -850,7 +915,7 @@ export default function App() {
       clone.unshift(item);
       return clone;
     });
-    showToast('👑 ¡Nuevo espíritu líder asignado al combate!');
+    showToast('👑 ¡Nueva Criatura Espiritual líder asignada al combate!');
   };
 
   // Open Chest / Get reward
@@ -909,7 +974,7 @@ export default function App() {
       [itemId]: { ...item, count: item.count - 1 },
     }));
 
-    showToast('🍃 Objeto utilizado con éxito en tu espíritu.');
+    showToast('🍃 Objeto utilizado con éxito en tu Criatura Espiritual.');
   };
 
   // Linear & Interior Stage Movement (preserves exact outdoor doorstep & vendor metadata when returning from Hospital / Santuario / Tienda)
@@ -1021,7 +1086,7 @@ export default function App() {
               <span>¿REINICIAR TODA LA AVENTURA?</span>
             </div>
             <p className="text-zinc-300 leading-relaxed mb-4">
-              Esta acción restablecerá todo tu progreso, partidas guardadas, espíritus e inventario. Volverás al inicio en tu Casa (Escenario 0).
+              Esta acción restablecerá todo tu progreso, partidas guardadas, Criaturas Espirituales e inventario. Volverás al inicio en tu Casa (Escenario 0).
             </p>
             <div className="flex gap-2 justify-end">
               <button
@@ -1070,6 +1135,8 @@ export default function App() {
         <OnboardingModal
           heroName={barbara.name}
           starterName={chosenStarterName}
+          heroGender={barbara.gender}
+          starterId={activeSpirit?.baseId}
           totalBaseSpecies={Object.keys(SPIRITS_REGISTRY).length}
           totalEvolutionForms={Object.values(SPIRITS_REGISTRY).reduce(
             (acc, sp) => acc + sp.evolutionLine.length,
@@ -1087,6 +1154,7 @@ export default function App() {
         <SystemMenuModal
           currentRegion={currentRegion}
           unlockedRegions={unlockedRegions}
+          partySpirits={partySpirits}
           isMuted={isMuted}
           medalsCount={(barbara.medals || []).length}
           onToggleMute={handleToggleMute}
@@ -1140,6 +1208,8 @@ export default function App() {
           revealedTiles={revealedTiles}
           importantMessage={toastMessage}
           onRevealTiles={handleRevealTiles}
+          onRevealRegionMap={handleRevealRegionMap}
+          onCollectPickup={handleCollectPickup}
           onSightSpecies={handleSightSpecies}
           onSyncPosition={setPlayerSpawnPos}
           onHealAtHome={handleHealAtHome}
@@ -1337,7 +1407,7 @@ export default function App() {
               ¡MAESTRO NATURALISTA!
             </h2>
             <p className="text-xs font-mono text-zinc-300 leading-relaxed mb-4">
-              ¡Felicidades, {barbara.name}! Has registrado las <strong className="text-white">{Object.keys(SPIRITS_REGISTRY).length} especies</strong> de Chile desde la R. Metropolitana hasta los fiordos de Los Lagos. Tu medalla honorífica ya brilla en tu Perfil.
+              ¡Felicidades, {barbara.name}! Has registrado las <strong className="text-white">{Object.keys(SPIRITS_REGISTRY).length} especies</strong> de Chile desde la R. Metropolitana hasta los fiordos de Los Lagos. Tu Amuleto honorífico ya brilla en tu Perfil.
             </p>
             <button
               onClick={() => {
@@ -1364,7 +1434,7 @@ export default function App() {
               ¡LA ARMONÍA DE CHILE HA SIDO RESTAURADA!
             </h1>
             <h2 className="font-cinzel text-xs sm:text-base text-zinc-300 font-bold mb-3 sm:mb-4">
-              {barbara.name} &middot; Guardiana Suprema de los Espíritus del Sur
+              {barbara.name} &middot; Guardiana Suprema de las Criaturas Espirituales del Sur
             </h2>
 
             {/* 3-Panel Generated Visual Story Sequence */}
@@ -1390,7 +1460,7 @@ export default function App() {
                 <div className="aspect-video w-full bg-gradient-to-br from-zinc-800 to-zinc-950 overflow-hidden">
                   <img
                     src={endingGuardianesImg}
-                    alt="Espíritus y guardianes elementales unidos"
+                    alt="Criaturas Espirituales y guardianes elementales unidos"
                     referrerPolicy="no-referrer"
                     className="w-full h-full object-cover"
                   />
@@ -1398,7 +1468,7 @@ export default function App() {
                 <div className="p-2.5">
                   <div className="font-silkscreen text-[10px] text-amber-200 mb-0.5">2. GUARDIANES UNIDOS</div>
                   <p className="text-[10px] font-mono text-zinc-300 leading-snug">
-                    Los Maestros Vínculo y las 5 regiones celebran las Medallas obtenidas en equipo.
+                    Los Maestros Vínculo y las 5 regiones celebran los Amuletos Espirituales obtenidos en equipo.
                   </p>
                 </div>
               </div>
@@ -1415,7 +1485,7 @@ export default function App() {
                 <div className="p-2.5">
                   <div className="font-silkscreen text-[10px] text-amber-200 mb-0.5">3. NUEVA TRAVESÍA</div>
                   <p className="text-[10px] font-mono text-zinc-300 leading-snug">
-                    {barbara.name} y sus espíritus siguen explorando senderos para completar el Bestiario.
+                    {barbara.name} y sus Criaturas Espirituales siguen explorando senderos para completar el Bestiario.
                   </p>
                 </div>
               </div>
@@ -1423,7 +1493,7 @@ export default function App() {
 
             <div className="w-full bg-zinc-900/90 border border-zinc-700 rounded-2xl p-3 sm:p-4 text-[11px] sm:text-xs text-zinc-300 font-mono leading-relaxed mb-4 text-left">
               <p className="text-zinc-200">
-                R. Metropolitana, R. del Biobío, R. de La Araucanía, R. de Los Ríos y R. de Los Lagos brillan libres. Al cerrar esta crónica podrás continuar explorando todas las regiones, con tus medallas intactas y espíritus listos para nuevas batallas.
+                R. Metropolitana, R. del Biobío, R. de La Araucanía, R. de Los Ríos y R. de Los Lagos brillan libres. Al cerrar esta crónica podrás continuar explorando todas las regiones, con tus Amuletos Espirituales intactos y Criaturas Espirituales listas para nuevas batallas.
               </p>
             </div>
 

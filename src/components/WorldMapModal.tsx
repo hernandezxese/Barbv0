@@ -63,15 +63,25 @@ export const WorldMapModal: React.FC<WorldMapModalProps> = ({
 
   const mapNodes: Record<RegionId, { top: string; left: string; landmark: string; climate: string; shortLabel: string }> = {
     casa: { top: '13%', left: '50%', landmark: 'Hogar Familiar (Escenario 0)', climate: 'Interior (0%)', shortLabel: 'Casa' },
-    santiago: { top: '13%', left: '50%', landmark: 'Río Mapocho, Cerros y Tienda', climate: 'Soleado', shortLabel: 'R.M.' },
-    biobio: { top: '53%', left: '50%', landmark: 'Vía Férrea, Hospital y Santuario', climate: 'Niebla/Lluvia', shortLabel: 'Biobío' },
-    araucania: { top: '65%', left: '51%', landmark: 'Araucarias, Volcán y Tienda', climate: 'Lluvia Fija', shortLabel: 'Araucanía' },
-    losrios: { top: '77%', left: '49%', landmark: 'Hospital, Santuario y Torreón', climate: 'Lluvia+Viento', shortLabel: 'Los Ríos' },
-    loslagos: { top: '89%', left: '48%', landmark: 'Palafitos, Tienda y Serpientes', climate: 'Tormenta', shortLabel: 'Los Lagos' },
+    santiago: { top: '13%', left: '50%', landmark: 'Cerro San Cristóbal, Río Mapocho y Urbe', climate: 'Soleado', shortLabel: 'R.M.' },
+    biobio: { top: '53%', left: '50%', landmark: 'Volcán Antuco, Río, Vía Férrea y Ciudad', climate: 'Niebla/Lluvia', shortLabel: 'Biobío' },
+    araucania: { top: '65%', left: '51%', landmark: 'Volcán Villarrica, Lago y Rucas Mapuches', climate: 'Lluvia Fija', shortLabel: 'Araucanía' },
+    losrios: { top: '77%', left: '49%', landmark: 'Volcán Mocho-Choshuenco, 2 Ríos y Lago', climate: 'Lluvia+Viento', shortLabel: 'Los Ríos' },
+    loslagos: { top: '89%', left: '48%', landmark: 'Volcán Osorno, Isla Chiloé y Palafitos', climate: 'Tormenta', shortLabel: 'Los Lagos' },
     hospital: { top: '53%', left: '72%', landmark: 'Hospital Regional (Interior)', climate: 'Seguro (0%)', shortLabel: 'Hospital' },
     santuario: { top: '77%', left: '72%', landmark: 'Santuario de Evolución', climate: 'Seguro (0%)', shortLabel: 'Santuario' },
     tienda: { top: '13%', left: '72%', landmark: 'Tienda Regional (Interior)', climate: 'Seguro (0%)', shortLabel: 'Tienda' },
   };
+
+  const hasHospital = selectedRegion.entities.some(
+    e => e.isHospital || e.destinationRegion === 'hospital'
+  );
+  const hasTienda = selectedRegion.entities.some(
+    e => e.isShop || e.destinationRegion === 'tienda'
+  );
+  const hasSantuario = selectedRegion.entities.some(
+    e => e.isEvolutionSanctuary || e.destinationRegion === 'santuario'
+  );
 
   const [viewMode, setViewMode] = useState<'cartography' | 'stage_terrain'>('stage_terrain');
   const stageCanvasRef = React.useRef<HTMLCanvasElement | null>(null);
@@ -304,10 +314,10 @@ export const WorldMapModal: React.FC<WorldMapModalProps> = ({
                   <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-white border border-zinc-900" /> Tú</span>
                 )}
                 <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500 border border-white" /> Guardián</span>
-                <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-sky-400" /> Espíritu</span>
+                <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-sky-400" /> Criatura</span>
                 <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-yellow-400" /> Tienda</span>
                 <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-rose-500" /> Hospital</span>
-                <span className="flex items-center gap-1"><span className="w-2 h-2 bg-amber-500 rounded-xs" /> Cofre</span>
+                <span className="flex items-center gap-1"><span className="w-2 h-2 bg-amber-500 rounded-xs" /> Cofre/Orbe</span>
                 <span className="flex items-center gap-1"><span className="w-2 h-2 bg-pink-500 rounded-xs" /> Misión</span>
               </div>
             </div>
@@ -464,7 +474,45 @@ export const WorldMapModal: React.FC<WorldMapModalProps> = ({
 
             <div className="bg-zinc-950 border border-zinc-800 rounded-xl p-2.5">
               <div className="text-[9px] font-silkscreen text-zinc-400 mb-1.5 uppercase">
-                Espíritus de la Zona:
+                Lugares y Servicios de la Región:
+              </div>
+              <div className="grid grid-cols-3 gap-1.5 text-[10px] font-mono-stat">
+                <div
+                  className={`px-2 py-1.5 rounded-lg border text-center ${
+                    hasHospital
+                      ? 'bg-zinc-900 border-rose-500/70 text-zinc-100 font-bold'
+                      : 'bg-zinc-950 border-zinc-800 text-zinc-600'
+                  }`}
+                >
+                  <div>🏥 Hospital</div>
+                  <div className="text-[9px]">{hasHospital ? 'Disponible' : 'No hay'}</div>
+                </div>
+                <div
+                  className={`px-2 py-1.5 rounded-lg border text-center ${
+                    hasTienda
+                      ? 'bg-zinc-900 border-amber-400/70 text-zinc-100 font-bold'
+                      : 'bg-zinc-950 border-zinc-800 text-zinc-600'
+                  }`}
+                >
+                  <div>🛒 Tienda</div>
+                  <div className="text-[9px]">{hasTienda ? 'Disponible' : 'No hay'}</div>
+                </div>
+                <div
+                  className={`px-2 py-1.5 rounded-lg border text-center ${
+                    hasSantuario
+                      ? 'bg-zinc-900 border-emerald-400/70 text-zinc-100 font-bold'
+                      : 'bg-zinc-950 border-zinc-800 text-zinc-600'
+                  }`}
+                >
+                  <div>✨ Santuario</div>
+                  <div className="text-[9px]">{hasSantuario ? 'Disponible' : 'No hay'}</div>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-zinc-950 border border-zinc-800 rounded-xl p-2.5">
+              <div className="text-[9px] font-silkscreen text-zinc-400 mb-1.5 uppercase">
+                Criaturas Espirituales de la Zona:
               </div>
               {selectedRegion.wildEncounterTable.length === 0 ? (
                 <div className="text-[10px] font-mono text-zinc-400">Zona pacífica sin combates.</div>

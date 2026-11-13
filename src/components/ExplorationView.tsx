@@ -50,6 +50,8 @@ interface ExplorationViewProps {
   revealedTiles?: Record<string, string[]>;
   importantMessage?: string | null;
   onRevealTiles?: (regionId: RegionId, newCoords: string[]) => void;
+  onRevealRegionMap?: (regionId: RegionId) => void;
+  onCollectPickup?: (entityId: string, healHpPercent?: number, healMpPercent?: number, label?: string) => void;
   onSightSpecies?: (speciesIds: string[]) => void;
   onSyncPosition?: (pos: { x: number; y: number }) => void;
   onHealAtHome?: () => void;
@@ -193,6 +195,7 @@ export const ExplorationView: React.FC<ExplorationViewProps> = ({
   currentRegion,
   unlockedRegions,
   playerSpirit,
+  partySpirits,
   barbara,
   isMuted,
   hasCompletedStory = false,
@@ -200,6 +203,8 @@ export const ExplorationView: React.FC<ExplorationViewProps> = ({
   revealedTiles,
   importantMessage,
   onRevealTiles,
+  onRevealRegionMap,
+  onCollectPickup,
   onSightSpecies,
   onSyncPosition,
   onHealAtHome,
@@ -230,7 +235,7 @@ export const ExplorationView: React.FC<ExplorationViewProps> = ({
   const [interactPrompt, setInteractPrompt] = useState<string | null>(null);
   const [nearbyEntity, setNearbyEntity] = useState<OverworldEntity | null>(null);
 
-  const currentQuest = getCurrentQuest(currentRegion, unlockedRegions);
+  const currentQuest = getCurrentQuest(currentRegion, unlockedRegions, partySpirits);
 
   const posRef = useRef({ x: initialSpawnPos.x, y: initialSpawnPos.y });
   const targetPosRef = useRef({ x: initialSpawnPos.x, y: initialSpawnPos.y });
@@ -484,17 +489,22 @@ export const ExplorationView: React.FC<ExplorationViewProps> = ({
           onTriggerDialogue(entity.name, entity.dialog, undefined, entity.sprite);
         }
       } else if (entity.type === 'chest') {
-        sound.playChestOpen();
-        onOpenChest(entity.id, entity.rewardItem, entity.rewardGold);
-        if (entity.dialog) {
-          onTriggerDialogue(entity.name, entity.dialog);
+        if (entity.healHpPercent || entity.healMpPercent) {
+          sound.playHeal();
+          onCollectPickup?.(entity.id, entity.healHpPercent, entity.healMpPercent, entity.name);
+        } else {
+          sound.playChestOpen();
+          onOpenChest(entity.id, entity.rewardItem, entity.rewardGold);
+          if (entity.dialog) {
+            onTriggerDialogue(entity.name, entity.dialog);
+          }
         }
       } else if (entity.type === 'wild_encounter') {
         sound.playEncounter();
         const spiritId = entity.encounterSpiritId || entity.sprite.replace('wild_', '').replace('pudu', 'puducito');
         onTriggerDialogue(
-          'Espíritu Silvestre',
-          [`¡Un ${entity.name} salvaje te desafía!`],
+          'Criatura Espiritual Silvestre',
+          [`¡Una ${entity.name} salvaje te desafía!`],
           {
             type: 'battle',
             spiritId,
@@ -512,7 +522,7 @@ export const ExplorationView: React.FC<ExplorationViewProps> = ({
             'Monolito de Contención Ancestral',
             [
               'El altar del Guardián Regional está sellado por runas elementales.',
-              'Completa los pasos previos y la misión elemental de esta etapa para despertar su presencia.',
+              'Completa los pasos previos (incluyendo el cerro/volcán y la barrera elemental) para despertar su presencia.',
             ]
           );
           return;
@@ -532,7 +542,12 @@ export const ExplorationView: React.FC<ExplorationViewProps> = ({
           entity.sprite
         );
       } else if (entity.type === 'decorative' || entity.sprite.startsWith('deco_')) {
-        sound.playAnimalSound(entity.sprite || entity.name);
+        if (entity.revealsRegionMap) {
+          sound.playLevelUp();
+          onRevealRegionMap?.(currentRegion.id);
+        } else {
+          sound.playAnimalSound(entity.sprite || entity.name);
+        }
         if (entity.dialog) {
           onTriggerDialogue(entity.name, entity.dialog, undefined, entity.sprite);
         }
@@ -563,17 +578,17 @@ export const ExplorationView: React.FC<ExplorationViewProps> = ({
             targetY: entity.y,
             element: reqEl,
             startedAt: performance.now(),
-            duration: 1050,
+            duration: 1150,
             msg,
           };
         } else {
           sound.playCancel();
           const elLabel = ELEMENT_META[reqEl]?.label || reqEl.toUpperCase();
           onTriggerDialogue(
-            'Habilidad del Espíritu Activo',
+            'Habilidad de la Criatura Espiritual Activa',
             [
               entity.dialog?.[0] ||
-                `Asigna un espíritu sano de tipo ${elLabel} como tu Espíritu Activo (Líder en Equipo) para despejar este paso.`,
+                `Asigna una Criatura Espiritual sana de tipo ${elLabel} como tu Líder Activo en Equipo para despejar este paso.`,
               `Tu líder actual (${playerSpirit.name}) no cuenta con el elemento ${elLabel} disponible.`,
             ]
           );
@@ -597,6 +612,8 @@ export const ExplorationView: React.FC<ExplorationViewProps> = ({
       hasCompletedStory,
       playerSpirit,
       onHealAtHome,
+      onCollectPickup,
+      onRevealRegionMap,
       onTriggerDialogue,
       onOpenChest,
       onTravelPortal,
@@ -920,6 +937,19 @@ export const ExplorationView: React.FC<ExplorationViewProps> = ({
             }
           }
 
+          // Step-over HP & Mana pickups on map
+          const stepPickup = currentRegion.entities.find(
+            e =>
+              !e.cleared &&
+              e.x === target.x &&
+              e.y === target.y &&
+              (e.healHpPercent || e.healMpPercent)
+          );
+          if (stepPickup) {
+            sound.playHeal();
+            onCollectPickup?.(stepPickup.id, stepPickup.healHpPercent, stepPickup.healMpPercent, stepPickup.name);
+          }
+
           // Contact with roaming wild spirits
           const roamingSpirit = currentRegion.entities.find(e => {
             if (e.cleared) return false;
@@ -1192,8 +1222,8 @@ export const ExplorationView: React.FC<ExplorationViewProps> = ({
                   ctx.fillStyle = '#71717a';
                   ctx.fillRect(px + 12, py + 12, 8, 8);
                 } else if (currentRegion.id === 'santiago') {
-                  // Santiago stone cobble avenue + bridge over Río Mapocho (row 11)
-                  const isMapochoBridge = y === 11;
+                  // Santiago stone cobble avenue + bridge over Río Mapocho (row 12)
+                  const isMapochoBridge = y === 12;
                   ctx.fillStyle = isMapochoBridge ? '#78350f' : '#cbd5e1';
                   ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
                   ctx.fillStyle = isMapochoBridge ? '#a16207' : '#e2e8f0';
@@ -1202,12 +1232,13 @@ export const ExplorationView: React.FC<ExplorationViewProps> = ({
                   ctx.fillRect(px + 15, py + 4, 2, 24);
                   ctx.fillRect(px + 4, py + 15, 24, 2);
                 } else if (currentRegion.id === 'biobio') {
-                  // Biobío stone & gravel path (distinct from railway tracks tile 11)
-                  ctx.fillStyle = '#d6d3d1';
+                  // Biobío stone & gravel path + wooden river bridges on row 7
+                  const isRiverBridge = y === 7;
+                  ctx.fillStyle = isRiverBridge ? '#78350f' : '#d6d3d1';
                   ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
-                  ctx.fillStyle = '#a8a29e';
+                  ctx.fillStyle = isRiverBridge ? '#a16207' : '#a8a29e';
                   ctx.fillRect(px + 4, py + 4, TILE_SIZE - 8, TILE_SIZE - 8);
-                  ctx.fillStyle = '#78716c';
+                  ctx.fillStyle = isRiverBridge ? '#451a03' : '#78716c';
                   ctx.fillRect(px + 10, py + 10, 4, 4);
                   ctx.fillRect(px + 18, py + 18, 4, 4);
                 } else if (currentRegion.id === 'araucania') {
@@ -1736,7 +1767,7 @@ export const ExplorationView: React.FC<ExplorationViewProps> = ({
             ctx.fillText('!', pos.x * TILE_SIZE + TILE_SIZE / 2 - 3, pos.y * TILE_SIZE - 6);
           }
 
-          // Active Spirit Elemental Obstacle Clearance VFX
+          // 5 Bespoke Elemental Obstacle Clearance Animations (unique per element!)
           if (obstacleSkillAnimRef.current) {
             const anim = obstacleSkillAnimRef.current;
             const p = Math.min(1, Math.max(0, (currentTime - anim.startedAt) / anim.duration));
@@ -1745,60 +1776,137 @@ export const ExplorationView: React.FC<ExplorationViewProps> = ({
             const tx = anim.targetX * TILE_SIZE + TILE_SIZE / 2;
             const ty = anim.targetY * TILE_SIZE + TILE_SIZE / 2;
 
-            const vfxColors: Record<ElementType, { outer: string; inner: string }> = {
-              fuego: { outer: '#f97316', inner: '#fef08a' },
-              agua: { outer: '#0ea5e9', inner: '#e0f2fe' },
-              planta: { outer: '#22c55e', inner: '#dcfce7' },
-              tierra: { outer: '#d97706', inner: '#fef3c7' },
-              hielo: { outer: '#38bdf8', inner: '#f0f9ff' },
-              viento: { outer: '#a3e635', inner: '#ecfccb' },
-              sagrado: { outer: '#facc15', inner: '#fef9c3' },
-              normal: { outer: '#a1a1aa', inner: '#f4f4f5' },
-            };
-            const palette = vfxColors[anim.element] || vfxColors.tierra;
-
             ctx.save();
-            // Companion charge aura
-            ctx.strokeStyle = palette.outer;
-            ctx.lineWidth = 3;
-            ctx.beginPath();
-            ctx.arc(sx, sy, 14 + Math.sin(p * Math.PI * 6) * 4, 0, Math.PI * 2);
-            ctx.stroke();
-
-            // Beam from active spirit to obstacle
-            const beamProgress = Math.min(1, p * 1.45);
-            const curBx = sx + (tx - sx) * beamProgress;
-            const curBy = sy + (ty - sy) * beamProgress;
-
-            ctx.lineCap = 'round';
-            ctx.strokeStyle = palette.outer;
-            ctx.lineWidth = 9 - p * 3;
-            ctx.beginPath();
-            ctx.moveTo(sx, sy);
-            ctx.lineTo(curBx, curBy);
-            ctx.stroke();
-
-            ctx.strokeStyle = palette.inner;
-            ctx.lineWidth = 3.5;
-            ctx.beginPath();
-            ctx.moveTo(sx, sy);
-            ctx.lineTo(curBx, curBy);
-            ctx.stroke();
-
-            // Impact ring & particles on obstacle
-            if (p > 0.35) {
-              const impactP = (p - 0.35) / 0.65;
-              ctx.strokeStyle = palette.inner;
-              ctx.lineWidth = 2.5;
+            if (anim.element === 'tierra') {
+              // TIERRA: Seismic amber ground shockwaves + erupting stone pillars
+              const shake = Math.sin(p * Math.PI * 16) * (1 - p) * 3;
+              ctx.translate(shake, -shake * 0.6);
+              for (let r = 0; r < 3; r++) {
+                const rp = Math.max(0, p - r * 0.14);
+                ctx.strokeStyle = r % 2 === 0 ? '#d97706' : '#fef3c7';
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.ellipse(sx + (tx - sx) * Math.min(1, rp * 1.3), sy + (ty - sy) * Math.min(1, rp * 1.3), 8 + rp * 20, 4 + rp * 11, 0, 0, Math.PI * 2);
+                ctx.stroke();
+              }
+              if (p > 0.25) {
+                const rise = Math.sin(((p - 0.25) / 0.75) * Math.PI);
+                for (let k = -1; k <= 1; k++) {
+                  const rx = tx + k * 9 - 3;
+                  const rh = 18 * rise;
+                  ctx.fillStyle = '#78350f';
+                  ctx.fillRect(rx, ty + 8 - rh, 6, rh);
+                  ctx.fillStyle = '#f59e0b';
+                  ctx.fillRect(rx + 1, ty + 8 - rh, 4, 3);
+                }
+              }
+            } else if (anim.element === 'fuego') {
+              // FUEGO: Spiraling vortex of fireballs + scorching ground blaze & rising embers
+              const steps = 6;
+              for (let i = 0; i < steps; i++) {
+                const fp = Math.max(0, Math.min(1, p * 1.45 - i * 0.08));
+                const spiral = Math.sin(fp * Math.PI * 4 + i) * 9 * (1 - fp * 0.5);
+                const fx = sx + (tx - sx) * fp + spiral;
+                const fy = sy + (ty - sy) * fp - Math.cos(fp * Math.PI * 3 + i) * 5;
+                ctx.fillStyle = i % 2 === 0 ? '#ea580c' : '#facc15';
+                ctx.beginPath();
+                ctx.arc(fx, fy, 6 - i * 0.5, 0, Math.PI * 2);
+                ctx.fill();
+              }
+              if (p > 0.35) {
+                const bp = (p - 0.35) / 0.65;
+                ctx.fillStyle = 'rgba(234, 88, 12, 0.5)';
+                ctx.beginPath();
+                ctx.arc(tx, ty, 10 + bp * 16, 0, Math.PI * 2);
+                ctx.fill();
+                for (let e = 0; e < 8; e++) {
+                  const ex = tx + Math.sin(e * 2.1 + p * 8) * (10 + bp * 14);
+                  const ey = ty - bp * 26 + (e % 3) * 6;
+                  ctx.fillStyle = '#fef08a';
+                  ctx.fillRect(ex, ey, 3, 3);
+                }
+              }
+            } else if (anim.element === 'agua') {
+              // AGUA: High-crest arcing tidal wave crashing down + expanding seafoam mist
+              const arcP = Math.min(1, p * 1.35);
+              const arcX = sx + (tx - sx) * arcP;
+              const arcY = sy + (ty - sy) * arcP - Math.sin(arcP * Math.PI) * 26;
+              ctx.strokeStyle = '#0ea5e9';
+              ctx.lineWidth = 8;
+              ctx.lineCap = 'round';
               ctx.beginPath();
-              ctx.arc(tx, ty, 8 + impactP * 22, 0, Math.PI * 2);
+              ctx.moveTo(sx, sy);
+              ctx.quadraticCurveTo((sx + tx) / 2, Math.min(sy, ty) - 34, arcX, arcY);
               ctx.stroke();
-
-              for (let k = 0; k < 8; k++) {
-                const ang = (k / 8) * Math.PI * 2 + p * 4;
-                const rad = impactP * 24;
-                ctx.fillStyle = k % 2 === 0 ? palette.inner : palette.outer;
-                ctx.fillRect(tx + Math.cos(ang) * rad - 2, ty + Math.sin(ang) * rad - 2, 5, 5);
+              ctx.fillStyle = '#e0f2fe';
+              ctx.beginPath();
+              ctx.arc(arcX, arcY, 7, 0, Math.PI * 2);
+              ctx.fill();
+              if (p > 0.45) {
+                const sp = (p - 0.45) / 0.55;
+                for (let d = 0; d < 10; d++) {
+                  const ang = (d / 10) * Math.PI * 2;
+                  const rad = sp * 24;
+                  ctx.fillStyle = d % 2 === 0 ? '#bae6fd' : '#0284c7';
+                  ctx.beginPath();
+                  ctx.arc(tx + Math.cos(ang) * rad, ty + Math.sin(ang) * rad, 3.5, 0, Math.PI * 2);
+                  ctx.fill();
+                }
+              }
+            } else if (anim.element === 'planta') {
+              // PLANTA: Three sinuous emerald vines wrapping & blooming golden leaves on impact
+              const vineP = Math.min(1, p * 1.4);
+              for (let v = -1; v <= 1; v++) {
+                ctx.strokeStyle = v === 0 ? '#22c55e' : '#15803d';
+                ctx.lineWidth = 3.5;
+                ctx.beginPath();
+                ctx.moveTo(sx, sy);
+                const midX = (sx + tx) / 2 + v * 16;
+                const midY = (sy + ty) / 2 + Math.sin(p * Math.PI * 4 + v) * 14;
+                ctx.quadraticCurveTo(midX, midY, sx + (tx - sx) * vineP, sy + (ty - sy) * vineP);
+                ctx.stroke();
+              }
+              if (p > 0.35) {
+                const lp = (p - 0.35) / 0.65;
+                for (let l = 0; l < 6; l++) {
+                  const ang = (l / 6) * Math.PI * 2 + p * 5;
+                  const rad = 8 + lp * 16;
+                  ctx.fillStyle = l % 2 === 0 ? '#84cc16' : '#fef08a';
+                  ctx.beginPath();
+                  ctx.ellipse(tx + Math.cos(ang) * rad, ty + Math.sin(ang) * rad, 4, 2, ang, 0, Math.PI * 2);
+                  ctx.fill();
+                }
+              }
+            } else {
+              // HIELO: Sharp faceted glacial lance + rotating 6-point hexagonal frost crystal rings
+              const lanceP = Math.min(1, p * 1.5);
+              const lx = sx + (tx - sx) * lanceP;
+              const ly = sy + (ty - sy) * lanceP;
+              ctx.strokeStyle = '#38bdf8';
+              ctx.lineWidth = 4;
+              ctx.beginPath();
+              ctx.moveTo(sx, sy);
+              ctx.lineTo(lx, ly);
+              ctx.stroke();
+              ctx.fillStyle = '#f0f9ff';
+              ctx.beginPath();
+              ctx.arc(lx, ly, 5, 0, Math.PI * 2);
+              ctx.fill();
+              if (p > 0.3) {
+                const ip = (p - 0.3) / 0.7;
+                ctx.strokeStyle = '#bae6fd';
+                ctx.lineWidth = 2.5;
+                ctx.beginPath();
+                for (let h = 0; h < 6; h++) {
+                  const ang = (h / 6) * Math.PI * 2 + p * 3;
+                  const rad = 6 + ip * 22;
+                  const hx = tx + Math.cos(ang) * rad;
+                  const hy = ty + Math.sin(ang) * rad;
+                  if (h === 0) ctx.moveTo(hx, hy);
+                  else ctx.lineTo(hx, hy);
+                }
+                ctx.closePath();
+                ctx.stroke();
               }
             }
             ctx.restore();
@@ -2056,7 +2164,7 @@ export const ExplorationView: React.FC<ExplorationViewProps> = ({
               onOpenProfile?.();
             }}
             className="bg-zinc-900/95 hover:bg-zinc-800 backdrop-blur border border-zinc-600/80 px-2 sm:px-2.5 py-1.5 rounded-xl shadow-lg pointer-events-auto flex items-center gap-2 min-w-0 cursor-pointer text-left active:scale-95 transition-all"
-            title="Ver Perfil y Medallas"
+            title="Ver Perfil y Amuletos Espirituales"
           >
             <div className="w-8 h-8 rounded-lg bg-zinc-950 border border-zinc-400 flex items-center justify-center shrink-0 overflow-hidden">
               <canvas
@@ -2170,7 +2278,12 @@ export const ExplorationView: React.FC<ExplorationViewProps> = ({
             <span className="truncate">{currentQuest.shortText}</span>
           </button>
 
-          <div className="flex items-center gap-1 pointer-events-auto">
+          <div className="flex flex-wrap items-center gap-1 pointer-events-auto">
+            <div className="px-2 py-0.5 rounded-full bg-zinc-100 border border-zinc-300 text-[9px] sm:text-[10px] font-silkscreen font-bold text-zinc-950 flex items-center gap-1 shadow-md">
+              <MapPin className="w-3 h-3 text-zinc-900 shrink-0" />
+              <span className="truncate max-w-[125px]">{currentRegion.name}</span>
+            </div>
+
             <div className="px-2 py-0.5 rounded-full bg-zinc-900/90 border border-zinc-600 text-[9px] sm:text-[10px] font-mono text-zinc-100 flex items-center gap-1 shadow-md">
               {weatherBadge.icon}
               <span className="truncate max-w-[115px]">{weatherBadge.text}</span>

@@ -12,18 +12,19 @@ class SoundEngine {
   private bgmInterval: ReturnType<typeof setInterval> | null = null;
   private ambientInterval: ReturnType<typeof setInterval> | null = null;
   private unlocked: boolean = false;
+  private silentHtmlAudioUnlocked: boolean = false;
 
   constructor() {
     if (typeof window !== 'undefined') {
       const unlockHandler = () => {
         this.unlockMobileAudio();
       };
-      window.addEventListener('touchend', unlockHandler, { passive: true });
-      window.addEventListener('touchstart', unlockHandler, { passive: true });
-      window.addEventListener('pointerdown', unlockHandler, { passive: true });
-      window.addEventListener('click', unlockHandler, { passive: true });
+      window.addEventListener('touchstart', unlockHandler, { passive: true, capture: true });
+      window.addEventListener('touchend', unlockHandler, { passive: true, capture: true });
+      window.addEventListener('pointerdown', unlockHandler, { passive: true, capture: true });
+      window.addEventListener('click', unlockHandler, { passive: true, capture: true });
       document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'visible' && this.ctx && this.ctx.state === 'suspended') {
+        if (document.visibilityState === 'visible' && this.ctx && this.ctx.state !== 'running') {
           this.ctx.resume().catch(() => {});
         }
       });
@@ -43,37 +44,70 @@ class SoundEngine {
     }
   }
 
+  private wakeHtmlMediaChannel() {
+    if (this.silentHtmlAudioUnlocked || typeof document === 'undefined') return;
+    try {
+      const nav = navigator as unknown as { audioSession?: { type: string } };
+      if (nav.audioSession) {
+        nav.audioSession.type = 'playback';
+      }
+      // Minimal valid 44-byte silent mono PCM WAV data URI to wake mobile hardware audio channel inside user gesture
+      const silentWav =
+        'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA';
+      const el = document.createElement('audio');
+      el.setAttribute('playsinline', 'true');
+      el.setAttribute('webkit-playsinline', 'true');
+      el.volume = 0.01;
+      el.src = silentWav;
+      const p = el.play();
+      if (p && typeof p.then === 'function') {
+        p.then(() => {
+          this.silentHtmlAudioUnlocked = true;
+        }).catch(() => {});
+      }
+    } catch {
+      // Safe fallback
+    }
+  }
+
   public unlockMobileAudio() {
+    this.wakeHtmlMediaChannel();
     this.initContext();
     if (!this.ctx) return;
 
-    const wasUnlocked = this.unlocked;
+    const restartActiveLoops = () => {
+      if (!this.isMuted && this.currentTrack) {
+        this.playBgm(this.currentTrack, true);
+      }
+      if (!this.isMuted && this.currentAmbient) {
+        this.startAmbient(this.currentAmbient, true);
+      }
+    };
+
     try {
       if (this.ctx.state === 'suspended' || (this.ctx.state as string) === 'interrupted') {
-        this.ctx.resume().then(() => {
-          if (!this.isMuted && this.currentTrack && !this.bgmInterval) {
-            this.playBgm(this.currentTrack, true);
-          }
-          if (!this.isMuted && this.currentAmbient && !this.ambientInterval) {
-            this.startAmbient(this.currentAmbient, true);
-          }
-        }).catch(() => {});
+        this.ctx
+          .resume()
+          .then(() => {
+            if (this.ctx && this.ctx.state === 'running') {
+              this.unlocked = true;
+              restartActiveLoops();
+            }
+          })
+          .catch(() => {});
       }
 
-      if (!wasUnlocked) {
-        // 1-sample silent trigger inside touch/click gesture unlocks iOS WebAudio reliably
+      if (!this.unlocked || this.ctx.state !== 'running') {
+        // 1-sample silent trigger inside touch/click gesture unlocks iOS/Android WebAudio reliably
         const buffer = this.ctx.createBuffer(1, 1, 22050);
         const source = this.ctx.createBufferSource();
         source.buffer = buffer;
         source.connect(this.ctx.destination);
         source.start(0);
-        this.unlocked = true;
 
-        if (!this.isMuted && this.currentTrack) {
-          this.playBgm(this.currentTrack, true);
-        }
-        if (!this.isMuted && this.currentAmbient) {
-          this.startAmbient(this.currentAmbient, true);
+        if (this.ctx.state === 'running') {
+          this.unlocked = true;
+          restartActiveLoops();
         }
       }
     } catch {
@@ -122,8 +156,9 @@ class SoundEngine {
     if (!this.ctx) return;
 
     try {
-      if (this.ctx.state === 'suspended') {
+      if (this.ctx.state !== 'running') {
         this.ctx.resume().catch(() => {});
+        return;
       }
       const osc = this.ctx.createOscillator();
       const gain = this.ctx.createGain();
@@ -152,8 +187,9 @@ class SoundEngine {
     if (!this.ctx) return;
 
     try {
-      if (this.ctx.state === 'suspended') {
+      if (this.ctx.state !== 'running') {
         this.ctx.resume().catch(() => {});
+        return;
       }
       const bufferSize = Math.max(1, Math.floor(this.ctx.sampleRate * duration));
       const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);

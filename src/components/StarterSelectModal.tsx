@@ -132,10 +132,10 @@ export const StarterSelectModal: React.FC<StarterSelectModalProps> = ({
             <span>COMPAÑERO INICIAL</span>
           </div>
           <h2 className="text-sm sm:text-xl font-silkscreen text-zinc-100">
-            Elige tu Primer Espíritu
+            Elige tu Primera Criatura Espiritual
           </h2>
           <p className="text-[11px] sm:text-xs text-zinc-300 font-ui max-w-2xl mx-auto">
-            <strong className="text-white">Mamá Elena:</strong> &ldquo;{heroName}, escoge al espíritu que partirá contigo.&rdquo;
+            <strong className="text-white">Mamá Elena:</strong> &ldquo;{heroName}, escoge a la Criatura Espiritual que partirá contigo.&rdquo;
           </p>
         </div>
 

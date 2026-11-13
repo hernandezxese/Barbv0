@@ -42,15 +42,15 @@ export const PrologueModal: React.FC<PrologueModalProps> = ({
       imageUrl: introMundoImg,
       imageAlt: 'Valle Central y Cordillera de los Andes al amanecer',
       fallbackGradient: 'from-sky-900 via-emerald-900 to-zinc-950',
-      text: `Soy ${playerName}. Vivo en un país largo donde cada región —Santiago, los valles prehistóricos del Biobío, Araucanía, Los Ríos y Los Lagos— late al ritmo de antiguos espíritus elementales.`,
+      text: `Soy ${playerName}. Vivo en un país largo donde cada región —Santiago, los valles prehistóricos del Biobío, Araucanía, Los Ríos y Los Lagos— late al ritmo de antiguas Criaturas Espirituales.`,
     },
     {
       speaker: `${playerName} · El Desequilibrio`,
       badge: 'TU COMPAÑERO',
       imageUrl: introCompaImg,
-      imageAlt: 'Bosque de Araucarias y volcán con espíritus elementales',
+      imageAlt: 'Bosque de Araucarias y volcán con Criaturas Espirituales',
       fallbackGradient: 'from-emerald-950 via-amber-900/70 to-zinc-950',
-      text: `La neblina umbría despertó a los Guardianes Regionales y Maestros Vínculo. Ningún viajero camina solo: necesito vincular mi destino a un primer espíritu compañero.`,
+      text: `La neblina umbría despertó a los Guardianes Regionales y Maestros Vínculo. Ningún viajero camina solo: necesito vincular mi destino a una primera Criatura Espiritual compañera.`,
     },
     {
       speaker: `${playerName} · La Travesía`,
@@ -58,7 +58,7 @@ export const PrologueModal: React.FC<PrologueModalProps> = ({
       imageUrl: introTravesiaImg,
       imageAlt: 'Selva Valdiviana y fiordos australes nevados de la Patagonia',
       fallbackGradient: 'from-cyan-950 via-slate-800 to-zinc-950',
-      text: `Partiré desde mi Casa (Escenario 0), exploraré senderos y zonas salvajes, entrenaré y evolucionaré mi equipo, y reuniré las 5 Medallas de los Guardianes de Chile.`,
+      text: `Partiré desde mi Casa (Escenario 0), exploraré cerros y volcanes, entrenaré y evolucionaré mi equipo, y reuniré los 5 Amuletos Espirituales de los Guardianes de Chile.`,
     },
   ];
 
