@@ -1,0 +1,6 @@
+{
+  "name": "Bárbara: Crónicas Elementales del Sur",
+  "description": "RPG de combate estratégico y exploración en mundo abierto inspirado en Pokémon Rojo Fuego y Final Fantasy III a través de Chile (Santiago, Pucón, Villarrica y Carretera Austral Hornopirén).",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
