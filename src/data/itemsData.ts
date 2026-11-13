@@ -2,7 +2,7 @@
  * Items Repository & Chilean Traditional Nature Remedies
  */
 
-import { InventoryItem, JobClass } from '../types/game';
+import { InventoryItem } from '../types/game';
 
 export const INITIAL_ITEMS: Record<string, InventoryItem> = {
   matico: {
@@ -92,59 +92,5 @@ export const INITIAL_ITEMS: Record<string, InventoryItem> = {
     effectType: 'evolution',
     effectValue: 1,
     price: 180,
-  }
-};
-
-export interface JobDefinition {
-  id: JobClass;
-  name: string;
-  title: string;
-  description: string;
-  icon: string;
-  statBonus: {
-    hp: number;
-    attack: number;
-    defense: number;
-    speed: number;
-  };
-  specialty: string;
-}
-
-export const JOBS_CONFIG: Record<JobClass, JobDefinition> = {
-  naturalista: {
-    id: 'naturalista',
-    name: 'Naturalista Andina',
-    title: 'Sabiduría Botánica',
-    description: 'Conocimiento profundo de flora medicinal chilena que fortalece la resistencia natural de tus espíritus.',
-    icon: '🌱',
-    statBonus: { hp: 40, attack: 5, defense: 10, speed: 10 },
-    specialty: 'Enfoque pasivo en recuperación y vínculo con la naturaleza',
-  },
-  chaman: {
-    id: 'chaman',
-    name: 'Chamán Elemental',
-    title: 'Afinidad Cordillerana',
-    description: 'Estudioso de volcanes, ríos y vientos australes para guiar con precisión a cada criatura.',
-    icon: '⚡',
-    statBonus: { hp: 10, attack: 25, defense: 0, speed: 15 },
-    specialty: 'Enfoque pasivo en sinergia elemental en equipo',
-  },
-  guardaparque: {
-    id: 'guardaparque',
-    name: 'Guardaparque Táctico',
-    title: 'Centinela Silvestre',
-    description: 'Dominio de los senderos más agrestes de Chile para resguardar al grupo en zonas hostiles.',
-    icon: '🛡️',
-    statBonus: { hp: 60, attack: 20, defense: 35, speed: 5 },
-    specialty: 'Enfoque pasivo en protección y exploración de parques',
-  },
-  mistica: {
-    id: 'mistica',
-    name: 'Mística Austral',
-    title: 'Oráculo de los Fiordos',
-    description: 'Contempla el cielo patagónico para acelerar la sintonía con los guardianes primigenios.',
-    icon: '🌌',
-    statBonus: { hp: 25, attack: 15, defense: 15, speed: 30 },
-    specialty: 'Enfoque pasivo en agilidad e invocaciones primigenias',
   }
 };

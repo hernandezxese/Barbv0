@@ -1,7 +1,9 @@
 /**
  * 60fps Open-World Exploration View
- * Mobile-first touch controls, smooth interpolation, animated flora & wandering NPCs,
- * exact position preservation across menus/combats, and compact HUD with brief mission pill.
+ * Mobile-first touch controls, CSS regional atmospheric particle overlays,
+ * species-specific overworld movement, safe indoor tile 10 (0% encounter),
+ * lowered encounter probabilities (0.5%-1% path, 1%-3% off-path),
+ * hospitals, evolution sanctuaries, and exact position preservation.
  */
 
 import React, { useRef, useEffect, useState, useCallback } from 'react';
@@ -22,12 +24,14 @@ import {
   ChevronRight,
   Target,
   Settings,
+  Award,
 } from 'lucide-react';
 
 export type PostDialogueAction =
   | { type: 'shop'; vendorName?: string; regionSubtitle?: string }
   | { type: 'battle'; spiritId: string; isBoss: boolean; atPos: { x: number; y: number }; entityId?: string }
-  | { type: 'portal'; dest: RegionId; x?: number; y?: number };
+  | { type: 'portal'; dest: RegionId; x?: number; y?: number }
+  | { type: 'evolution' };
 
 interface ExplorationViewProps {
   currentRegion: MapRegion;
@@ -44,11 +48,99 @@ interface ExplorationViewProps {
   onOpenInventory: () => void;
   onOpenMap: () => void;
   onOpenSystemMenu: () => void;
+  onOpenProfile?: () => void;
   onTriggerDialogue: (speaker: string, lines: string[], afterAction?: PostDialogueAction, portraitSprite?: string) => void;
   onTriggerBattle: (enemySpiritId: string, isBoss: boolean, atPos?: { x: number; y: number }, entityId?: string) => void;
   onClearObstacle: (entityId: string, message: string) => void;
   onOpenChest: (entityId: string, itemReward?: { id: string; count: number }, gold?: number) => void;
   onTravelPortal: (destinationRegion: RegionId, destX?: number, destY?: number) => void;
+}
+
+const POLLEN_PARTICLES = Array.from({ length: 14 }, (_, i) => ({
+  left: `${(i * 7.3 + 4) % 96}%`,
+  top: `${(i * 11.7 + 12) % 88}%`,
+  size: `${3 + (i % 3)}px`,
+  dur: `${4.2 + (i % 4) * 0.9}s`,
+  delay: `${-(i * 0.7)}s`,
+}));
+
+const STATIC_RAIN_DROPS = Array.from({ length: 24 }, (_, i) => ({
+  left: `${(i * 4.2 + 1) % 99}%`,
+  dur: `${0.72 + (i % 4) * 0.12}s`,
+  delay: `${-(i * 0.19)}s`,
+}));
+
+const WIND_RAIN_DROPS = Array.from({ length: 26 }, (_, i) => ({
+  left: `${(i * 4.1) % 104}%`,
+  dur: `${0.58 + (i % 4) * 0.11}s`,
+  delay: `${-(i * 0.15)}s`,
+}));
+
+const STORM_RAIN_DROPS = Array.from({ length: 32 }, (_, i) => ({
+  left: `${(i * 3.3) % 106}%`,
+  dur: `${0.46 + (i % 4) * 0.09}s`,
+  delay: `${-(i * 0.13)}s`,
+}));
+
+function getSpeciesMovementOffset(ent: OverworldEntity, currentTime: number, tileSize: number): { dx: number; dy: number } {
+  const hash = ent.id.split('').reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
+  const t = currentTime * 0.001 + hash * 0.37;
+  const species = (ent.encounterSpiritId || ent.sprite.replace('wild_', '')).toLowerCase();
+
+  if (species === 'puducito' || species === 'pudu') {
+    // Rhythmic little forest hops
+    return {
+      dx: Math.sin(t * 1.45) * tileSize * 0.45,
+      dy: -Math.abs(Math.sin(t * 4.4)) * 6,
+    };
+  }
+  if (species === 'loica' || species === 'torcaza' || species === 'chucao' || species === 'hualita') {
+    // Sweeping figure-8 bird flight
+    return {
+      dx: Math.sin(t * 1.8) * tileSize * 0.85,
+      dy: Math.sin(t * 3.6) * tileSize * 0.42 - 3,
+    };
+  }
+  if (species === 'cuellilargo' || species === 'trex') {
+    // Heavy slow prehistoric stomp
+    return {
+      dx: Math.sin(t * 0.65) * tileSize * 0.55,
+      dy: Math.abs(Math.sin(t * 1.3)) * 2,
+    };
+  }
+  if (species === 'pinguino') {
+    // Playful side waddle
+    return {
+      dx: Math.sin(t * 2.2) * tileSize * 0.48,
+      dy: Math.abs(Math.sin(t * 4.4)) * 3,
+    };
+  }
+  if (species === 'hongo') {
+    // Rooted pulse & gentle sway
+    return {
+      dx: Math.sin(t * 1.1) * 3,
+      dy: Math.sin(t * 2.6) * 3.5,
+    };
+  }
+  if (species === 'quiltro') {
+    // Brisk zigzag trot
+    return {
+      dx: Math.sin(t * 2.5) * tileSize * 0.78,
+      dy: Math.cos(t * 1.9) * tileSize * 0.45,
+    };
+  }
+  if (species === 'pillancito') {
+    // Quick volcanic ember flicker
+    return {
+      dx: Math.sin(t * 3.1) * tileSize * 0.58,
+      dy: Math.cos(t * 3.7) * tileSize * 0.5,
+    };
+  }
+  // Ventisquero & default gentle glide
+  return {
+    dx: Math.cos(t * 1.2) * tileSize * 0.6,
+    dy: Math.sin(t * 1.2) * tileSize * 0.35,
+  };
 }
 
 export const ExplorationView: React.FC<ExplorationViewProps> = ({
@@ -66,6 +158,7 @@ export const ExplorationView: React.FC<ExplorationViewProps> = ({
   onOpenInventory,
   onOpenMap,
   onOpenSystemMenu,
+  onOpenProfile,
   onTriggerDialogue,
   onTriggerBattle,
   onClearObstacle,
@@ -87,7 +180,6 @@ export const ExplorationView: React.FC<ExplorationViewProps> = ({
 
   const currentQuest = getCurrentQuest(currentRegion, unlockedRegions);
 
-  // Mutable refs for 60fps loop
   const posRef = useRef({ x: initialSpawnPos.x, y: initialSpawnPos.y });
   const targetPosRef = useRef({ x: initialSpawnPos.x, y: initialSpawnPos.y });
   const companionPosRef = useRef({ x: initialSpawnPos.x, y: Math.max(1, initialSpawnPos.y - 1) });
@@ -101,7 +193,6 @@ export const ExplorationView: React.FC<ExplorationViewProps> = ({
   const footstepDistRef = useRef(0);
   const heldKeysRef = useRef<Set<string>>(new Set());
 
-  // Responsive mobile-aware canvas sizing
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
@@ -116,7 +207,6 @@ export const ExplorationView: React.FC<ExplorationViewProps> = ({
     return () => ro.disconnect();
   }, []);
 
-  // Sync grid position back to App before switching views/modals so position is always preserved
   const syncCurrentPos = useCallback(() => {
     const cx = Math.round(posRef.current.x);
     const cy = Math.round(posRef.current.y);
@@ -124,7 +214,6 @@ export const ExplorationView: React.FC<ExplorationViewProps> = ({
     return { x: cx, y: cy };
   }, [onSyncPosition]);
 
-  // Apply spawn coordinates cleanly when entering a stage or restoring from battle/modal
   useEffect(() => {
     const regionChanged = lastRegionRef.current !== currentRegion.id;
     const alreadyThere =
@@ -146,11 +235,11 @@ export const ExplorationView: React.FC<ExplorationViewProps> = ({
     setPlayerGridPos({ x: initialSpawnPos.x, y: initialSpawnPos.y });
   }, [initialSpawnPos.x, initialSpawnPos.y, currentRegion.id]);
 
-  // Tile collision checking
   const isTileBlocked = useCallback((x: number, y: number): boolean => {
     if (x < 0 || x >= currentRegion.width || y < 0 || y >= currentRegion.height) return true;
     const tileType = currentRegion.tiles[y]?.[x];
-    // 2: water, 3: mountain, 4: dense tree, 5: lava, 8: house/refuge are blocked
+    // Blocked terrain: 2 water, 3 mountain/wall, 4 tree, 5 lava, 8 building exterior
+    // Tile 10 is walkable safe indoor room floor!
     if (tileType === 2 || tileType === 3 || tileType === 4 || tileType === 5 || tileType === 8) return true;
 
     const obstacle = currentRegion.entities.find(
@@ -161,7 +250,6 @@ export const ExplorationView: React.FC<ExplorationViewProps> = ({
     return false;
   }, [currentRegion]);
 
-  // Handle interaction when ACCIÓN button is tapped
   const handleInteract = useCallback(() => {
     sound.init();
     const { x: currentX, y: currentY } = syncCurrentPos();
@@ -173,7 +261,6 @@ export const ExplorationView: React.FC<ExplorationViewProps> = ({
     if (dirRef.current === 'left') targetX -= 1;
     if (dirRef.current === 'right') targetX += 1;
 
-    // Friendly NPCs remain interactable even after rewards; other entities require !cleared
     const entity = currentRegion.entities.find(
       e =>
         ((e.x === targetX && e.y === targetY) || (e.x === currentX && e.y === currentY)) &&
@@ -188,9 +275,31 @@ export const ExplorationView: React.FC<ExplorationViewProps> = ({
       if (entity.isShop || entity.id.includes('botica') || entity.id.includes('boticario') || entity.id.includes('vendedor')) {
         onTriggerDialogue(
           entity.name,
-          entity.dialog || ['¡Bienvenido a la Botica!'],
+          entity.dialog || ['¡Bienvenido a la tienda!'],
           { type: 'shop', vendorName: entity.name, regionSubtitle: currentRegion.name },
           entity.sprite || 'npc_shopkeeper'
+        );
+        return;
+      }
+
+      if (entity.isHospital) {
+        sound.playHeal();
+        onHealAtHome?.();
+        onTriggerDialogue(
+          entity.name,
+          entity.dialog || ['¡Bienvenido al Hospital! Tus espíritus han recuperado 100% de PS y PM.'],
+          undefined,
+          entity.sprite || 'npc_enfermera'
+        );
+        return;
+      }
+
+      if (entity.isEvolutionSanctuary) {
+        onTriggerDialogue(
+          entity.name,
+          entity.dialog || ['Santuario de Evolución listo. ¡Despertemos el potencial ancestral de tus espíritus!'],
+          { type: 'evolution' },
+          entity.sprite || 'npc_explorer'
         );
         return;
       }
@@ -202,6 +311,15 @@ export const ExplorationView: React.FC<ExplorationViewProps> = ({
         onOpenChest(entity.id, entity.rewardItem, entity.rewardGold);
       }
     } else if (entity.type === 'shrine') {
+      if (entity.isEvolutionSanctuary) {
+        onTriggerDialogue(
+          entity.name,
+          entity.dialog || ['Altar de Evolución ancestral.'],
+          { type: 'evolution' },
+          entity.sprite
+        );
+        return;
+      }
       sound.playHeal();
       onHealAtHome?.();
       if (entity.dialog) {
@@ -236,7 +354,7 @@ export const ExplorationView: React.FC<ExplorationViewProps> = ({
           'Monolito de Contención Ancestral',
           [
             'El altar del Guardián Regional está sellado por runas elementales durmientes.',
-            'Completa las misiones de esta etapa (revisa el Menú ⚙️) para despertar su presencia.',
+            'Completa las misiones de esta etapa (Menú ⚙️) para despertar su presencia.',
           ]
         );
         return;
@@ -273,7 +391,7 @@ export const ExplorationView: React.FC<ExplorationViewProps> = ({
           'Obstáculo Elemental',
           [
             entity.dialog?.[0] ||
-              `Se requiere un espíritu con poder elemental de ${entity.elementRequired?.toUpperCase()} como líder para avanzar.`,
+              `Se requiere un espíritu con poder de ${entity.elementRequired?.toUpperCase()} como líder para despejar el paso.`,
           ]
         );
       }
@@ -345,7 +463,6 @@ export const ExplorationView: React.FC<ExplorationViewProps> = ({
     };
   }, [handleInteract]);
 
-  // Nearby entity detection for mobile action button indicator
   useEffect(() => {
     const currentX = playerGridPos.x;
     const currentY = playerGridPos.y;
@@ -364,13 +481,15 @@ export const ExplorationView: React.FC<ExplorationViewProps> = ({
 
     if (entity) {
       setNearbyEntity(entity);
-      if (entity.isShop) setInteractPrompt(`Entrar a ${entity.name}`);
-      else if (entity.type === 'shrine') setInteractPrompt(`Descansar en ${entity.name}`);
-      else if (entity.type === 'npc') setInteractPrompt(`Hablar con ${entity.name}`);
+      if (entity.isShop) setInteractPrompt(`Tienda: ${entity.name}`);
+      else if (entity.isHospital) setInteractPrompt(`Curar: ${entity.name}`);
+      else if (entity.isEvolutionSanctuary) setInteractPrompt(`Abrir Santuario`);
+      else if (entity.type === 'shrine') setInteractPrompt(`Descansar`);
+      else if (entity.type === 'npc') setInteractPrompt(`Hablar: ${entity.name}`);
       else if (entity.type === 'chest') setInteractPrompt('Abrir Cofre');
       else if (entity.type === 'obstacle') setInteractPrompt(`Inspeccionar: ${entity.name}`);
-      else if (entity.type === 'boss') setInteractPrompt(`Desafiar a ${entity.name}`);
-      else if (entity.type === 'portal') setInteractPrompt(`Viajar: ${entity.name}`);
+      else if (entity.type === 'boss') setInteractPrompt(`Desafiar: ${entity.name}`);
+      else if (entity.type === 'portal') setInteractPrompt(`Ir a ${entity.name}`);
       else setInteractPrompt('Interactuar');
     } else {
       setNearbyEntity(null);
@@ -378,11 +497,11 @@ export const ExplorationView: React.FC<ExplorationViewProps> = ({
     }
   }, [playerGridPos, playerDir, currentRegion]);
 
-  // Main 60fps continuous simulation & render loop
+  // Main 60fps simulation & render loop
   useEffect(() => {
     let animId: number;
     let lastTime = performance.now();
-    const MOVE_SPEED = 4.2;
+    const MOVE_SPEED = 4.3;
 
     const loop = (currentTime: number) => {
       const dt = Math.min((currentTime - lastTime) / 1000, 0.05);
@@ -415,19 +534,20 @@ export const ExplorationView: React.FC<ExplorationViewProps> = ({
             heldKeysRef.current.clear();
             isMovingRef.current = false;
             sound.playEncounter();
-            const spiritBaseId = roamingSpirit.encounterSpiritId || roamingSpirit.sprite.replace('wild_', '').replace('pudu', 'puducito');
+            const spiritBaseId =
+              roamingSpirit.encounterSpiritId || roamingSpirit.sprite.replace('wild_', '').replace('pudu', 'puducito');
             onTriggerBattle(spiritBaseId, false, { x: target.x, y: target.y }, roamingSpirit.id);
             return;
           }
 
-          // Encounter rates: 5% on paths (tile 1), 40% off-path (tiles 0, 6, 7, 9), 0% in home (wildEncounterTable empty)
+          // Encounter rates: 0.8% (0.5%-1%) on path (tile 1), 2.5% (1%-3%) off-path (tiles 0,6,7,9), 0% inside rooms (tile 10) or home
           const arrivedTile = currentRegion.tiles[target.y]?.[target.x];
-          if (currentRegion.wildEncounterTable.length > 0) {
+          if (currentRegion.wildEncounterTable.length > 0 && arrivedTile !== 10) {
             const encounterProb =
               arrivedTile === 1
-                ? 0.05
+                ? 0.008
                 : arrivedTile === 0 || arrivedTile === 6 || arrivedTile === 7 || arrivedTile === 9
-                ? 0.40
+                ? 0.025
                 : 0;
             if (encounterProb > 0 && Math.random() < encounterProb) {
               heldKeysRef.current.clear();
@@ -536,7 +656,6 @@ export const ExplorationView: React.FC<ExplorationViewProps> = ({
               const py = y * TILE_SIZE;
 
               if (tile === 0) {
-                // Regional base grass / interior wood floor
                 if (currentRegion.id === 'casa') {
                   ctx.fillStyle = '#92400e';
                   ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
@@ -544,39 +663,40 @@ export const ExplorationView: React.FC<ExplorationViewProps> = ({
                   ctx.fillRect(px, py + 8, TILE_SIZE, 2);
                   ctx.fillRect(px, py + 22, TILE_SIZE, 2);
                 } else if (currentRegion.id === 'santiago') {
-                  ctx.fillStyle = '#4ade80'; // Bright apple green meadows
+                  ctx.fillStyle = '#4ade80';
                   ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
                   ctx.fillStyle = '#22c55e';
                   ctx.fillRect(px + 4, py + 4, 4, 4);
                   ctx.fillRect(px + 19, py + 17, 4, 4);
                 } else if (currentRegion.id === 'biobio') {
-                  ctx.fillStyle = '#4d7c0f'; // Olive greens
+                  ctx.fillStyle = '#4d7c0f';
                   ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
                   ctx.fillStyle = '#3f6212';
                   ctx.fillRect(px + 5, py + 6, 4, 4);
                   ctx.fillRect(px + 20, py + 18, 4, 4);
                 } else if (currentRegion.id === 'araucania') {
-                  ctx.fillStyle = '#57534e'; // Volcanic earth / mountain stone
+                  // Lush green Araucanía forests & grass contrasting with localized lava pockets (tile 5)
+                  ctx.fillStyle = '#15803d';
                   ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
-                  ctx.fillStyle = '#ca8a04'; // Mustard autumn grass tufts
-                  ctx.fillRect(px + 4, py + 5, 4, 4);
-                  ctx.fillRect(px + 18, py + 18, 4, 4);
+                  ctx.fillStyle = '#22c55e';
+                  ctx.fillRect(px + 5, py + 6, 4, 4);
+                  ctx.fillStyle = '#14532d';
+                  ctx.fillRect(px + 19, py + 19, 4, 4);
                 } else if (currentRegion.id === 'losrios') {
-                  ctx.fillStyle = '#064e3b'; // Deep nocturnal emerald moss
+                  ctx.fillStyle = '#064e3b';
                   ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
                   ctx.fillStyle = '#047857';
                   ctx.fillRect(px + 4, py + 6, 4, 4);
-                  ctx.fillStyle = '#a3e635'; // Subtle neon moss spore
+                  ctx.fillStyle = '#a3e635';
                   if ((x + y) % 5 === 0) ctx.fillRect(px + 20, py + 18, 2, 2);
                 } else {
-                  ctx.fillStyle = '#475569'; // Cold bluish-gray wet stone
+                  ctx.fillStyle = '#475569';
                   ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
                   ctx.fillStyle = '#64748b';
                   ctx.fillRect(px + 4, py + 4, 8, 6);
                   ctx.fillRect(px + 18, py + 16, 8, 6);
                 }
               } else if (tile === 1) {
-                // Paths / Woven Rug in Casa
                 if (currentRegion.id === 'casa') {
                   ctx.fillStyle = '#52525b';
                   ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
@@ -585,12 +705,12 @@ export const ExplorationView: React.FC<ExplorationViewProps> = ({
                   ctx.fillStyle = '#71717a';
                   ctx.fillRect(px + 12, py + 12, 8, 8);
                 } else if (currentRegion.id === 'santiago') {
-                  ctx.fillStyle = '#cbd5e1'; // Light stone gray paths
+                  ctx.fillStyle = '#cbd5e1';
                   ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
                   ctx.fillStyle = '#e2e8f0';
                   ctx.fillRect(px + 3, py + 3, TILE_SIZE - 6, TILE_SIZE - 6);
                 } else if (currentRegion.id === 'biobio') {
-                  ctx.fillStyle = '#64748b'; // Desaturated gray / dark timber bridge
+                  ctx.fillStyle = '#64748b';
                   ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
                   ctx.fillStyle = '#451a03';
                   ctx.fillRect(px + 3, py + 3, TILE_SIZE - 6, 3);
@@ -601,18 +721,17 @@ export const ExplorationView: React.FC<ExplorationViewProps> = ({
                   ctx.fillStyle = '#a8a29e';
                   ctx.fillRect(px + 4, py + 4, TILE_SIZE - 8, TILE_SIZE - 8);
                 } else if (currentRegion.id === 'losrios') {
-                  ctx.fillStyle = '#1e293b'; // Nocturnal damp blue-stone path
+                  ctx.fillStyle = '#1e293b';
                   ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
                   ctx.fillStyle = '#334155';
                   ctx.fillRect(px + 3, py + 3, TILE_SIZE - 6, TILE_SIZE - 6);
                 } else {
-                  ctx.fillStyle = '#64748b'; // Wet bluish stone trail
+                  ctx.fillStyle = '#64748b';
                   ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
                   ctx.fillStyle = '#94a3b8';
                   ctx.fillRect(px + 4, py + 4, TILE_SIZE - 8, TILE_SIZE - 8);
                 }
               } else if (tile === 2) {
-                // Water / Rivers / Fiords
                 const waterBase =
                   currentRegion.id === 'santiago'
                     ? '#38bdf8'
@@ -636,7 +755,6 @@ export const ExplorationView: React.FC<ExplorationViewProps> = ({
                 ctx.fillRect(px + 4, py + 10 + wave, 12, 2.5);
                 ctx.fillRect(px + 16, py + 20 - wave, 10, 2.5);
               } else if (tile === 3) {
-                // Mountain / Walls
                 ctx.fillStyle =
                   currentRegion.id === 'casa'
                     ? '#27272a'
@@ -645,29 +763,34 @@ export const ExplorationView: React.FC<ExplorationViewProps> = ({
                     : currentRegion.id === 'biobio'
                     ? '#475569'
                     : currentRegion.id === 'araucania'
-                    ? '#44403c'
+                    ? '#292524'
                     : currentRegion.id === 'losrios'
                     ? '#0f172a'
                     : '#334155';
                 ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
                 ctx.fillStyle =
-                  currentRegion.id === 'casa' ? '#3f3f46' : currentRegion.id === 'araucania' ? '#57534e' : currentRegion.id === 'losrios' ? '#1e293b' : '#475569';
+                  currentRegion.id === 'casa'
+                    ? '#3f3f46'
+                    : currentRegion.id === 'araucania'
+                    ? '#44403c'
+                    : currentRegion.id === 'losrios'
+                    ? '#1e293b'
+                    : '#475569';
                 ctx.fillRect(px + 3, py + 3, TILE_SIZE - 6, TILE_SIZE - 6);
                 if (currentRegion.id === 'loslagos') {
-                  ctx.fillStyle = '#f8fafc'; // Snow-capped ridge highlight
+                  ctx.fillStyle = '#f8fafc';
                   ctx.fillRect(px + 4, py + 2, TILE_SIZE - 8, 6);
                 } else if (currentRegion.id === 'losrios') {
                   ctx.fillStyle = '#047857';
                   ctx.fillRect(px + 4, py + 4, 8, 4);
                 }
               } else if (tile === 4) {
-                // Regional Flora / Trees
                 const treeSway = Math.sin(currentTime * 0.002 + x + y) * 1.5;
                 ctx.fillStyle =
                   currentRegion.id === 'biobio'
                     ? '#365314'
                     : currentRegion.id === 'araucania'
-                    ? '#451a03'
+                    ? '#14532d'
                     : currentRegion.id === 'losrios'
                     ? '#022c22'
                     : '#064e3b';
@@ -680,9 +803,7 @@ export const ExplorationView: React.FC<ExplorationViewProps> = ({
                     : currentRegion.id === 'biobio'
                     ? '#4d7c0f'
                     : currentRegion.id === 'araucania'
-                    ? (x + y) % 2 === 0
-                      ? '#f97316'
-                      : '#14532d'
+                    ? '#166534'
                     : currentRegion.id === 'losrios'
                     ? '#047857'
                     : '#14532d';
@@ -693,6 +814,7 @@ export const ExplorationView: React.FC<ExplorationViewProps> = ({
                 ctx.closePath();
                 ctx.fill();
               } else if (tile === 5) {
+                // Localized volcanic lava pockets (Araucanía)
                 ctx.fillStyle = '#991b1b';
                 ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
                 ctx.fillStyle = '#f97316';
@@ -701,31 +823,30 @@ export const ExplorationView: React.FC<ExplorationViewProps> = ({
                 ctx.fillStyle = '#fde047';
                 ctx.fillRect(px + 10 + lava, py + 10, 8, 8);
               } else if (tile === 6) {
-                // Pure Snow / Glacier
                 ctx.fillStyle = '#f8fafc';
                 ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
                 ctx.fillStyle = '#e2e8f0';
                 ctx.fillRect(px + 6, py + 10, 14, 4);
               } else if (tile === 7) {
-                // Wheat patches in RM, Autumn foliage in Araucania, Bioluminescent spores in Los Rios, Flowers in Biobio/Los Lagos
                 const fSway = Math.sin(currentTime * 0.003 + x * 2 + y) * 1.2;
                 if (currentRegion.id === 'santiago') {
-                  ctx.fillStyle = '#facc15'; // Golden wheat crop patch
+                  ctx.fillStyle = '#facc15';
                   ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
                   ctx.fillStyle = '#eab308';
                   ctx.fillRect(px + 4 + fSway, py + 6, 4, 16);
                   ctx.fillRect(px + 14 - fSway, py + 8, 4, 16);
                   ctx.fillRect(px + 23 + fSway, py + 5, 4, 16);
                 } else if (currentRegion.id === 'araucania') {
-                  ctx.fillStyle = '#57534e';
+                  // Lush green meadow with wild blooms & pewén berries
+                  ctx.fillStyle = '#15803d';
                   ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
                   ctx.fillStyle = '#f97316';
                   ctx.beginPath();
-                  ctx.arc(px + 10 + fSway, py + 12, 5, 0, Math.PI * 2);
+                  ctx.arc(px + 10 + fSway, py + 12, 4.5, 0, Math.PI * 2);
                   ctx.fill();
-                  ctx.fillStyle = '#eab308';
+                  ctx.fillStyle = '#fde047';
                   ctx.beginPath();
-                  ctx.arc(px + 21 - fSway, py + 19, 5, 0, Math.PI * 2);
+                  ctx.arc(px + 21 - fSway, py + 19, 4, 0, Math.PI * 2);
                   ctx.fill();
                 } else if (currentRegion.id === 'losrios') {
                   ctx.fillStyle = '#064e3b';
@@ -753,27 +874,26 @@ export const ExplorationView: React.FC<ExplorationViewProps> = ({
                   ctx.fill();
                 }
               } else if (tile === 8) {
-                // REGIONAL HOUSES & REFUGES
                 const roofColor =
                   currentRegion.id === 'santiago'
-                    ? '#c2410c' // Terracotta roof
+                    ? '#c2410c'
                     : currentRegion.id === 'biobio'
-                    ? '#451a03' // Dark timber roof
+                    ? '#451a03'
                     : currentRegion.id === 'araucania'
-                    ? '#9a3412' // Copper wood roof
+                    ? '#9a3412'
                     : currentRegion.id === 'losrios'
-                    ? '#0f172a' // Dark slate roof
-                    : '#f8fafc'; // Pure snow roof (Los Lagos)
+                    ? '#0f172a'
+                    : '#f8fafc';
                 const wallColor =
                   currentRegion.id === 'santiago'
-                    ? '#fef3c7' // Warm stucco
+                    ? '#fef3c7'
                     : currentRegion.id === 'biobio'
-                    ? '#991b1b' // Dark red brick
+                    ? '#991b1b'
                     : currentRegion.id === 'araucania'
-                    ? '#78350f' // Pehuenche timber
+                    ? '#78350f'
                     : currentRegion.id === 'losrios'
-                    ? '#1e293b' // Dark wet timber
-                    : '#334155'; // Cold stone/slate cabin
+                    ? '#1e293b'
+                    : '#334155';
                 const winColor =
                   currentRegion.id === 'loslagos'
                     ? '#fbbf24'
@@ -782,7 +902,6 @@ export const ExplorationView: React.FC<ExplorationViewProps> = ({
                     : '#bae6fd';
 
                 if (currentRegion.id === 'casa') {
-                  // Interior Home Furniture / Shelving / Hearth
                   ctx.fillStyle = '#92400e';
                   ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
                   ctx.fillStyle = '#451a03';
@@ -794,16 +913,20 @@ export const ExplorationView: React.FC<ExplorationViewProps> = ({
                   ctx.fillStyle = '#a1a1aa';
                   ctx.fillRect(px + 14, py + 15, 6, 8);
                 } else {
-                  ctx.fillStyle = currentRegion.id === 'santiago' ? '#4ade80' : '#334155';
+                  ctx.fillStyle =
+                    currentRegion.id === 'santiago'
+                      ? '#4ade80'
+                      : currentRegion.id === 'araucania'
+                      ? '#15803d'
+                      : '#334155';
                   ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
-                  // Warm glow halo for Los Lagos / Los Rios lit windows
                   if (currentRegion.id === 'loslagos' || currentRegion.id === 'losrios') {
-                    ctx.fillStyle = currentRegion.id === 'loslagos' ? 'rgba(251, 191, 36, 0.35)' : 'rgba(163, 230, 53, 0.25)';
+                    ctx.fillStyle =
+                      currentRegion.id === 'loslagos' ? 'rgba(251, 191, 36, 0.35)' : 'rgba(163, 230, 53, 0.25)';
                     ctx.beginPath();
                     ctx.arc(px + 16, py + 22, 16, 0, Math.PI * 2);
                     ctx.fill();
                   }
-                  // Wall & Roof
                   ctx.fillStyle = wallColor;
                   ctx.fillRect(px + 3, py + 13, TILE_SIZE - 6, TILE_SIZE - 15);
                   ctx.fillStyle = roofColor;
@@ -813,7 +936,6 @@ export const ExplorationView: React.FC<ExplorationViewProps> = ({
                   ctx.lineTo(px + 1, py + 14);
                   ctx.closePath();
                   ctx.fill();
-                  // Door & Lit Window
                   ctx.fillStyle = '#451a03';
                   ctx.fillRect(px + 13, py + 20, 6, 10);
                   ctx.fillStyle = winColor;
@@ -821,19 +943,23 @@ export const ExplorationView: React.FC<ExplorationViewProps> = ({
                   ctx.fillRect(px + 21, py + 17, 5, 5);
                 }
               } else if (tile === 9) {
-                // Prehistoric Amber & Ancient Fern Clearing (Biobío)
                 const fernSway = Math.sin(currentTime * 0.003 + x + y) * 1.4;
                 ctx.fillStyle = '#365314';
                 ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
                 ctx.fillStyle = '#3f6212';
                 ctx.fillRect(px + 2, py + 2, TILE_SIZE - 4, TILE_SIZE - 4);
-                // Giant fern fronds
                 ctx.fillStyle = '#15803d';
                 ctx.fillRect(px + 4 + fernSway, py + 5, 9, 4);
                 ctx.fillRect(px + 17 - fernSway, py + 18, 10, 4);
-                // Prehistoric amber pebble
                 ctx.fillStyle = '#f59e0b';
                 ctx.fillRect(px + 13, py + 11, 5, 5);
+              } else if (tile === 10) {
+                // Walkable Safe Indoor Room Floor (Shop / Hospital / Sanctuary — 0% wild encounters)
+                ctx.fillStyle = (x + y) % 2 === 0 ? '#e7e5e4' : '#d6d3d1';
+                ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
+                ctx.fillStyle = 'rgba(24, 24, 27, 0.14)';
+                ctx.fillRect(px + 1, py + 1, TILE_SIZE - 2, 2);
+                ctx.fillRect(px + 1, py + 1, 2, TILE_SIZE - 2);
               }
 
               ctx.strokeStyle = 'rgba(0, 0, 0, 0.06)';
@@ -848,15 +974,18 @@ export const ExplorationView: React.FC<ExplorationViewProps> = ({
             let renderY = ent.y * TILE_SIZE;
 
             if (!ent.cleared && (ent.type === 'wild_encounter' || ent.sprite.startsWith('wild_'))) {
-              const hash = ent.id.charCodeAt(ent.id.length - 1) || 1;
-              const patrolSpeed = 0.0015 + (hash % 3) * 0.0005;
-              const patrolRadius = TILE_SIZE * 0.75;
-              renderX += Math.cos(currentTime * patrolSpeed + hash) * patrolRadius;
-              renderY += Math.sin(currentTime * patrolSpeed * 1.3 + hash) * (patrolRadius * 0.7);
-            } else if (ent.type === 'npc' && !ent.isShop && !ent.rewardItem) {
-              // Friendly wandering villagers pace gently
+              const offset = getSpeciesMovementOffset(ent, currentTime, TILE_SIZE);
+              renderX += offset.dx;
+              renderY += offset.dy;
+            } else if (
+              ent.type === 'npc' &&
+              !ent.isShop &&
+              !ent.isHospital &&
+              !ent.isEvolutionSanctuary &&
+              !ent.rewardItem
+            ) {
               const hash = ent.id.charCodeAt(ent.id.length - 1) || 2;
-              renderX += Math.sin(currentTime * 0.001 + hash) * (TILE_SIZE * 0.28);
+              renderX += Math.sin(currentTime * 0.001 + hash) * (TILE_SIZE * 0.25);
             }
 
             drawEntitySprite(
@@ -871,7 +1000,6 @@ export const ExplorationView: React.FC<ExplorationViewProps> = ({
               stageBossAwakened
             );
 
-            // Boss Crest
             if (ent.type === 'boss' && !ent.cleared) {
               const bPulse = Math.sin(currentTime * 0.007) * 4;
               if (stageBossAwakened) {
@@ -919,7 +1047,6 @@ export const ExplorationView: React.FC<ExplorationViewProps> = ({
               }
             }
 
-            // Quest target objective beacon
             if (
               currentQuest.targetCoords &&
               ent.x === currentQuest.targetCoords.x &&
@@ -948,18 +1075,16 @@ export const ExplorationView: React.FC<ExplorationViewProps> = ({
             }
           });
 
-          // Draw Active Companion Creature trailing closely behind protagonist in a distinct tone
+          // Draw Active Companion Creature trailing behind hero in distinct luminous filter
           const compX = cPos.x * TILE_SIZE;
           const compY = cPos.y * TILE_SIZE;
           const compBob = Math.sin(currentTime * 0.008) * 1.6;
           ctx.save();
-          // Distinct luminous companion ring beneath the creature
           ctx.strokeStyle = 'rgba(244, 244, 245, 0.85)';
           ctx.lineWidth = 1.6;
           ctx.beginPath();
           ctx.ellipse(compX + TILE_SIZE / 2, compY + TILE_SIZE - 4, 12, 5, 0, 0, Math.PI * 2);
           ctx.stroke();
-          // Distinct color tone/filter to clearly distinguish active ally from wild spirits
           ctx.filter = 'hue-rotate(36deg) brightness(1.18) saturate(1.25) contrast(1.08)';
           drawCreatureSprite(
             ctx,
@@ -973,12 +1098,11 @@ export const ExplorationView: React.FC<ExplorationViewProps> = ({
           );
           ctx.restore();
 
-          // Companion Star Badge
           ctx.fillStyle = '#fafafa';
           ctx.font = 'bold 9px monospace';
           ctx.fillText('★', compX + TILE_SIZE / 2 - 4, compY - 1 + compBob);
 
-          // Draw Protagonist (Female or Male sprite)
+          // Draw Protagonist
           drawBarbaraSprite(
             ctx,
             pos.x * TILE_SIZE,
@@ -998,74 +1122,26 @@ export const ExplorationView: React.FC<ExplorationViewProps> = ({
 
           ctx.restore();
 
-          // Regional Atmospheric Overlays & Weather
-          if (currentRegion.id === 'biobio') {
-            // Biobío overcast cloudy sky veil & drifting dark gray cloud shadows + white mist wisps
-            ctx.fillStyle = 'rgba(82, 82, 91, 0.24)';
+          // Subtle canvas lighting + regional accents complementing CSS particles
+          if (currentRegion.id === 'losrios') {
+            ctx.fillStyle = 'rgba(15, 23, 42, 0.18)';
             ctx.fillRect(0, 0, width, height);
-            for (let c = 0; c < 6; c++) {
-              const cxCloud = ((c * 210 + currentTime * 0.032) % (width + 240)) - 120;
-              const cyCloud = 36 + ((c * 105) % (height - 60));
-              ctx.fillStyle = c % 2 === 0 ? 'rgba(63, 63, 70, 0.26)' : 'rgba(228, 228, 231, 0.22)';
-              ctx.beginPath();
-              ctx.ellipse(cxCloud, cyCloud, 130, 42, 0, 0, Math.PI * 2);
-              ctx.fill();
-            }
-          } else if (currentRegion.id === 'araucania') {
-            // Araucanía sunset purple valley tint
-            ctx.fillStyle = 'rgba(147, 51, 234, 0.14)';
-            ctx.fillRect(0, 0, width, height);
-          } else if (currentRegion.id === 'losrios') {
-            // Los Ríos nocturnal sky tint + neon green/yellow bioluminescent fireflies
-            ctx.fillStyle = 'rgba(15, 23, 42, 0.22)';
-            ctx.fillRect(0, 0, width, height);
-            for (let f = 0; f < 22; f++) {
+            for (let f = 0; f < 18; f++) {
               const fx = (f * 61 + Math.sin(currentTime * 0.002 + f) * 28) % width;
               const fy = (f * 43 + Math.cos(currentTime * 0.002 + f) * 20) % height;
               ctx.fillStyle = f % 2 === 0 ? 'rgba(163, 230, 53, 0.78)' : 'rgba(253, 224, 71, 0.78)';
               ctx.fillRect(fx, fy, 3, 3);
             }
-          }
-
-          if (currentRegion.weather === 'lluvia_suave') {
-            ctx.strokeStyle = 'rgba(56, 189, 248, 0.35)';
-            ctx.lineWidth = 1.2;
-            for (let i = 0; i < 40; i++) {
-              const rx = (i * 47 + currentTime * 0.4) % width;
-              const ry = (i * 31 + currentTime * 0.6) % height;
-              ctx.beginPath();
-              ctx.moveTo(rx, ry);
-              ctx.lineTo(rx - 5, ry + 12);
-              ctx.stroke();
-            }
-          } else if (currentRegion.weather === 'ceniza_volcanica') {
-            ctx.fillStyle = 'rgba(249, 115, 22, 0.5)';
-            for (let i = 0; i < 30; i++) {
-              const ex = (i * 53 + Math.sin(currentTime * 0.002 + i) * 25) % width;
-              const ey = height - ((i * 37 + currentTime * 0.09) % height);
-              ctx.fillRect(ex, ey, 2.5, 2.5);
-            }
-          } else if (currentRegion.weather === 'ventisca_austral') {
-            ctx.fillStyle = 'rgba(248, 250, 252, 0.68)';
-            for (let i = 0; i < 45; i++) {
-              const sx = (i * 43 + currentTime * 0.25) % width;
-              const sy = (i * 29 + currentTime * 0.18) % height;
-              ctx.beginPath();
-              ctx.arc(sx, sy, 2, 0, Math.PI * 2);
-              ctx.fill();
-            }
-          } else if (currentRegion.weather === 'otonal') {
-            for (let i = 0; i < 24; i++) {
-              const lx = (i * 51 + currentTime * 0.14 + Math.sin(currentTime * 0.002 + i) * 20) % width;
-              const ly = (i * 37 + currentTime * 0.08) % height;
-              ctx.fillStyle = i % 2 === 0 ? 'rgba(245, 158, 11, 0.55)' : 'rgba(180, 83, 9, 0.5)';
-              ctx.fillRect(lx, ly, 4, 3);
-            }
+          } else if (currentRegion.id === 'biobio') {
+            ctx.fillStyle = 'rgba(82, 82, 91, 0.16)';
+            ctx.fillRect(0, 0, width, height);
+          } else if (currentRegion.id === 'loslagos') {
+            ctx.fillStyle = 'rgba(15, 23, 42, 0.14)';
+            ctx.fillRect(0, 0, width, height);
           }
         }
       }
 
-      // Render Active Monster Pixel Avatar above ACCIÓN button
       if (activeAvatarCanvasRef.current) {
         const avCtx = activeAvatarCanvasRef.current.getContext('2d');
         if (avCtx) {
@@ -1079,7 +1155,19 @@ export const ExplorationView: React.FC<ExplorationViewProps> = ({
 
     animId = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(animId);
-  }, [currentRegion, TILE_SIZE, isTileBlocked, onTriggerBattle, onSyncPosition, currentQuest, hasCompletedStory, barbara.gender, nearbyEntity, playerSpirit.baseId, playerSpirit.currentStage]);
+  }, [
+    currentRegion,
+    TILE_SIZE,
+    isTileBlocked,
+    onTriggerBattle,
+    onSyncPosition,
+    currentQuest,
+    hasCompletedStory,
+    barbara.gender,
+    nearbyEntity,
+    playerSpirit.baseId,
+    playerSpirit.currentStage,
+  ]);
 
   const handleDirectionPress = (dir: 'up' | 'down' | 'left' | 'right') => {
     sound.init();
@@ -1092,10 +1180,12 @@ export const ExplorationView: React.FC<ExplorationViewProps> = ({
   const currentTileType = currentRegion.tiles[playerGridPos.y]?.[playerGridPos.x] ?? 0;
   const encounterRateLabel =
     currentRegion.wildEncounterTable.length === 0
-      ? 'Zona Segura · 0%'
+      ? 'Hogar · 0%'
+      : currentTileType === 10
+      ? 'Interior · 0%'
       : currentTileType === 1
-      ? 'Camino · 5%'
-      : 'Fuera de camino · 40%';
+      ? 'Camino · 0.5%-1%'
+      : 'Fuera · 1%-3%';
 
   return (
     <div
@@ -1112,28 +1202,117 @@ export const ExplorationView: React.FC<ExplorationViewProps> = ({
         />
       </div>
 
+      {/* Pure CSS Regional Atmospheric Particle Effects Layer */}
+      <div className="absolute inset-0 z-10 pointer-events-none overflow-hidden" aria-hidden="true">
+        {currentRegion.id === 'santiago' &&
+          POLLEN_PARTICLES.map((p, idx) => (
+            <div
+              key={idx}
+              className="env-pollen-dot"
+              style={
+                {
+                  left: p.left,
+                  top: p.top,
+                  width: p.size,
+                  height: p.size,
+                  '--dur': p.dur,
+                  '--delay': p.delay,
+                } as React.CSSProperties
+              }
+            />
+          ))}
+
+        {currentRegion.id === 'biobio' && (
+          <>
+            <div className="env-fog-layer-1" />
+            <div className="env-fog-layer-2" />
+          </>
+        )}
+
+        {currentRegion.id === 'araucania' &&
+          STATIC_RAIN_DROPS.map((d, idx) => (
+            <div
+              key={idx}
+              className="env-rain-drop-static"
+              style={
+                {
+                  left: d.left,
+                  '--dur': d.dur,
+                  '--delay': d.delay,
+                } as React.CSSProperties
+              }
+            />
+          ))}
+
+        {currentRegion.id === 'losrios' &&
+          WIND_RAIN_DROPS.map((d, idx) => (
+            <div
+              key={idx}
+              className="env-rain-drop-wind"
+              style={
+                {
+                  left: d.left,
+                  '--dur': d.dur,
+                  '--delay': d.delay,
+                } as React.CSSProperties
+              }
+            />
+          ))}
+
+        {currentRegion.id === 'loslagos' && (
+          <>
+            {STORM_RAIN_DROPS.map((d, idx) => (
+              <div
+                key={idx}
+                className="env-rain-drop-storm"
+                style={
+                  {
+                    left: d.left,
+                    '--dur': d.dur,
+                    '--delay': d.delay,
+                  } as React.CSSProperties
+                }
+              />
+            ))}
+            <div className="env-lightning-flash" />
+          </>
+        )}
+      </div>
+
       {/* Top Floating Monochrome HUD */}
       <header className="relative z-20 w-full p-2 sm:p-3 flex flex-col gap-1.5 max-w-6xl mx-auto pointer-events-none">
-        <div className="flex justify-between items-start gap-2">
-          {/* Region, Hero & Gold Cluster */}
-          <div className="bg-zinc-900/95 backdrop-blur border border-zinc-600/80 px-2.5 py-2 rounded-xl shadow-lg pointer-events-auto flex items-center gap-2 min-w-0">
-            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-zinc-100 border border-zinc-300 flex items-center justify-center text-zinc-950 shrink-0">
+        <div className="flex justify-between items-start gap-1.5 sm:gap-2">
+          {/* Region, Hero & Profile Shortcut */}
+          <button
+            onClick={() => {
+              sound.init();
+              sound.playSelect();
+              syncCurrentPos();
+              onOpenProfile?.();
+            }}
+            className="bg-zinc-900/95 hover:bg-zinc-800 backdrop-blur border border-zinc-600/80 px-2 sm:px-2.5 py-1.5 rounded-xl shadow-lg pointer-events-auto flex items-center gap-2 min-w-0 cursor-pointer text-left active:scale-95 transition-all"
+            title="Ver Perfil y Medallas"
+          >
+            <div className="w-7 h-7 rounded-lg bg-zinc-100 border border-zinc-300 flex items-center justify-center text-zinc-950 shrink-0">
               <Compass className="w-4 h-4" />
             </div>
             <div className="min-w-0">
-              <h3 className="font-pixel text-[10px] sm:text-[11px] text-zinc-100 truncate">
+              <h3 className="font-pixel text-[9px] sm:text-[11px] text-zinc-100 truncate">
                 {currentRegion.name.split('&')[0].trim()}
               </h3>
-              <div className="flex items-center gap-1.5 text-[10px] font-mono text-zinc-300 truncate">
-                <span className="text-zinc-100 font-bold">{barbara.name}</span>
+              <div className="flex items-center gap-1 text-[9px] sm:text-[10px] font-mono text-zinc-300 truncate">
+                <span className="text-zinc-100 font-bold truncate">{barbara.name}</span>
                 <span>&middot;</span>
-                <span className="text-zinc-300 font-bold">{barbara.gold} Oro</span>
+                <span>{barbara.gold} Oro</span>
+                <span className="hidden xs:inline-flex items-center gap-0.5 text-zinc-100 font-bold">
+                  &middot; <Award className="w-2.5 h-2.5 inline" /> {(barbara.medals || []).length}/5
+                </span>
               </div>
             </div>
-          </div>
+          </button>
 
           {/* Mobile-Friendly Top Action Buttons */}
-          <div className="flex items-center gap-1.5 pointer-events-auto shrink-0">
+          <div className="flex items-center gap-1 sm:gap-1.5 pointer-events-auto shrink-0">
             <button
               onClick={() => {
                 sound.init();
@@ -1141,7 +1320,7 @@ export const ExplorationView: React.FC<ExplorationViewProps> = ({
                 syncCurrentPos();
                 onOpenParty();
               }}
-              className="p-2.5 sm:px-3 sm:py-2 bg-zinc-900/95 hover:bg-zinc-800 border border-zinc-600 rounded-xl text-zinc-100 transition-colors flex items-center gap-1.5 text-xs font-mono cursor-pointer shadow-md active:scale-95"
+              className="p-2 sm:px-2.5 sm:py-2 bg-zinc-900/95 hover:bg-zinc-800 border border-zinc-600 rounded-xl text-zinc-100 transition-colors flex items-center gap-1 text-xs font-mono cursor-pointer shadow-md active:scale-95"
               title="Equipo"
             >
               <Swords className="w-4 h-4 text-zinc-200" />
@@ -1155,7 +1334,7 @@ export const ExplorationView: React.FC<ExplorationViewProps> = ({
                 syncCurrentPos();
                 onOpenInventory();
               }}
-              className="p-2.5 sm:px-3 sm:py-2 bg-zinc-900/95 hover:bg-zinc-800 border border-zinc-600 rounded-xl text-zinc-100 transition-colors flex items-center gap-1.5 text-xs font-mono cursor-pointer shadow-md active:scale-95"
+              className="p-2 sm:px-2.5 sm:py-2 bg-zinc-900/95 hover:bg-zinc-800 border border-zinc-600 rounded-xl text-zinc-100 transition-colors flex items-center gap-1 text-xs font-mono cursor-pointer shadow-md active:scale-95"
               title="Mochila"
             >
               <Backpack className="w-4 h-4 text-zinc-200" />
@@ -1169,7 +1348,7 @@ export const ExplorationView: React.FC<ExplorationViewProps> = ({
                 syncCurrentPos();
                 onOpenMap();
               }}
-              className="p-2.5 sm:px-3 sm:py-2 bg-zinc-900/95 hover:bg-zinc-800 border border-zinc-600 rounded-xl text-zinc-100 transition-colors flex items-center gap-1.5 text-xs font-mono cursor-pointer shadow-md active:scale-95"
+              className="p-2 sm:px-2.5 sm:py-2 bg-zinc-900/95 hover:bg-zinc-800 border border-zinc-600 rounded-xl text-zinc-100 transition-colors flex items-center gap-1 text-xs font-mono cursor-pointer shadow-md active:scale-95"
               title="Mapa de Chile"
             >
               <MapPin className="w-4 h-4 text-zinc-200" />
@@ -1181,7 +1360,7 @@ export const ExplorationView: React.FC<ExplorationViewProps> = ({
                 sound.init();
                 onToggleMute();
               }}
-              className="p-2.5 bg-zinc-900/95 hover:bg-zinc-800 border border-zinc-600 rounded-xl text-zinc-200 transition-colors cursor-pointer shadow-md active:scale-95"
+              className="p-2 bg-zinc-900/95 hover:bg-zinc-800 border border-zinc-600 rounded-xl text-zinc-200 transition-colors cursor-pointer shadow-md active:scale-95"
               title="Silenciar / Activar Audio"
             >
               {isMuted ? <VolumeX className="w-4 h-4 text-zinc-400" /> : <Volume2 className="w-4 h-4 text-zinc-100" />}
@@ -1194,17 +1373,17 @@ export const ExplorationView: React.FC<ExplorationViewProps> = ({
                 syncCurrentPos();
                 onOpenSystemMenu();
               }}
-              className="px-3 py-2.5 sm:py-2 bg-zinc-100 hover:bg-white border border-zinc-300 rounded-xl text-zinc-950 transition-all flex items-center gap-1.5 text-xs font-silkscreen font-bold cursor-pointer shadow-lg active:scale-95"
-              title="Menú, Misiones, Evolución y Guardado"
+              className="px-2.5 py-2 bg-zinc-100 hover:bg-white border border-zinc-300 rounded-xl text-zinc-950 transition-all flex items-center gap-1 text-[11px] font-silkscreen font-bold cursor-pointer shadow-lg active:scale-95"
+              title="Menú, Perfil, Misiones y Guardado"
             >
               <Settings className="w-4 h-4 text-zinc-900" />
-              <span>Menú</span>
+              <span className="hidden sm:inline">Menú</span>
             </button>
           </div>
         </div>
 
         {/* Mission Pill + Live Encounter Probability Pill */}
-        <div className="flex flex-wrap items-center justify-between gap-1.5">
+        <div className="flex flex-wrap items-center justify-between gap-1">
           <button
             onClick={() => {
               sound.init();
@@ -1212,7 +1391,7 @@ export const ExplorationView: React.FC<ExplorationViewProps> = ({
               syncCurrentPos();
               onOpenSystemMenu();
             }}
-            className="pointer-events-auto max-w-full sm:max-w-[70%] px-3 py-1 bg-zinc-950/90 backdrop-blur border border-zinc-500/70 rounded-full text-[10px] sm:text-[11px] font-mono text-zinc-200 shadow-md flex items-center gap-1.5 cursor-pointer active:scale-95"
+            className="pointer-events-auto max-w-full sm:max-w-[66%] px-2.5 py-0.5 bg-zinc-950/90 backdrop-blur border border-zinc-500/70 rounded-full text-[9px] sm:text-[10px] font-mono text-zinc-200 shadow-md flex items-center gap-1 cursor-pointer active:scale-95"
           >
             <Target className="w-3 h-3 text-zinc-100 shrink-0" />
             <span className="text-zinc-100 font-bold shrink-0">
@@ -1222,24 +1401,24 @@ export const ExplorationView: React.FC<ExplorationViewProps> = ({
           </button>
 
           <div
-            className={`pointer-events-auto px-2.5 py-1 rounded-full border text-[10px] font-mono shadow-md ${
-              currentTileType === 1 || currentRegion.wildEncounterTable.length === 0
+            className={`pointer-events-auto px-2 py-0.5 rounded-full border text-[9px] sm:text-[10px] font-mono shadow-md ${
+              currentTileType === 1 || currentTileType === 10 || currentRegion.wildEncounterTable.length === 0
                 ? 'bg-zinc-900/90 border-zinc-600 text-zinc-200'
                 : 'bg-zinc-200 border-zinc-400 text-zinc-950 font-bold'
             }`}
-            title="Caminos: 5% · Fuera de camino: 40%"
+            title="Caminos: 0.5%-1% · Fuera de camino: 1%-3% · Interior: 0%"
           >
-            Prob. encuentro: {encounterRateLabel}
+            Enc: {encounterRateLabel}
           </div>
         </div>
       </header>
 
       {/* Center Interactive Prompt when near entity */}
       {interactPrompt && (
-        <div className="relative z-20 mx-auto pointer-events-auto animate-in fade-in slide-in-from-bottom-2 duration-150 my-1">
+        <div className="relative z-20 mx-auto pointer-events-auto animate-in fade-in slide-in-from-bottom-2 duration-150 my-0.5">
           <button
             onClick={handleInteract}
-            className="px-4 py-2 bg-zinc-100 hover:bg-white border-2 border-zinc-900 rounded-full font-pixel text-xs text-zinc-950 shadow-xl shadow-black/80 flex items-center gap-2 cursor-pointer active:scale-95 transition-transform"
+            className="px-3.5 py-1.5 bg-zinc-100 hover:bg-white border-2 border-zinc-900 rounded-full font-pixel text-[10px] sm:text-xs text-zinc-950 shadow-xl shadow-black/80 flex items-center gap-2 cursor-pointer active:scale-95 transition-transform"
           >
             <span className="w-2 h-2 rounded-full bg-zinc-900 animate-ping" />
             <span>{interactPrompt}</span>
@@ -1248,10 +1427,10 @@ export const ExplorationView: React.FC<ExplorationViewProps> = ({
       )}
 
       {/* Bottom Virtual Gamepad & Status Cluster */}
-      <footer className="relative z-20 w-full p-2.5 sm:p-4 flex justify-between items-end max-w-5xl mx-auto pointer-events-none">
+      <footer className="relative z-20 w-full p-2 sm:p-4 flex justify-between items-end max-w-5xl mx-auto pointer-events-none">
         {/* Virtual Touch D-Pad */}
-        <div className="pointer-events-auto bg-zinc-950/90 backdrop-blur p-2 rounded-2xl border border-zinc-700 shadow-2xl touch-none">
-          <div className="grid grid-cols-3 gap-1.5 w-28 h-28 sm:w-36 sm:h-36">
+        <div className="pointer-events-auto bg-zinc-950/90 backdrop-blur p-1.5 sm:p-2 rounded-2xl border border-zinc-700 shadow-2xl touch-none">
+          <div className="grid grid-cols-3 gap-1 sm:gap-1.5 w-28 h-28 sm:w-34 sm:h-34">
             <div />
             <button
               onPointerDown={(e) => {
@@ -1313,10 +1492,9 @@ export const ExplorationView: React.FC<ExplorationViewProps> = ({
         </div>
 
         {/* Action Button & Active Spirit Cluster */}
-        <div className="pointer-events-auto flex flex-col items-end gap-2">
-          {/* Active Spirit Status Card with Animated Pixel Avatar */}
-          <div className="bg-zinc-900/95 backdrop-blur border border-zinc-600 p-2 sm:p-2.5 rounded-xl shadow-lg flex items-center gap-2">
-            <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-lg bg-zinc-950 border border-zinc-400/70 flex-shrink-0 flex items-center justify-center overflow-hidden shadow-inner">
+        <div className="pointer-events-auto flex flex-col items-end gap-1.5 sm:gap-2">
+          <div className="bg-zinc-900/95 backdrop-blur border border-zinc-600 p-1.5 sm:p-2 rounded-xl shadow-lg flex items-center gap-2">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-zinc-950 border border-zinc-400/70 shrink-0 flex items-center justify-center overflow-hidden shadow-inner">
               <canvas
                 ref={activeAvatarCanvasRef}
                 width={48}
@@ -1325,11 +1503,13 @@ export const ExplorationView: React.FC<ExplorationViewProps> = ({
               />
             </div>
             <div>
-              <div className="flex items-center gap-1.5">
-                <span className="font-pixel text-[9px] sm:text-[10px] text-zinc-100 truncate max-w-[92px] sm:max-w-[110px]">{playerSpirit.name}</span>
-                <span className="font-mono text-[9px] sm:text-[10px] text-zinc-300 font-bold">Nv.{playerSpirit.level}</span>
+              <div className="flex items-center gap-1">
+                <span className="font-pixel text-[9px] text-zinc-100 truncate max-w-[82px] sm:max-w-[105px]">
+                  {playerSpirit.name}
+                </span>
+                <span className="font-mono text-[9px] text-zinc-300 font-bold">Nv.{playerSpirit.level}</span>
               </div>
-              <div className="w-20 sm:w-24 h-1.5 bg-zinc-950 rounded-full overflow-hidden mt-1 border border-zinc-800">
+              <div className="w-18 sm:w-22 h-1.5 bg-zinc-950 rounded-full overflow-hidden mt-1 border border-zinc-800">
                 <div
                   className="h-full bg-zinc-200"
                   style={{ width: `${Math.max(0, Math.min(100, (playerSpirit.currentHp / playerSpirit.maxHp) * 100))}%` }}
@@ -1338,10 +1518,9 @@ export const ExplorationView: React.FC<ExplorationViewProps> = ({
             </div>
           </div>
 
-          {/* Touch Action Button */}
           <button
             onClick={handleInteract}
-            className="w-16 h-16 sm:w-20 sm:h-20 bg-zinc-100 hover:bg-white text-zinc-950 rounded-full font-pixel text-[10px] sm:text-xs font-black shadow-xl shadow-black/70 border-4 border-zinc-500 flex flex-col items-center justify-center cursor-pointer active:scale-90 transition-transform touch-none"
+            className="w-16 h-16 sm:w-18 sm:h-18 bg-zinc-100 hover:bg-white text-zinc-950 rounded-full font-pixel text-[10px] sm:text-xs font-black shadow-xl shadow-black/70 border-4 border-zinc-500 flex flex-col items-center justify-center cursor-pointer active:scale-90 transition-transform touch-none"
           >
             <span>ACCIÓN</span>
           </button>
@@ -1350,4 +1529,3 @@ export const ExplorationView: React.FC<ExplorationViewProps> = ({
     </div>
   );
 };
-

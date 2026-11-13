@@ -1,12 +1,12 @@
 /**
  * Tactical Battle System: Pokémon FireRed + Final Fantasy III Hybrid
  * Features:
- * - Opening Encounter Intro with Enemy Sprite & Dialogue
- * - Dynamic Elemental Affinity Multipliers & Visual Effects (no screen shake)
- * - Protagonist Gender-Specific Passive (Vínculo Vital / Templanza Austral)
- * - Vínculo Ancestral (Capture mechanic) with EXP gain on both defeat & capture
- * - Invocaciones de la Naturaleza (Limit Break gauge)
- * - Prominent Flee [🏃 HUIR] command
+ * - Opening Encounter Intro with Enemy Sprite & Lore
+ * - Dynamic Elemental Affinity Multipliers & Visual Effects
+ * - Forced Team Replacement when active spirit faints while allies remain healthy
+ * - Boss capture difficulty 2x harder than common spirits (0.36 vs 0.72)
+ * - Duplicate capture EXP notice when capturing an already owned species
+ * - Minimalist 2-line Combat Log & Mobile-first no-scroll 100dvh layout
  */
 
 import React, { useState, useEffect, useRef } from 'react';
@@ -17,7 +17,6 @@ import {
   InventoryItem,
   BattleLogEntry,
   ElementType,
-  HERO_PASSIVES,
 } from '../types/game';
 import { getElementalMultiplier, getWeaknessesForSpirit, checkNewMovesToLearn, ELEMENT_META } from '../data/spiritsData';
 import { sound } from '../services/audioService';
@@ -35,6 +34,7 @@ import {
 interface BattleViewProps {
   playerSpirit: SpiritCreature;
   partySpirits?: SpiritCreature[];
+  existingBaseIds?: string[];
   barbara: BarbaraHero;
   enemySpirit: SpiritCreature;
   isBossBattle?: boolean;
@@ -46,11 +46,13 @@ interface BattleViewProps {
   onFlee: () => void;
   onUseItem: (itemId: string, targetUid: string) => void;
   onSwitchActiveSpirit?: (spiritUid: string) => void;
+  onSyncBattleParty?: (updatedParty: SpiritCreature[], activeUid: string) => void;
 }
 
 export const BattleView: React.FC<BattleViewProps> = ({
   playerSpirit: initialPlayerSpirit,
   partySpirits = [],
+  existingBaseIds = [],
   barbara: initialBarbara,
   enemySpirit: initialEnemySpirit,
   isBossBattle = false,
@@ -61,13 +63,15 @@ export const BattleView: React.FC<BattleViewProps> = ({
   onFlee,
   onUseItem,
   onSwitchActiveSpirit,
+  onSyncBattleParty,
 }) => {
+  const [battleParty, setBattleParty] = useState<SpiritCreature[]>(() =>
+    partySpirits.length > 0 ? partySpirits : [initialPlayerSpirit]
+  );
   const [playerSpirit, setPlayerSpirit] = useState<SpiritCreature>(initialPlayerSpirit);
   const [enemySpirit, setEnemySpirit] = useState<SpiritCreature>(initialEnemySpirit);
   const [barbara, setBarbara] = useState<BarbaraHero>(initialBarbara);
-
-  const heroGender = barbara.gender || 'female';
-  const heroPassive = HERO_PASSIVES[heroGender];
+  const [forcedSwitch, setForcedSwitch] = useState(false);
 
   const [showEncounterIntro, setShowEncounterIntro] = useState(true);
   const [activeAttackEffect, setActiveAttackEffect] = useState<{
@@ -82,15 +86,17 @@ export const BattleView: React.FC<BattleViewProps> = ({
     {
       id: 'init_1',
       text: isBossBattle
-        ? `⚔️ ¡Jefe ${enemySpirit.name} (Nv.${enemySpirit.level}) bloquea el santuario!`
-        : `⚡ ¡${enemySpirit.name} (Nv.${enemySpirit.level}) salvaje aparece!`,
+        ? `⚔️ ¡Jefe ${initialEnemySpirit.name} (Nv.${initialEnemySpirit.level}) desafía a ${initialBarbara.name}!`
+        : `⚡ ¡${initialEnemySpirit.name} (Nv.${initialEnemySpirit.level}) salvaje aparece!`,
       type: 'info',
     },
   ]);
   const [isAnimating, setIsAnimating] = useState(false);
   const [playerHitFlash, setPlayerHitFlash] = useState(false);
   const [enemyHitFlash, setEnemyHitFlash] = useState(false);
-  const [floatingTexts, setFloatingTexts] = useState<{ id: string; text: string; subtext?: string; color: string; isEnemy: boolean }[]>([]);
+  const [floatingTexts, setFloatingTexts] = useState<
+    { id: string; text: string; subtext?: string; color: string; isEnemy: boolean }[]
+  >([]);
   const [affinityBanner, setAffinityBanner] = useState<{
     id: string;
     attackElement: ElementType;
@@ -104,6 +110,12 @@ export const BattleView: React.FC<BattleViewProps> = ({
   const enemyCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const introCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const actionAvatarCanvasRef = useRef<HTMLCanvasElement | null>(null);
+
+  const syncSpiritIntoParty = (updated: SpiritCreature): SpiritCreature[] => {
+    const next = battleParty.map(s => (s.uid === updated.uid ? updated : s));
+    setBattleParty(next);
+    return next;
+  };
 
   useEffect(() => {
     sound.playBgm('battle');
@@ -134,29 +146,29 @@ export const BattleView: React.FC<BattleViewProps> = ({
       if (playerCanvasRef.current) {
         const ctx = playerCanvasRef.current.getContext('2d');
         if (ctx) {
-          ctx.clearRect(0, 0, 160, 160);
-          drawCreatureSprite(ctx, playerSpirit.baseId, playerSpirit.currentStage, 10, 10, 140, t, false);
+          ctx.clearRect(0, 0, 140, 140);
+          drawCreatureSprite(ctx, playerSpirit.baseId, playerSpirit.currentStage, 8, 8, 124, t, false);
         }
       }
       if (actionAvatarCanvasRef.current) {
         const ctx = actionAvatarCanvasRef.current.getContext('2d');
         if (ctx) {
-          ctx.clearRect(0, 0, 48, 48);
-          drawCreatureSprite(ctx, playerSpirit.baseId, playerSpirit.currentStage, 2, 2, 44, t, false);
+          ctx.clearRect(0, 0, 44, 44);
+          drawCreatureSprite(ctx, playerSpirit.baseId, playerSpirit.currentStage, 2, 2, 40, t, false);
         }
       }
       if (enemyCanvasRef.current) {
         const ctx = enemyCanvasRef.current.getContext('2d');
         if (ctx) {
-          ctx.clearRect(0, 0, 160, 160);
-          drawCreatureSprite(ctx, enemySpirit.baseId, enemySpirit.currentStage, 10, 10, 140, t + 1.5, true);
+          ctx.clearRect(0, 0, 140, 140);
+          drawCreatureSprite(ctx, enemySpirit.baseId, enemySpirit.currentStage, 8, 8, 124, t + 1.5, true);
         }
       }
       if (introCanvasRef.current && showEncounterIntro) {
         const ctx = introCanvasRef.current.getContext('2d');
         if (ctx) {
-          ctx.clearRect(0, 0, 180, 180);
-          drawCreatureSprite(ctx, enemySpirit.baseId, enemySpirit.currentStage, 10, 10, 160, t + 1.0, true);
+          ctx.clearRect(0, 0, 160, 160);
+          drawCreatureSprite(ctx, enemySpirit.baseId, enemySpirit.currentStage, 10, 10, 140, t + 1.0, true);
         }
       }
       animId = requestAnimationFrame(render);
@@ -190,7 +202,7 @@ export const BattleView: React.FC<BattleViewProps> = ({
     setAffinityBanner({ id, attackElement, targetElement, badgeLabel, multiplier, tier });
     setTimeout(() => {
       setAffinityBanner(prev => (prev?.id === id ? null : prev));
-    }, 1250);
+    }, 1200);
   };
 
   const playElementSfx = (element: ElementType) => {
@@ -205,10 +217,10 @@ export const BattleView: React.FC<BattleViewProps> = ({
     setActiveAttackEffect({ element, isTargetEnemy, skillName });
     setTimeout(() => {
       setActiveAttackEffect(null);
-    }, 700);
+    }, 680);
   };
 
-  // Shared EXP & Level-Up Helper used for BOTH Battle Victory & Spirit Linking (Capture)
+  // EXP & Level-up shared across combat victory and spirit linking (capture)
   const applyVictoryExperience = (
     victorSpirit: SpiritCreature,
     defeatedEnemy: SpiritCreature,
@@ -239,7 +251,7 @@ export const BattleView: React.FC<BattleViewProps> = ({
     if (levelsGained > 0) {
       sound.playLevelUp();
       addFloatingText(`¡NIVEL ${nextLevel}!`, '#facc15', false);
-      addLog(`🏆 ${victorSpirit.name} ganó ${expGained} EXP y subió a Nv.${nextLevel}!`, 'critical');
+      addLog(`🏆 ${victorSpirit.name} subió a Nv.${nextLevel} (+${expGained} EXP)!`, 'critical');
     } else {
       addLog(`⭐ ${victorSpirit.name} ganó +${expGained} EXP.`, 'info');
     }
@@ -271,58 +283,63 @@ export const BattleView: React.FC<BattleViewProps> = ({
     return { updatedSpirit, updatedBarbara };
   };
 
-  // Victory Sequence
-  const handleVictorySequence = async (victorSpirit: SpiritCreature, defeatedEnemy: SpiritCreature) => {
+  const handleVictorySequence = async (
+    victorSpirit: SpiritCreature,
+    defeatedEnemy: SpiritCreature,
+    currentPartySnapshot: SpiritCreature[]
+  ) => {
     sound.stopBgm();
     sound.playLevelUp();
 
     const { updatedSpirit, updatedBarbara } = applyVictoryExperience(victorSpirit, defeatedEnemy, false);
+    const syncedParty = currentPartySnapshot.map(s => (s.uid === updatedSpirit.uid ? updatedSpirit : s));
     setPlayerSpirit(updatedSpirit);
+    setBattleParty(syncedParty);
+    onSyncBattleParty?.(syncedParty, updatedSpirit.uid);
 
-    await wait(1900);
+    await wait(1600);
     onVictory(updatedSpirit, updatedBarbara);
   };
 
-  // Handle Player Spirit Move
+  // Player Spirit Move
   const handleSpiritSkill = async (skill: ElementalSkill) => {
-    if (isAnimating) return;
+    if (isAnimating || forcedSwitch) return;
     if (playerSpirit.currentMp < skill.mpCost) {
       sound.playCancel();
-      addLog('¡No tienes suficiente PM para usar esta técnica!', 'info');
+      addLog('⚠️ Sin PM suficientes para esa técnica.', 'info');
       return;
     }
 
     setIsAnimating(true);
     sound.playConfirm();
 
-    const updatedPlayerAfterMp = {
+    const updatedPlayerAfterMp: SpiritCreature = {
       ...playerSpirit,
       currentMp: Math.max(0, playerSpirit.currentMp - skill.mpCost),
     };
     setPlayerSpirit(updatedPlayerAfterMp);
+    let currentPartySnap = syncSpiritIntoParty(updatedPlayerAfterMp);
 
     playElementSfx(skill.element);
     triggerElementalVfx(skill.element, skill.category !== 'heal', skill.name);
 
-    const limitGainMultiplier = heroGender === 'male' ? 1.25 : 1.0;
-
     if (skill.category === 'heal') {
-      const healMultiplier = heroGender === 'female' ? 1.15 : 1.0;
-      const healAmount = Math.round(updatedPlayerAfterMp.maxHp * 0.45 * healMultiplier);
+      const healAmount = Math.round(updatedPlayerAfterMp.maxHp * 0.45);
       const newHp = Math.min(updatedPlayerAfterMp.maxHp, updatedPlayerAfterMp.currentHp + healAmount);
       const healedSpirit = { ...updatedPlayerAfterMp, currentHp: newHp };
       setPlayerSpirit(healedSpirit);
+      currentPartySnap = syncSpiritIntoParty(healedSpirit);
       sound.playHeal();
       addFloatingText(`+${healAmount} PS`, '#4ade80', false);
-      addLog(`💚 ${updatedPlayerAfterMp.name}: ${skill.name} (+${healAmount} PS)`, 'heal');
+      addLog(`💚 ${updatedPlayerAfterMp.name} usó ${skill.name} (+${healAmount} PS).`, 'heal');
 
       setBarbara(prev => ({
         ...prev,
-        limitGauge: Math.min(100, prev.limitGauge + Math.round(15 * limitGainMultiplier)),
+        limitGauge: Math.min(100, prev.limitGauge + 15),
       }));
 
-      await wait(850);
-      enemyTurn(healedSpirit, enemySpirit);
+      await wait(800);
+      enemyTurn(healedSpirit, enemySpirit, currentPartySnap);
       return;
     }
 
@@ -335,21 +352,20 @@ export const BattleView: React.FC<BattleViewProps> = ({
     );
 
     const TEST_DAMAGE_BONUS = 2.0; // +100% test damage bonus
-    const maleAttackBoost = heroGender === 'male' ? 1.15 : 1.0;
     const baseDamage = Math.round(
-      (((2 * updatedPlayerAfterMp.level / 5 + 2) * skill.power * (updatedPlayerAfterMp.spAttack / Math.max(1, enemySpirit.spDefense))) / 48 + 3) *
+      (((2 * updatedPlayerAfterMp.level / 5 + 2) *
+        skill.power *
+        (updatedPlayerAfterMp.spAttack / Math.max(1, enemySpirit.spDefense))) /
+        48 +
+        3) *
         aff.multiplier *
-        maleAttackBoost *
         TEST_DAMAGE_BONUS
     );
     const finalDamage = Math.max(8, Math.round(baseDamage * (0.92 + Math.random() * 0.16)));
 
     setEnemyHitFlash(true);
-    if (aff.multiplier >= 1.5) {
-      sound.playCriticalHit();
-    } else {
-      sound.playHit();
-    }
+    if (aff.multiplier >= 1.5) sound.playCriticalHit();
+    else sound.playHit();
 
     const dmgColor =
       aff.tier === 'ultra' || aff.tier === 'super'
@@ -372,35 +388,35 @@ export const BattleView: React.FC<BattleViewProps> = ({
     }
 
     addLog(
-      `⚔️ ${updatedPlayerAfterMp.name} usó ${skill.name}: -${finalDamage} PS (${aff.badgeLabel})`,
+      `⚔️ ${updatedPlayerAfterMp.name}: ${skill.name} -> -${finalDamage} PS (${aff.badgeLabel})`,
       aff.multiplier >= 1.5 ? 'critical' : 'damage'
     );
 
     setBarbara(prev => ({
       ...prev,
-      limitGauge: Math.min(100, prev.limitGauge + Math.round((aff.multiplier >= 1.5 ? 25 : 15) * limitGainMultiplier)),
+      limitGauge: Math.min(100, prev.limitGauge + (aff.multiplier >= 1.5 ? 25 : 15)),
     }));
 
     const remainingEnemyHp = Math.max(0, enemySpirit.currentHp - finalDamage);
     const updatedEnemy = { ...enemySpirit, currentHp: remainingEnemyHp };
     setEnemySpirit(updatedEnemy);
 
-    await wait(550);
+    await wait(520);
     setEnemyHitFlash(false);
 
     if (remainingEnemyHp <= 0) {
-      handleVictorySequence(updatedPlayerAfterMp, updatedEnemy);
+      handleVictorySequence(updatedPlayerAfterMp, updatedEnemy, currentPartySnap);
       return;
     }
 
-    await wait(650);
-    enemyTurn(updatedPlayerAfterMp, updatedEnemy);
+    await wait(600);
+    enemyTurn(updatedPlayerAfterMp, updatedEnemy, currentPartySnap);
   };
 
-  // Switch Active Spirit in Battle
+  // Switch Active Spirit in Battle (supports both voluntary switch & forced faint replacement)
   const handleSwitchSpirit = async (newSpiritUid: string) => {
     if (isAnimating) return;
-    const targetSpirit = partySpirits.find(s => s.uid === newSpiritUid);
+    const targetSpirit = battleParty.find(s => s.uid === newSpiritUid);
     if (!targetSpirit || targetSpirit.uid === playerSpirit.uid) return;
 
     if (targetSpirit.currentHp <= 0) {
@@ -409,21 +425,32 @@ export const BattleView: React.FC<BattleViewProps> = ({
       return;
     }
 
-    setIsAnimating(true);
-    sound.playConfirm();
-    addLog(`🔄 ${barbara.name} envía a ${targetSpirit.name} al combate.`, 'status');
+    const wasForced = forcedSwitch;
+    const currentSyncedParty = syncSpiritIntoParty(playerSpirit);
+    const freshTarget = currentSyncedParty.find(s => s.uid === newSpiritUid) || targetSpirit;
 
-    onSwitchActiveSpirit?.(targetSpirit.uid);
-    setPlayerSpirit(targetSpirit);
+    sound.playConfirm();
+    onSwitchActiveSpirit?.(freshTarget.uid);
+    onSyncBattleParty?.(currentSyncedParty, freshTarget.uid);
+    setPlayerSpirit(freshTarget);
+    setForcedSwitch(false);
     setActionCategory('main');
 
-    await wait(900);
-    enemyTurn(targetSpirit, enemySpirit);
+    if (wasForced) {
+      addLog(`🔄 ¡${freshTarget.name} entra al relevo!`, 'status');
+      setIsAnimating(false);
+      return;
+    }
+
+    setIsAnimating(true);
+    addLog(`🔄 ${barbara.name} envía a ${freshTarget.name} al combate.`, 'status');
+    await wait(800);
+    enemyTurn(freshTarget, enemySpirit, currentSyncedParty);
   };
 
-  // Invocación de la Naturaleza (1 use per full charge)
+  // Invocación Primigenia (1 use per 100% charge)
   const handleNatureSummon = async () => {
-    if (barbara.limitGauge < 100 || isAnimating) return;
+    if (barbara.limitGauge < 100 || isAnimating || forcedSwitch) return;
     setIsAnimating(true);
     sound.playCriticalHit();
 
@@ -448,16 +475,17 @@ export const BattleView: React.FC<BattleViewProps> = ({
         : 'planta';
 
     setActiveSummonCinematic({ name: summonName, element: summonElement });
-    addLog(`🔥 ${barbara.name}: Invocación de ${summonName}!`, 'critical');
+    addLog(`🔥 ${barbara.name}: ¡Invocación de ${summonName}!`, 'critical');
 
-    await wait(2400);
+    await wait(2200);
     setActiveSummonCinematic(null);
 
     triggerElementalVfx('sagrado', true, summonName);
 
-    const summonDamage = (heroGender === 'male' ? 185 : 160) * 2;
+    const summonDamage = 320;
     const remainingEnemyHp = Math.max(0, enemySpirit.currentHp - summonDamage);
     const healedPlayer = { ...playerSpirit, currentHp: playerSpirit.maxHp, currentMp: playerSpirit.maxMp };
+    const updatedPartySnap = syncSpiritIntoParty(healedPlayer);
 
     setEnemySpirit(prev => ({ ...prev, currentHp: remainingEnemyHp }));
     setPlayerSpirit(healedPlayer);
@@ -465,25 +493,25 @@ export const BattleView: React.FC<BattleViewProps> = ({
     addFloatingText(`-${summonDamage}`, '#f43f5e', true, 'PRIMIGENIO');
     addFloatingText(`+PS/PM MAX`, '#4ade80', false);
 
-    await wait(900);
+    await wait(850);
     setEnemyHitFlash(false);
 
     if (remainingEnemyHp <= 0) {
-      handleVictorySequence(healedPlayer, { ...enemySpirit, currentHp: 0 });
+      handleVictorySequence(healedPlayer, { ...enemySpirit, currentHp: 0 }, updatedPartySnap);
       return;
     }
 
-    await wait(750);
-    enemyTurn(healedPlayer, { ...enemySpirit, currentHp: remainingEnemyHp });
+    await wait(700);
+    enemyTurn(healedPlayer, { ...enemySpirit, currentHp: remainingEnemyHp }, updatedPartySnap);
   };
 
-  // Vincular (Capture) - Also awards EXP + Level Ups to active Spirit!
+  // Vincular (Capture) — Boss capture strictly 0.5x of common (2x harder)
   const handleCapture = async () => {
-    if (isAnimating) return;
+    if (isAnimating || forcedSwitch) return;
     const charms = inventory.orbe_resonancia?.count || 0;
     if (charms <= 0) {
       sound.playCancel();
-      addLog('⚠️ Sin Amuletos de Vínculo Pewén disponibles.', 'info');
+      addLog('⚠️ Sin Amuletos de Vínculo disponibles.', 'info');
       return;
     }
 
@@ -491,39 +519,49 @@ export const BattleView: React.FC<BattleViewProps> = ({
     sound.playConfirm();
     onUseItem('orbe_resonancia', enemySpirit.uid);
 
-    addLog(`🧿 ${barbara.name} lanzó un Amuleto de Vínculo hacia ${enemySpirit.name}.`, 'capture');
+    addLog(`🧿 ${barbara.name} lanzó un Amuleto hacia ${enemySpirit.name}.`, 'capture');
 
     const hpPercent = enemySpirit.currentHp / enemySpirit.maxHp;
-    const baseCaptureRate = isBossBattle ? 0.35 : 0.72;
-    const passiveCaptureBonus = heroGender === 'female' ? 0.1 : 0;
-    const captureChance = Math.min(0.98, baseCaptureRate * (1.6 - hpPercent) + passiveCaptureBonus);
+    const baseCaptureRate = isBossBattle ? 0.36 : 0.72; // Boss is strictly 2x harder
+    const captureChance = Math.min(0.95, baseCaptureRate * (1.6 - hpPercent));
 
-    await wait(900);
+    await wait(850);
 
-    const success = Math.random() < captureChance;
-    if (success) {
+    if (Math.random() < captureChance) {
       sound.stopBgm();
       sound.playCaptureSuccess();
-      addLog(`✨ ¡${enemySpirit.name} estableció un Vínculo contigo!`, 'status');
-      addFloatingText(`¡VINCULADO!`, '#34d399', true);
+
+      const isDuplicate = existingBaseIds.includes(enemySpirit.baseId);
+      if (isDuplicate) {
+        addLog(`✨ ¡${enemySpirit.name} repetido! Se transforma en EXP para tu original.`, 'critical');
+      } else {
+        addLog(`✨ ¡${enemySpirit.name} estableció un Vínculo contigo!`, 'status');
+      }
+      addFloatingText(isDuplicate ? `¡+EXP EXTRA!` : `¡VINCULADO!`, '#34d399', true);
 
       const { updatedSpirit, updatedBarbara } = applyVictoryExperience(playerSpirit, enemySpirit, true);
+      const finalParty = syncSpiritIntoParty(updatedSpirit);
       setPlayerSpirit(updatedSpirit);
+      onSyncBattleParty?.(finalParty, updatedSpirit.uid);
 
-      await wait(1600);
+      await wait(1400);
       onVictory(updatedSpirit, updatedBarbara, { ...enemySpirit, currentHp: enemySpirit.maxHp });
     } else {
       sound.playCancel();
-      addLog(`💨 ${enemySpirit.name} resistió el vínculo y sigue firme.`, 'info');
+      addLog(`💨 ${enemySpirit.name} resistió el Amuleto de Vínculo.`, 'info');
       addFloatingText(`¡RESISTIÓ!`, '#fbbf24', true);
 
-      await wait(850);
-      enemyTurn(playerSpirit, enemySpirit);
+      await wait(800);
+      enemyTurn(playerSpirit, enemySpirit, battleParty);
     }
   };
 
-  // Enemy Turn Action + Female Protagonist End-of-Turn Passive Regeneration
-  const enemyTurn = async (currPlayer: SpiritCreature, currEnemy: SpiritCreature) => {
+  // Enemy Turn Action + Forced Team Replacement on Faint
+  const enemyTurn = async (
+    currPlayer: SpiritCreature,
+    currEnemy: SpiritCreature,
+    partySnapshot: SpiritCreature[]
+  ) => {
     if (currEnemy.currentHp <= 0) return;
 
     const skill = currEnemy.skills[Math.floor(Math.random() * currEnemy.skills.length)] || {
@@ -541,7 +579,7 @@ export const BattleView: React.FC<BattleViewProps> = ({
     }
     triggerElementalVfx(skill.element as ElementType, false, skill.name);
 
-    await wait(380);
+    await wait(360);
 
     const aff = getElementalMultiplier(
       skill.element as ElementType,
@@ -551,11 +589,9 @@ export const BattleView: React.FC<BattleViewProps> = ({
       currEnemy.secondaryElement
     );
 
-    const maleDefMitigation = heroGender === 'male' ? 0.9 : 1.0;
     const baseDamage = Math.round(
       (((2 * currEnemy.level / 5 + 2) * skill.power * (currEnemy.attack / Math.max(1, currPlayer.defense))) / 50 + 2) *
-        aff.multiplier *
-        maleDefMitigation
+        aff.multiplier
     );
     const damage = Math.max(3, Math.round(baseDamage * (0.85 + Math.random() * 0.25)));
 
@@ -571,30 +607,36 @@ export const BattleView: React.FC<BattleViewProps> = ({
     if (aff.multiplier !== 1.0) {
       triggerAffinityBanner(skill.element as ElementType, currPlayer.primaryElement, aff.badgeLabel, aff.multiplier, aff.tier);
     }
-    addLog(`💥 ${currEnemy.name} usó ${skill.name}: -${damage} PS${aff.multiplier !== 1.0 ? ` (${aff.badgeLabel})` : ''}`, 'damage');
+    addLog(
+      `💥 ${currEnemy.name}: ${skill.name} -> -${damage} PS${aff.multiplier !== 1.0 ? ` (${aff.badgeLabel})` : ''}`,
+      'damage'
+    );
 
-    let nextPlayerHp = Math.max(0, currPlayer.currentHp - damage);
-    let updatedPlayer = { ...currPlayer, currentHp: nextPlayerHp };
+    const nextPlayerHp = Math.max(0, currPlayer.currentHp - damage);
+    const updatedPlayer = { ...currPlayer, currentHp: nextPlayerHp };
+    const updatedPartySnap = partySnapshot.map(s => (s.uid === updatedPlayer.uid ? updatedPlayer : s));
     setPlayerSpirit(updatedPlayer);
+    setBattleParty(updatedPartySnap);
+    onSyncBattleParty?.(updatedPartySnap, updatedPlayer.uid);
 
-    await wait(550);
+    await wait(500);
     setPlayerHitFlash(false);
 
     if (nextPlayerHp <= 0) {
       sound.playCancel();
-      addLog(`⚠️ ¡${currPlayer.name} cayó debilitado!`, 'critical');
-      await wait(1100);
+      const aliveAllies = updatedPartySnap.filter(s => s.uid !== currPlayer.uid && s.currentHp > 0);
+      if (aliveAllies.length > 0) {
+        addLog(`⚠️ ¡${currPlayer.name} cayó! Selecciona otro espíritu.`, 'critical');
+        setForcedSwitch(true);
+        setIsAnimating(false);
+        setActionCategory('party_switch');
+        return;
+      }
+
+      addLog(`⚠️ ¡Todo tu equipo cayó debilitado!`, 'critical');
+      await wait(1000);
       onDefeat();
       return;
-    }
-
-    // Female Protagonist Passive: +5% maxHp gentle regen per surviving turn
-    if (heroGender === 'female' && nextPlayerHp < currPlayer.maxHp) {
-      const regen = Math.max(2, Math.round(currPlayer.maxHp * 0.05));
-      nextPlayerHp = Math.min(currPlayer.maxHp, nextPlayerHp + regen);
-      updatedPlayer = { ...updatedPlayer, currentHp: nextPlayerHp };
-      setPlayerSpirit(updatedPlayer);
-      addFloatingText(`+${regen} Vínculo`, '#34d399', false);
     }
 
     setIsAnimating(false);
@@ -613,79 +655,59 @@ export const BattleView: React.FC<BattleViewProps> = ({
       normal: 'bg-slate-500/20 text-slate-300 border-slate-500/40',
     };
     return (
-      <span className={`px-2 py-0.5 rounded text-[10px] font-silkscreen uppercase border ${colors[el] || 'bg-slate-700 text-white'}`}>
+      <span className={`px-1.5 py-0.5 rounded text-[9px] font-silkscreen uppercase border ${colors[el] || 'bg-slate-700 text-white'}`}>
         {el}
       </span>
     );
   };
 
   const enemyWeaknesses = getWeaknessesForSpirit(enemySpirit.primaryElement, enemySpirit.secondaryElement);
+  const lastTwoLogs = battleLog.slice(0, 2);
 
   return (
     <div className="relative w-full h-[100dvh] bg-zinc-950 flex flex-col justify-between overflow-hidden select-none">
-      {/* Authentic Regional Chilean Landscape Battle Background */}
+      {/* Regional Battle Backdrop */}
       <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none select-none">
         {regionId === 'araucania' ? (
-          <div className="absolute inset-0 bg-gradient-to-b from-purple-950 via-orange-900/75 to-amber-950/90">
-            <div className="absolute bottom-24 left-0 right-0 h-48 bg-[radial-gradient(ellipse_at_top,_#c2410c_0%,_transparent_70%)] opacity-55 blur-md" />
-            <div className="absolute bottom-0 inset-x-0 h-36 bg-gradient-to-t from-orange-950/75 via-purple-950/55 to-transparent border-t border-amber-500/35" />
+          <div className="absolute inset-0 bg-gradient-to-b from-emerald-950 via-green-950/90 to-zinc-950">
+            <div className="absolute bottom-24 left-0 right-0 h-44 bg-[radial-gradient(ellipse_at_top,_#15803d_0%,_transparent_70%)] opacity-55 blur-md" />
           </div>
         ) : regionId === 'loslagos' ? (
           <div className="absolute inset-0 bg-gradient-to-b from-slate-800 via-sky-950 to-slate-900">
-            <div className="absolute bottom-20 left-0 right-0 h-52 bg-[radial-gradient(ellipse_at_top,_#0c4a6e_0%,_transparent_70%)] opacity-60 blur-md" />
-            <div className="absolute bottom-0 inset-x-0 h-36 bg-gradient-to-t from-slate-700/80 via-sky-950/75 to-transparent border-t border-slate-300/35" />
-            <div className="absolute bottom-28 left-8 w-28 h-28 rounded-full bg-amber-400/25 blur-xl animate-pulse" />
+            <div className="absolute bottom-20 left-0 right-0 h-48 bg-[radial-gradient(ellipse_at_top,_#0c4a6e_0%,_transparent_70%)] opacity-60 blur-md" />
           </div>
         ) : regionId === 'losrios' ? (
           <div className="absolute inset-0 bg-gradient-to-b from-slate-950 via-blue-950/80 to-emerald-950/95">
             <div className="absolute bottom-24 left-0 right-0 h-44 bg-[radial-gradient(ellipse_at_top,_#047857_0%,_transparent_70%)] opacity-55 blur-md" />
-            <div className="absolute bottom-0 inset-x-0 h-36 bg-gradient-to-t from-emerald-950/90 via-blue-950/60 to-transparent border-t border-lime-400/30" />
-            <div className="absolute top-1/4 left-1/3 w-2 h-2 rounded-full bg-lime-400 shadow-[0_0_12px_#a3e635] animate-pulse" />
-            <div className="absolute top-1/3 right-1/3 w-2 h-2 rounded-full bg-yellow-300 shadow-[0_0_12px_#fde047] animate-pulse" />
           </div>
         ) : regionId === 'biobio' ? (
-          /* Biobío: Overcast cloudy sky, heavy mist & prehistoric fern horizon */
           <div className="absolute inset-0 bg-gradient-to-b from-zinc-600 via-zinc-700/85 to-stone-900">
-            <div className="absolute top-6 left-10 w-48 h-16 rounded-full bg-zinc-300/25 blur-xl animate-pulse" />
-            <div className="absolute top-12 right-12 w-56 h-20 rounded-full bg-zinc-400/20 blur-xl animate-pulse" />
-            <div className="absolute bottom-24 left-0 right-0 h-44 bg-[radial-gradient(ellipse_at_top,_#65a30d_0%,_transparent_70%)] opacity-35 blur-md" />
-            <div className="absolute bottom-0 inset-x-0 h-36 bg-gradient-to-t from-stone-950/90 via-zinc-800/60 to-transparent border-t border-zinc-400/30" />
+            <div className="absolute top-6 left-10 w-44 h-16 rounded-full bg-zinc-300/20 blur-xl animate-pulse" />
           </div>
         ) : (
-          <div className="absolute inset-0 bg-gradient-to-b from-sky-600/80 via-emerald-700/70 to-emerald-950">
-            <div className="absolute bottom-24 left-0 right-0 h-44 bg-[radial-gradient(ellipse_at_top,_#4ade80_0%,_transparent_70%)] opacity-45 blur-md" />
-            <div className="absolute bottom-0 inset-x-0 h-36 bg-gradient-to-t from-emerald-900/70 via-amber-900/35 to-transparent border-t border-yellow-400/35" />
-          </div>
+          <div className="absolute inset-0 bg-gradient-to-b from-sky-700/75 via-emerald-800/70 to-emerald-950" />
         )}
         <div className="absolute inset-0 bg-[radial-gradient(#ffffff_1px,transparent_1px)] [background-size:32px_32px] opacity-10" />
       </div>
 
-      {/* Top Header & Limit Break Bar */}
-      <div className="relative z-10 w-full px-3 py-2 bg-zinc-950/90 backdrop-blur border-b border-zinc-800 flex justify-between items-center text-xs flex-shrink-0">
-        <div className="flex items-center gap-2 min-w-0">
-          <div className="font-silkscreen text-[10px] sm:text-[11px] text-zinc-100 flex items-center gap-1.5 text-pixel-stroke">
-            <Swords className="w-3.5 h-3.5 text-zinc-200 flex-shrink-0" />
-            <span className="truncate">{isBossBattle ? 'JEFE REGIONAL' : 'COMBATE'}</span>
-          </div>
-          <span className="px-1.5 py-0.5 bg-zinc-100 text-zinc-950 rounded text-[9px] font-mono font-bold">
+      {/* Top Header & Invocación Gauge */}
+      <div className="relative z-10 w-full px-3 py-1.5 bg-zinc-950/90 backdrop-blur border-b border-zinc-800 flex justify-between items-center text-xs shrink-0">
+        <div className="flex items-center gap-1.5 min-w-0">
+          <Swords className="w-3.5 h-3.5 text-zinc-200 shrink-0" />
+          <span className="font-silkscreen text-[10px] sm:text-[11px] text-zinc-100 truncate">
+            {isBossBattle ? 'JEFE REGIONAL' : 'COMBATE'}
+          </span>
+          <span className="px-1.5 py-0.5 bg-zinc-100 text-zinc-950 rounded text-[9px] font-mono font-bold shrink-0">
             ⚡ Daño +100%
           </span>
-          {isBossBattle && (
-            <span className="px-1.5 py-0.5 bg-zinc-800 border border-zinc-500 rounded text-[9px] text-zinc-100 font-bold uppercase animate-pulse font-silkscreen hidden sm:inline">
-              ¡GUARDIÁN!
-            </span>
-          )}
         </div>
 
-        {/* Hero Limit Break Gauge */}
         <div className="flex items-center gap-1.5">
-          <span className="font-silkscreen text-[9px] sm:text-[10px] text-zinc-200">INVOCACIÓN:</span>
-          <div className="w-20 sm:w-32 h-2.5 bg-zinc-900 border border-zinc-600 rounded-full overflow-hidden p-0.5">
+          <span className="font-silkscreen text-[9px] text-zinc-200">INVOC:</span>
+          <div className="w-16 sm:w-28 h-2 bg-zinc-900 border border-zinc-600 rounded-full overflow-hidden p-0.5">
             <div
               className={`h-full rounded-full transition-all duration-300 ${
-                barbara.limitGauge >= 100
-                  ? 'bg-zinc-100 animate-pulse'
-                  : 'bg-zinc-400'
+                barbara.limitGauge >= 100 ? 'bg-zinc-100 animate-pulse' : 'bg-zinc-400'
               }`}
               style={{ width: `${barbara.limitGauge}%` }}
             />
@@ -697,14 +719,14 @@ export const BattleView: React.FC<BattleViewProps> = ({
       </div>
 
       {/* Battle Playfield Stage */}
-      <div className="relative z-10 flex-1 w-full max-w-5xl mx-auto px-2.5 sm:px-4 py-1.5 flex flex-col justify-evenly min-h-0">
+      <div className="relative z-10 flex-1 w-full max-w-4xl mx-auto px-2.5 sm:px-4 py-1 flex flex-col justify-evenly min-h-0">
         {affinityBanner && (
           <div
             key={affinityBanner.id}
             className="absolute top-1/2 left-1/2 z-40 pointer-events-none animate-affinity-burst"
           >
             <div
-              className={`px-3 py-1.5 rounded-full border-2 shadow-2xl font-silkscreen text-[10px] sm:text-xs whitespace-nowrap flex items-center gap-1.5 ${
+              className={`px-2.5 py-1 rounded-full border-2 shadow-2xl font-silkscreen text-[10px] whitespace-nowrap flex items-center gap-1 ${
                 affinityBanner.tier === 'ultra' || affinityBanner.tier === 'super'
                   ? 'bg-amber-950/95 border-amber-400 text-amber-300'
                   : affinityBanner.tier === 'stab'
@@ -712,36 +734,38 @@ export const BattleView: React.FC<BattleViewProps> = ({
                   : 'bg-slate-900/95 border-slate-500 text-slate-300'
               }`}
             >
-              <span>{ELEMENT_META[affinityBanner.attackElement]?.icon} {ELEMENT_META[affinityBanner.attackElement]?.label.toUpperCase()}</span>
-              <span className="text-slate-400">&rarr;</span>
-              <span>{ELEMENT_META[affinityBanner.targetElement]?.icon} {ELEMENT_META[affinityBanner.targetElement]?.label.toUpperCase()}</span>
-              <span className="px-1.5 py-0.5 rounded bg-black/40 font-bold">{affinityBanner.badgeLabel}</span>
+              <span>{ELEMENT_META[affinityBanner.attackElement]?.icon}</span>
+              <span>&rarr;</span>
+              <span>{ELEMENT_META[affinityBanner.targetElement]?.icon}</span>
+              <span className="px-1 rounded bg-black/40 font-bold">{affinityBanner.badgeLabel}</span>
             </div>
           </div>
         )}
 
-        {/* ENEMY ROW (Top-Right) */}
-        <div className="flex justify-between sm:justify-end items-center gap-2 sm:pr-8">
-          <div className="bg-zinc-900/92 border-2 border-zinc-600 p-2 sm:p-3 rounded-xl shadow-xl flex-1 max-w-[230px] sm:max-w-[285px]">
-            <div className="flex justify-between items-center mb-1">
-              <span className="font-silkscreen text-[11px] sm:text-xs text-zinc-100 truncate max-w-[140px]">{enemySpirit.name}</span>
-              <span className="font-mono-stat text-[11px] text-zinc-200 font-bold">Nv.{enemySpirit.level}</span>
+        {/* ENEMY ROW */}
+        <div className="flex justify-between sm:justify-end items-center gap-2 sm:pr-6">
+          <div className="bg-zinc-900/92 border border-zinc-600 p-2 rounded-xl shadow-xl flex-1 max-w-[220px] sm:max-w-[260px]">
+            <div className="flex justify-between items-center mb-0.5">
+              <span className="font-silkscreen text-[10px] sm:text-xs text-zinc-100 truncate max-w-[130px]">
+                {enemySpirit.name}
+              </span>
+              <span className="font-mono-stat text-[10px] text-zinc-200 font-bold">Nv.{enemySpirit.level}</span>
             </div>
-            <div className="flex flex-wrap items-center gap-1 mb-1.5">
+            <div className="flex flex-wrap items-center gap-1 mb-1">
               {getElementBadge(enemySpirit.primaryElement)}
               {enemySpirit.secondaryElement && getElementBadge(enemySpirit.secondaryElement)}
             </div>
             {enemyWeaknesses.length > 0 && (
-              <div className="flex flex-wrap items-center gap-1 mb-1.5 text-[9px] font-mono text-zinc-300">
+              <div className="flex flex-wrap items-center gap-1 mb-1 text-[9px] font-mono text-zinc-300">
                 <span className="text-zinc-400">Débil:</span>
                 {enemyWeaknesses.slice(0, 3).map(w => (
-                  <span key={w} className="px-1 py-0.2 bg-zinc-950 border border-zinc-700 rounded text-[9px]">
+                  <span key={w} className="px-1 bg-zinc-950 border border-zinc-700 rounded text-[8px]">
                     {ELEMENT_META[w]?.icon} {ELEMENT_META[w]?.label}
                   </span>
                 ))}
               </div>
             )}
-            <div className="flex items-center gap-1 text-[10px] font-mono-stat mb-1">
+            <div className="flex items-center gap-1 text-[9px] font-mono-stat mb-0.5">
               <span className="text-red-400 font-bold">PS</span>
               <div className="flex-1 h-2 bg-zinc-950 border border-zinc-700 rounded-full overflow-hidden">
                 <div
@@ -755,11 +779,9 @@ export const BattleView: React.FC<BattleViewProps> = ({
                   style={{ width: `${(enemySpirit.currentHp / enemySpirit.maxHp) * 100}%` }}
                 />
               </div>
-              <span className="text-zinc-300 tabular-nums text-[9px]">
-                {enemySpirit.currentHp}/{enemySpirit.maxHp}
-              </span>
+              <span className="text-zinc-300 tabular-nums">{enemySpirit.currentHp}/{enemySpirit.maxHp}</span>
             </div>
-            <div className="flex items-center gap-1 text-[10px] font-mono-stat">
+            <div className="flex items-center gap-1 text-[9px] font-mono-stat">
               <span className="text-cyan-400 font-bold">PM</span>
               <div className="flex-1 h-1.5 bg-zinc-950 border border-zinc-700 rounded-full overflow-hidden">
                 <div
@@ -767,78 +789,70 @@ export const BattleView: React.FC<BattleViewProps> = ({
                   style={{ width: `${(enemySpirit.currentMp / enemySpirit.maxMp) * 100}%` }}
                 />
               </div>
-              <span className="text-zinc-300 tabular-nums text-[9px]">
-                {enemySpirit.currentMp}/{enemySpirit.maxMp}
-              </span>
+              <span className="text-zinc-300 tabular-nums">{enemySpirit.currentMp}/{enemySpirit.maxMp}</span>
             </div>
           </div>
 
-          <div className={`relative w-24 h-24 sm:w-36 sm:h-36 flex-shrink-0 flex items-center justify-center transition-all ${enemyHitFlash ? 'animate-spirit-shake brightness-200 contrast-200' : ''}`}>
-            <canvas ref={enemyCanvasRef} width={160} height={160} className="w-full h-full object-contain image-render-pixel" />
-
+          <div className={`relative w-22 h-22 sm:w-32 sm:h-32 shrink-0 flex items-center justify-center transition-all ${enemyHitFlash ? 'animate-spirit-shake brightness-200 contrast-200' : ''}`}>
+            <canvas ref={enemyCanvasRef} width={140} height={140} className="w-full h-full object-contain image-render-pixel" />
             {floatingTexts.filter(f => f.isEnemy).map(f => (
               <div
                 key={f.id}
-                className="absolute -top-2 left-1/2 z-40 pointer-events-none font-silkscreen text-lg sm:text-2xl font-black drop-shadow-[0_2px_6px_rgba(0,0,0,0.95)] whitespace-nowrap animate-damage-popup text-center"
+                className="absolute -top-2 left-1/2 z-40 pointer-events-none font-silkscreen text-base sm:text-xl font-black drop-shadow-[0_2px_6px_rgba(0,0,0,0.95)] whitespace-nowrap animate-damage-popup text-center"
                 style={{ color: f.color }}
               >
                 <div>{f.text}</div>
                 {f.subtext && (
-                  <div className="text-[10px] font-mono bg-zinc-950/90 px-1.5 py-0.5 rounded border border-current inline-block -mt-1">
+                  <div className="text-[9px] font-mono bg-zinc-950/90 px-1 rounded border border-current inline-block -mt-1">
                     {f.subtext}
                   </div>
                 )}
               </div>
             ))}
-
             {activeAttackEffect && activeAttackEffect.isTargetEnemy && (
               <AttackVfx element={activeAttackEffect.element} skillName={activeAttackEffect.skillName} />
             )}
           </div>
         </div>
 
-        {/* PLAYER ROW (Bottom-Left) */}
-        <div className="flex justify-between sm:justify-start items-center gap-2 sm:pl-8">
-          <div className={`relative w-28 h-28 sm:w-40 sm:h-40 flex-shrink-0 flex items-center justify-center transition-all ${playerHitFlash ? 'animate-spirit-shake brightness-200 contrast-200' : ''}`}>
-            <canvas ref={playerCanvasRef} width={160} height={160} className="w-full h-full object-contain image-render-pixel" />
-
+        {/* PLAYER ROW */}
+        <div className="flex justify-between sm:justify-start items-center gap-2 sm:pl-6">
+          <div className={`relative w-24 h-24 sm:w-34 sm:h-34 shrink-0 flex items-center justify-center transition-all ${playerHitFlash ? 'animate-spirit-shake brightness-200 contrast-200' : ''}`}>
+            <canvas ref={playerCanvasRef} width={140} height={140} className="w-full h-full object-contain image-render-pixel" />
             {floatingTexts.filter(f => !f.isEnemy).map(f => (
               <div
                 key={f.id}
-                className="absolute -top-2 left-1/2 z-40 pointer-events-none font-silkscreen text-lg sm:text-2xl font-black drop-shadow-[0_2px_6px_rgba(0,0,0,0.95)] whitespace-nowrap animate-damage-popup text-center"
+                className="absolute -top-2 left-1/2 z-40 pointer-events-none font-silkscreen text-base sm:text-xl font-black drop-shadow-[0_2px_6px_rgba(0,0,0,0.95)] whitespace-nowrap animate-damage-popup text-center"
                 style={{ color: f.color }}
               >
                 <div>{f.text}</div>
                 {f.subtext && (
-                  <div className="text-[10px] font-mono bg-zinc-950/90 px-1.5 py-0.5 rounded border border-current inline-block -mt-1">
+                  <div className="text-[9px] font-mono bg-zinc-950/90 px-1 rounded border border-current inline-block -mt-1">
                     {f.subtext}
                   </div>
                 )}
               </div>
             ))}
-
             {activeAttackEffect && !activeAttackEffect.isTargetEnemy && (
               <AttackVfx element={activeAttackEffect.element} skillName={activeAttackEffect.skillName} />
             )}
-
-            <div className="absolute -bottom-1 left-0 px-2 py-0.5 bg-zinc-900/95 border border-zinc-500 rounded-md text-[9px] sm:text-[10px] font-mono-stat text-zinc-200 whitespace-nowrap max-w-[165px] truncate">
-              {heroPassive.icon} {barbara.name} &middot; {heroPassive.name}
-            </div>
           </div>
 
-          <div className="bg-zinc-900/92 border-2 border-zinc-300/80 p-2 sm:p-3 rounded-xl shadow-xl flex-1 max-w-[235px] sm:max-w-[300px]">
-            <div className="flex justify-between items-center mb-1">
-              <span className="font-silkscreen text-[11px] sm:text-xs text-zinc-100 truncate max-w-[140px]">{playerSpirit.name}</span>
-              <span className="font-mono-stat text-[11px] text-zinc-200 font-bold">Nv.{playerSpirit.level}</span>
+          <div className="bg-zinc-900/92 border border-zinc-300/75 p-2 rounded-xl shadow-xl flex-1 max-w-[220px] sm:max-w-[270px]">
+            <div className="flex justify-between items-center mb-0.5">
+              <span className="font-silkscreen text-[10px] sm:text-xs text-zinc-100 truncate max-w-[130px]">
+                {playerSpirit.name}
+              </span>
+              <span className="font-mono-stat text-[10px] text-zinc-200 font-bold">Nv.{playerSpirit.level}</span>
             </div>
-            <div className="flex items-center gap-1.5 mb-1.5">
+            <div className="flex items-center gap-1 mb-1">
               {getElementBadge(playerSpirit.primaryElement)}
               {playerSpirit.secondaryElement && getElementBadge(playerSpirit.secondaryElement)}
             </div>
 
-            <div className="flex items-center gap-1 text-[10px] font-mono-stat mb-1">
+            <div className="flex items-center gap-1 text-[9px] font-mono-stat mb-0.5">
               <span className="text-red-400 font-bold">PS</span>
-              <div className="flex-1 h-2.5 bg-zinc-950 border border-zinc-700 rounded-full overflow-hidden">
+              <div className="flex-1 h-2 bg-zinc-950 border border-zinc-700 rounded-full overflow-hidden">
                 <div
                   className={`h-full transition-all duration-300 ${
                     playerSpirit.currentHp / playerSpirit.maxHp < 0.25
@@ -850,12 +864,10 @@ export const BattleView: React.FC<BattleViewProps> = ({
                   style={{ width: `${(playerSpirit.currentHp / playerSpirit.maxHp) * 100}%` }}
                 />
               </div>
-              <span className="text-zinc-300 tabular-nums text-[9px]">
-                {playerSpirit.currentHp}/{playerSpirit.maxHp}
-              </span>
+              <span className="text-zinc-300 tabular-nums">{playerSpirit.currentHp}/{playerSpirit.maxHp}</span>
             </div>
 
-            <div className="flex items-center gap-1 text-[10px] font-mono-stat">
+            <div className="flex items-center gap-1 text-[9px] font-mono-stat">
               <span className="text-cyan-400 font-bold">PM</span>
               <div className="flex-1 h-1.5 bg-zinc-950 border border-zinc-700 rounded-full overflow-hidden">
                 <div
@@ -863,88 +875,71 @@ export const BattleView: React.FC<BattleViewProps> = ({
                   style={{ width: `${(playerSpirit.currentMp / playerSpirit.maxMp) * 100}%` }}
                 />
               </div>
-              <span className="text-zinc-300 tabular-nums text-[9px]">
-                {playerSpirit.currentMp}/{playerSpirit.maxMp}
-              </span>
+              <span className="text-zinc-300 tabular-nums">{playerSpirit.currentMp}/{playerSpirit.maxMp}</span>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Compact Combat Log (Last 2 Summarized Movements) + Action Pad */}
-      <div className="relative z-10 w-full max-w-5xl mx-auto px-2.5 sm:px-4 pb-2.5 sm:pb-4 flex flex-col gap-2 flex-shrink-0">
-        <div className="bg-zinc-950/92 border border-zinc-800 rounded-xl px-3 py-1.5 font-ui text-[11px] sm:text-xs space-y-0.5 shadow-inner">
-          {battleLog.slice(0, 2).map((log, idx) => (
+      {/* Minimalist 2-Line Combat Log + Compact Action Pad */}
+      <div className="relative z-10 w-full max-w-4xl mx-auto px-2.5 sm:px-4 pb-2 sm:pb-3 flex flex-col gap-1.5 shrink-0">
+        {/* Minimalist 2-Line Log */}
+        <div
+          aria-live="polite"
+          className="bg-zinc-950/92 border border-zinc-700/90 rounded-xl px-2.5 py-1.5 font-ui text-[10px] sm:text-xs space-y-0.5 shadow-inner min-h-[2.6rem] flex flex-col justify-center"
+        >
+          {lastTwoLogs.map((log, idx) => (
             <div
               key={log.id}
-              className={`leading-snug truncate ${idx === 1 ? 'opacity-65 text-[10px]' : 'font-semibold'} ${
-                log.type === 'damage'
-                  ? 'text-zinc-200'
-                  : log.type === 'heal'
-                  ? 'text-zinc-100'
-                  : log.type === 'critical'
-                  ? 'text-white'
-                  : 'text-zinc-300'
-              }`}
+              className={`leading-tight truncate ${idx === 1 ? 'opacity-65 text-[9px] sm:text-[10px]' : 'font-semibold text-zinc-100'}`}
             >
               {log.text}
             </div>
           ))}
         </div>
 
-        <div className="w-full bg-zinc-900/95 border-2 border-zinc-600 rounded-2xl p-2.5 sm:p-3 flex flex-col justify-between shadow-2xl">
-          {/* Active Spirit Avatar Header + Protagonist Passive */}
-          <div className="flex items-center justify-between pb-1.5 mb-2 border-b border-zinc-800">
-            <div className="flex items-center gap-2">
-              <div className="w-9 h-9 rounded-lg bg-zinc-950 border border-zinc-500 flex-shrink-0 flex items-center justify-center overflow-hidden shadow-inner">
-                <canvas
-                  ref={actionAvatarCanvasRef}
-                  width={48}
-                  height={48}
-                  className="w-full h-full object-contain image-render-pixel"
-                />
+        {/* Action Menu Box */}
+        <div className="w-full bg-zinc-900/95 border-2 border-zinc-600 rounded-2xl p-2 sm:p-2.5 flex flex-col justify-between shadow-2xl">
+          <div className="flex items-center justify-between pb-1.5 mb-1.5 border-b border-zinc-800">
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="w-8 h-8 rounded-lg bg-zinc-950 border border-zinc-500 shrink-0 flex items-center justify-center overflow-hidden">
+                <canvas ref={actionAvatarCanvasRef} width={44} height={44} className="w-full h-full object-contain image-render-pixel" />
               </div>
-              <div>
+              <div className="min-w-0">
                 <div className="flex items-center gap-1.5">
-                  <span className="font-silkscreen text-[11px] text-zinc-100 truncate max-w-[125px]">{playerSpirit.name}</span>
+                  <span className="font-silkscreen text-[10px] text-zinc-100 truncate max-w-[115px]">{playerSpirit.name}</span>
                   <span className="text-[9px] px-1 bg-zinc-100 text-zinc-950 rounded font-mono font-bold">
                     Nv.{playerSpirit.level}
                   </span>
                 </div>
-                <div className="flex items-center gap-1.5 text-[10px] font-mono text-zinc-400">
-                  <span className="text-zinc-200 font-bold">{playerSpirit.currentHp} PS</span>
-                  <span>&middot;</span>
-                  <span className="text-zinc-300 font-bold">{playerSpirit.currentMp} PM</span>
+                <div className="text-[9px] font-mono text-zinc-400">
+                  {playerSpirit.currentHp} PS · {playerSpirit.currentMp} PM
                 </div>
               </div>
             </div>
 
-            <div className="text-right">
-              <span className="text-[9px] px-2 py-0.5 rounded bg-zinc-800 border border-zinc-700 text-zinc-200 font-silkscreen uppercase">
-                {actionCategory === 'main'
-                  ? 'ACCIONES'
-                  : actionCategory === 'skills'
-                  ? 'TÉCNICAS'
-                  : actionCategory === 'party_switch'
-                  ? 'EQUIPO'
-                  : 'HUIR'}
-              </span>
-              <div className="text-[9px] font-mono text-zinc-400 mt-0.5">
-                {heroPassive.icon} Pasiva Activa
-              </div>
-            </div>
+            <span className="text-[9px] px-2 py-0.5 rounded bg-zinc-800 border border-zinc-700 text-zinc-200 font-silkscreen uppercase shrink-0">
+              {forcedSwitch
+                ? 'RELEVO OBLIGATORIO'
+                : actionCategory === 'main'
+                ? 'ACCIONES'
+                : actionCategory === 'skills'
+                ? 'TÉCNICAS'
+                : actionCategory === 'party_switch'
+                ? 'EQUIPO'
+                : 'HUIR'}
+            </span>
           </div>
 
-          {/* 1. MAIN ACTIONS MENU */}
-          {actionCategory === 'main' && (
-            <div className="grid grid-cols-2 gap-2">
+          {actionCategory === 'main' && !forcedSwitch && (
+            <div className="grid grid-cols-2 gap-1.5">
               <button
                 disabled={isAnimating}
                 onClick={() => {
                   sound.playSelect();
                   setActionCategory('skills');
                 }}
-                className="p-2.5 bg-zinc-100 hover:bg-white disabled:opacity-50 text-zinc-950 font-silkscreen text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 cursor-pointer shadow-lg transition-all active:scale-95 border border-zinc-300"
+                className="p-2 bg-zinc-100 hover:bg-white disabled:opacity-50 text-zinc-950 font-silkscreen text-[11px] font-bold rounded-xl flex items-center justify-center gap-1.5 cursor-pointer shadow-md active:scale-95 border border-zinc-300"
               >
                 <Swords className="w-3.5 h-3.5" />
                 <span>LUCHAR</span>
@@ -953,19 +948,19 @@ export const BattleView: React.FC<BattleViewProps> = ({
               <button
                 disabled={isAnimating || (inventory.orbe_resonancia?.count || 0) <= 0}
                 onClick={handleCapture}
-                className="p-2.5 bg-zinc-800 hover:bg-zinc-700 disabled:opacity-50 text-zinc-100 font-silkscreen text-xs rounded-xl flex items-center justify-center gap-1.5 cursor-pointer shadow-lg transition-all active:scale-95 border border-zinc-600"
+                className="p-2 bg-zinc-800 hover:bg-zinc-700 disabled:opacity-50 text-zinc-100 font-silkscreen text-[11px] rounded-xl flex items-center justify-center gap-1.5 cursor-pointer shadow-md active:scale-95 border border-zinc-600"
               >
                 <Crosshair className="w-3.5 h-3.5 text-zinc-200" />
                 <span>VINCULAR ({inventory.orbe_resonancia?.count || 0})</span>
               </button>
 
               <button
-                disabled={isAnimating || partySpirits.length <= 1}
+                disabled={isAnimating || battleParty.length <= 1}
                 onClick={() => {
                   sound.playSelect();
                   setActionCategory('party_switch');
                 }}
-                className="p-2.5 bg-zinc-800 hover:bg-zinc-700 disabled:opacity-40 text-zinc-100 font-silkscreen text-xs rounded-xl flex items-center justify-center gap-1.5 cursor-pointer shadow-lg transition-all active:scale-95 border border-zinc-600"
+                className="p-2 bg-zinc-800 hover:bg-zinc-700 disabled:opacity-40 text-zinc-100 font-silkscreen text-[11px] rounded-xl flex items-center justify-center gap-1.5 cursor-pointer shadow-md active:scale-95 border border-zinc-600"
               >
                 <Users className="w-3.5 h-3.5 text-zinc-200" />
                 <span>EQUIPO</span>
@@ -977,7 +972,7 @@ export const BattleView: React.FC<BattleViewProps> = ({
                   sound.playCancel();
                   setActionCategory('confirm_flee');
                 }}
-                className="p-2.5 bg-zinc-950 hover:bg-zinc-800 disabled:opacity-50 text-zinc-200 font-silkscreen text-xs rounded-xl flex items-center justify-center gap-1.5 cursor-pointer shadow-lg transition-all active:scale-95 border border-zinc-700"
+                className="p-2 bg-zinc-950 hover:bg-zinc-800 disabled:opacity-50 text-zinc-200 font-silkscreen text-[11px] rounded-xl flex items-center justify-center gap-1.5 cursor-pointer shadow-md active:scale-95 border border-zinc-700"
               >
                 <span>🏃 HUIR</span>
               </button>
@@ -986,24 +981,27 @@ export const BattleView: React.FC<BattleViewProps> = ({
                 <button
                   disabled={isAnimating}
                   onClick={handleNatureSummon}
-                  className="col-span-2 p-2.5 bg-zinc-100 hover:bg-white text-zinc-950 font-silkscreen text-xs font-bold rounded-xl flex items-center justify-center gap-2 shadow-xl animate-pulse cursor-pointer border-2 border-zinc-300"
+                  className="col-span-2 p-2 bg-zinc-100 hover:bg-white text-zinc-950 font-silkscreen text-[11px] font-bold rounded-xl flex items-center justify-center gap-2 shadow-xl animate-pulse cursor-pointer border-2 border-zinc-300"
                 >
-                  <Sparkles className="w-4 h-4" />
+                  <Sparkles className="w-3.5 h-3.5" />
                   <span>¡INVOCACIÓN PRIMIGENIA! (1 USO)</span>
                 </button>
               )}
             </div>
           )}
 
-          {/* 1.5 PARTY SWITCH MENU */}
           {actionCategory === 'party_switch' && (
-            <div className="flex flex-col justify-between h-full space-y-2">
-              <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
-                <div className="text-[10px] font-silkscreen text-zinc-300 mb-1 flex items-center gap-1">
+            <div className="flex flex-col space-y-1.5">
+              <div className="space-y-1 max-h-36 overflow-y-auto pr-0.5">
+                <div className="text-[10px] font-silkscreen text-zinc-300 flex items-center gap-1">
                   <RefreshCw className="w-3 h-3" />
-                  <span>SELECCIONA RELEVO EN COMBATE:</span>
+                  <span>
+                    {forcedSwitch
+                      ? '¡Tu criatura cayó! Elige un compañero sano para continuar:'
+                      : 'SELECCIONA RELEVO EN COMBATE:'}
+                  </span>
                 </div>
-                {partySpirits.map(spirit => {
+                {battleParty.map(spirit => {
                   const isActive = spirit.uid === playerSpirit.uid;
                   const isFainted = spirit.currentHp <= 0;
                   return (
@@ -1020,40 +1018,40 @@ export const BattleView: React.FC<BattleViewProps> = ({
                       }`}
                     >
                       <div>
-                        <div className="font-silkscreen text-[11px] flex items-center gap-1.5">
+                        <div className="font-silkscreen text-[10px] flex items-center gap-1.5">
                           <span>{spirit.name}</span>
                           <span className={`text-[9px] ${isActive ? 'text-zinc-700' : 'text-zinc-400'}`}>Nv.{spirit.level}</span>
-                          {isActive && <span className="text-[9px] px-1 bg-zinc-950 text-zinc-100 rounded">ACTUAL</span>}
                         </div>
-                        <div className={`text-[10px] font-mono ${isActive ? 'text-zinc-700' : 'text-zinc-400'}`}>
-                          PS: {spirit.currentHp}/{spirit.maxHp} &middot; Elemento: {spirit.primaryElement}
+                        <div className={`text-[9px] font-mono ${isActive ? 'text-zinc-700' : 'text-zinc-400'}`}>
+                          PS {spirit.currentHp}/{spirit.maxHp} · PM {spirit.currentMp}/{spirit.maxMp} · {spirit.primaryElement}
                         </div>
                       </div>
-                      <span className={`font-silkscreen text-[10px] ${isActive ? 'text-zinc-950' : 'text-zinc-200'}`}>
-                        {isActive ? '●' : isFainted ? 'K.O.' : 'ENVIAR ➔'}
+                      <span className={`font-silkscreen text-[9px] ${isActive ? 'text-zinc-950' : 'text-zinc-200'}`}>
+                        {isActive ? 'ACTUAL' : isFainted ? 'K.O.' : 'ENVIAR ➔'}
                       </span>
                     </button>
                   );
                 })}
               </div>
 
-              <button
-                onClick={() => {
-                  sound.playCancel();
-                  setActionCategory('main');
-                }}
-                className="w-full py-1.5 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-lg text-zinc-300 text-xs font-silkscreen cursor-pointer flex items-center justify-center gap-1"
-              >
-                <RotateCcw className="w-3.5 h-3.5" />
-                <span>VOLVER</span>
-              </button>
+              {!forcedSwitch && (
+                <button
+                  onClick={() => {
+                    sound.playCancel();
+                    setActionCategory('main');
+                  }}
+                  className="w-full py-1.5 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-lg text-zinc-300 text-[11px] font-silkscreen cursor-pointer flex items-center justify-center gap-1"
+                >
+                  <RotateCcw className="w-3 h-3" />
+                  <span>VOLVER</span>
+                </button>
+              )}
             </div>
           )}
 
-          {/* 2. SKILLS MENU WITH LIVE ELEMENTAL MULTIPLIER BADGES */}
           {actionCategory === 'skills' && (
-            <div className="flex flex-col justify-between h-full space-y-2">
-              <div className="grid grid-cols-2 gap-2">
+            <div className="flex flex-col space-y-1.5">
+              <div className="grid grid-cols-2 gap-1.5">
                 {playerSpirit.skills.slice(0, 4).map(skill => {
                   const preview =
                     skill.category === 'heal' || skill.category === 'support'
@@ -1077,18 +1075,14 @@ export const BattleView: React.FC<BattleViewProps> = ({
                           : 'border-zinc-700'
                       }`}
                     >
-                      <div className="flex items-center justify-between gap-1">
-                        <span className="font-silkscreen text-[10px] sm:text-[11px] text-zinc-100 truncate">
-                          {ELEMENT_META[skill.element]?.icon} {skill.name}
-                        </span>
-                      </div>
-                      <div className="flex justify-between items-center text-[10px] font-mono-stat mt-1 gap-1">
-                        <span className="text-zinc-300">
-                          {skill.category === 'heal' ? 'Cura' : `Pot:${skill.power}`}
-                        </span>
+                      <span className="font-silkscreen text-[10px] text-zinc-100 truncate block">
+                        {ELEMENT_META[skill.element]?.icon} {skill.name}
+                      </span>
+                      <div className="flex justify-between items-center text-[9px] font-mono-stat mt-0.5 gap-1">
+                        <span className="text-zinc-300">{skill.category === 'heal' ? 'Cura' : `Pot:${skill.power}`}</span>
                         {preview && (
                           <span
-                            className={`px-1 rounded text-[9px] font-bold ${
+                            className={`px-1 rounded text-[8px] font-bold ${
                               preview.elementalMultiplier > 1.0
                                 ? 'bg-zinc-100 text-zinc-950'
                                 : preview.elementalMultiplier < 1.0
@@ -1113,26 +1107,17 @@ export const BattleView: React.FC<BattleViewProps> = ({
                   sound.playCancel();
                   setActionCategory('main');
                 }}
-                className="w-full py-1.5 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-lg text-zinc-300 text-xs font-silkscreen cursor-pointer flex items-center justify-center gap-1"
+                className="w-full py-1.5 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-lg text-zinc-300 text-[11px] font-silkscreen cursor-pointer flex items-center justify-center gap-1"
               >
-                <RotateCcw className="w-3.5 h-3.5" />
+                <RotateCcw className="w-3 h-3" />
                 <span>VOLVER</span>
               </button>
             </div>
           )}
 
-          {/* 3. CONFIRM FLEE */}
           {actionCategory === 'confirm_flee' && (
-            <div className="flex flex-col justify-between h-full p-2 text-center space-y-2">
-              <div className="space-y-1">
-                <div className="font-silkscreen text-xs text-zinc-100">¿RETIRARSE DEL COMBATE?</div>
-                <p className="text-[11px] font-ui text-zinc-300">
-                  {isBossBattle
-                    ? 'Es un guardián colosal, pero puedes replegarte para entrenar.'
-                    : `Escaparás manteniendo la posición de ${barbara.name} en el mapa.`}
-                </p>
-              </div>
-
+            <div className="flex flex-col p-1.5 text-center space-y-2">
+              <div className="font-silkscreen text-[11px] text-zinc-100">¿RETIRARSE DEL COMBATE?</div>
               <div className="flex gap-2">
                 <button
                   onClick={() => setActionCategory('main')}
@@ -1143,6 +1128,7 @@ export const BattleView: React.FC<BattleViewProps> = ({
                 <button
                   onClick={() => {
                     sound.playCancel();
+                    onSyncBattleParty?.(battleParty, playerSpirit.uid);
                     onFlee();
                   }}
                   className="flex-1 py-2 bg-zinc-800 hover:bg-zinc-700 border border-zinc-600 rounded-xl font-silkscreen text-[10px] text-zinc-100 cursor-pointer"
@@ -1155,15 +1141,15 @@ export const BattleView: React.FC<BattleViewProps> = ({
         </div>
       </div>
 
-      {/* 4. ENCOUNTER INTRO OVERLAY */}
+      {/* ENCOUNTER INTRO OVERLAY */}
       {showEncounterIntro && (
-        <div className="fixed inset-0 z-50 bg-zinc-950/92 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in zoom-in-95 duration-200">
-          <div className="bg-zinc-900 border-2 border-zinc-400/70 rounded-3xl p-5 sm:p-6 max-w-lg w-full shadow-2xl flex flex-col items-center text-center gap-4">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-zinc-100 text-zinc-950 text-xs font-silkscreen font-bold">
+        <div className="fixed inset-0 z-50 bg-zinc-950/92 backdrop-blur-md flex items-center justify-center p-3 animate-in fade-in zoom-in-95 duration-200">
+          <div className="bg-zinc-900 border-2 border-zinc-400/70 rounded-2xl sm:rounded-3xl p-4 sm:p-5 max-w-md w-full shadow-2xl flex flex-col items-center text-center gap-3">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-zinc-100 text-zinc-950 text-[10px] font-silkscreen font-bold">
               {isBossBattle ? (
                 <>
                   <AlertTriangle className="w-3.5 h-3.5 text-zinc-950" />
-                  <span>¡ALERTA DE JEFE ANCESTRAL!</span>
+                  <span>¡JEFE ANCESTRAL!</span>
                 </>
               ) : (
                 <>
@@ -1173,28 +1159,23 @@ export const BattleView: React.FC<BattleViewProps> = ({
               )}
             </div>
 
-            <div className="relative w-36 h-36 rounded-2xl bg-zinc-950 border border-zinc-700 flex items-center justify-center p-2 shadow-inner">
-              <canvas ref={introCanvasRef} width={180} height={180} className="w-32 h-32 object-contain image-render-pixel" />
+            <div className="w-28 h-28 sm:w-32 sm:h-32 rounded-2xl bg-zinc-950 border border-zinc-700 flex items-center justify-center p-2 shadow-inner">
+              <canvas ref={introCanvasRef} width={160} height={160} className="w-full h-full object-contain image-render-pixel" />
             </div>
 
             <div>
-              <h2 className="font-silkscreen text-lg text-zinc-100 font-bold mb-1">
-                {enemySpirit.name}
-              </h2>
-              <div className="flex items-center justify-center gap-2 text-xs font-mono-stat text-zinc-400">
-                <span className="text-zinc-200 font-bold">Nivel {enemySpirit.level}</span>
+              <h2 className="font-silkscreen text-base text-zinc-100 font-bold">{enemySpirit.name}</h2>
+              <div className="flex items-center justify-center gap-2 text-xs font-mono-stat text-zinc-400 mt-1">
+                <span className="text-zinc-200 font-bold">Nv.{enemySpirit.level}</span>
                 <span>&middot;</span>
                 {getElementBadge(enemySpirit.primaryElement)}
               </div>
             </div>
 
-            <div className="bg-zinc-950/90 border border-zinc-800 rounded-2xl p-4 text-xs font-ui text-zinc-300 leading-relaxed text-left w-full space-y-2">
-              <div className="font-silkscreen text-[11px] text-zinc-100">
-                {isBossBattle ? `Guardián: ${enemySpirit.name}` : `Espíritu Silvestre (${enemySpirit.name})`}
-              </div>
-              <p className="italic text-zinc-300">
+            <div className="bg-zinc-950/90 border border-zinc-800 rounded-xl p-3 text-xs font-ui text-zinc-300 leading-relaxed text-left w-full">
+              <p className="italic text-zinc-300 line-clamp-3">
                 {isBossBattle
-                  ? '"Las raíces y el pulso elemental de este santuario pondrán a prueba tu temple. ¡Demuestra tu vínculo con la naturaleza!"'
+                  ? '"Las raíces y el pulso elemental de este santuario pondrán a prueba tu temple."'
                   : `"${enemySpirit.lore}"`}
               </p>
             </div>
@@ -1204,7 +1185,7 @@ export const BattleView: React.FC<BattleViewProps> = ({
                 sound.playConfirm();
                 setShowEncounterIntro(false);
               }}
-              className="w-full py-3.5 bg-zinc-100 hover:bg-white text-zinc-950 font-silkscreen text-xs font-bold rounded-xl shadow-xl cursor-pointer flex items-center justify-center gap-2 border border-zinc-300 active:scale-95 transition-transform"
+              className="w-full py-3 bg-zinc-100 hover:bg-white text-zinc-950 font-silkscreen text-xs font-bold rounded-xl shadow-xl cursor-pointer flex items-center justify-center gap-2 border border-zinc-300 active:scale-95 transition-transform"
             >
               <Swords className="w-4 h-4" />
               <span>¡ENTRAR AL COMBATE!</span>
@@ -1213,33 +1194,20 @@ export const BattleView: React.FC<BattleViewProps> = ({
         </div>
       )}
 
-      {/* 5. PRIMAL SUMMON CINEMATIC */}
+      {/* PRIMAL SUMMON CINEMATIC */}
       {activeSummonCinematic && (
         <div className="fixed inset-0 z-50 bg-zinc-950/95 flex flex-col items-center justify-center p-6 text-center animate-in fade-in zoom-in duration-300">
-          <div className="relative flex flex-col items-center max-w-lg w-full">
-            <div className="absolute -inset-16 rounded-full bg-gradient-to-r from-zinc-200/20 via-zinc-500/20 to-zinc-300/20 animate-spin blur-2xl pointer-events-none" />
-            <div className="absolute -inset-8 rounded-full border-4 border-dashed border-zinc-300/60 animate-spin blur-xs pointer-events-none" />
-
-            <div className="relative z-10 w-24 h-24 rounded-full bg-zinc-900 border-2 border-zinc-200 flex items-center justify-center mb-5 shadow-[0_0_60px_rgba(255,255,255,0.25)] animate-bounce">
-              <Sparkles className="w-12 h-12 text-zinc-100 animate-spin" />
+          <div className="relative flex flex-col items-center max-w-md w-full">
+            <div className="absolute -inset-12 rounded-full bg-gradient-to-r from-zinc-200/20 via-zinc-500/20 to-zinc-300/20 animate-spin blur-2xl pointer-events-none" />
+            <div className="relative z-10 w-20 h-20 rounded-full bg-zinc-900 border-2 border-zinc-200 flex items-center justify-center mb-4 animate-bounce">
+              <Sparkles className="w-10 h-10 text-zinc-100 animate-spin" />
             </div>
-
-            <div className="relative z-10 inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-zinc-100 text-zinc-950 text-xs font-silkscreen font-bold mb-3">
-              <span className="w-2 h-2 rounded-full bg-zinc-950 animate-ping" />
-              <span>PODER PRIMIGENIO DESATADO</span>
-            </div>
-
-            <h2 className="relative z-10 font-heading text-xl sm:text-3xl text-zinc-100 font-bold mb-2 tracking-wide">
+            <h2 className="relative z-10 font-heading text-xl sm:text-2xl text-zinc-100 font-bold mb-2">
               {activeSummonCinematic.name.toUpperCase()}
             </h2>
-
-            <p className="relative z-10 font-ui text-xs sm:text-sm text-zinc-200 max-w-md mx-auto italic mt-2 bg-zinc-900/80 p-3 rounded-2xl border border-zinc-700">
-              &ldquo;Los espíritus tutelares responden al llamado de {barbara.name}, canalizando la fuerza pura de la naturaleza.&rdquo;
+            <p className="relative z-10 font-ui text-xs text-zinc-200 italic bg-zinc-900/80 p-3 rounded-xl border border-zinc-700">
+              &ldquo;Los espíritus responden al llamado de {barbara.name}, canalizando energía primordial.&rdquo;
             </p>
-
-            <div className="relative z-10 mt-5 flex items-center gap-2 text-xs font-mono-stat text-zinc-950 font-bold bg-zinc-100 px-4 py-2 rounded-full border border-zinc-300">
-              <span>💥 DAÑO CATACLÍSMICO + 💚 CURACIÓN TOTAL</span>
-            </div>
           </div>
         </div>
       )}
@@ -1247,72 +1215,54 @@ export const BattleView: React.FC<BattleViewProps> = ({
   );
 };
 
-// Elemental Attack VFX Helper
 const AttackVfx: React.FC<{ element: ElementType; skillName: string }> = ({ element, skillName }) => {
   return (
     <div className="absolute inset-0 pointer-events-none z-30 flex items-center justify-center animate-in zoom-in-75 duration-200">
       {element === 'fuego' && (
         <div className="relative w-full h-full flex items-center justify-center">
-          <div className="absolute w-28 h-28 rounded-full bg-orange-500/30 animate-ping" />
-          <div className="absolute w-20 h-2.5 bg-gradient-to-r from-yellow-300 via-orange-500 to-red-600 rotate-45 transform shadow-[0_0_15px_#f97316] animate-pulse" />
-          <div className="absolute w-20 h-2.5 bg-gradient-to-r from-yellow-300 via-orange-500 to-red-600 -rotate-45 transform shadow-[0_0_15px_#f97316] animate-pulse" />
-          <div className="absolute font-silkscreen text-[9px] text-orange-300 font-bold -top-4 bg-slate-950/90 px-2 py-0.5 rounded border border-orange-500/50 shadow">
+          <div className="absolute w-24 h-24 rounded-full bg-orange-500/30 animate-ping" />
+          <div className="absolute w-16 h-2 bg-gradient-to-r from-yellow-300 via-orange-500 to-red-600 rotate-45 shadow-[0_0_12px_#f97316]" />
+          <div className="absolute font-silkscreen text-[8px] text-orange-300 font-bold -top-3 bg-slate-950/90 px-1.5 py-0.5 rounded border border-orange-500/50">
             🔥 {skillName}
           </div>
         </div>
       )}
       {element === 'agua' && (
         <div className="relative w-full h-full flex items-center justify-center">
-          <div className="absolute w-28 h-28 rounded-full border-4 border-sky-400 animate-ping opacity-75" />
-          <div className="absolute w-24 h-24 rounded-full bg-cyan-500/25 blur-sm" />
-          <div className="absolute w-3 h-20 bg-gradient-to-t from-sky-400 to-cyan-100 rotate-12 rounded-full shadow-[0_0_12px_#38bdf8]" />
-          <div className="absolute font-silkscreen text-[9px] text-sky-300 font-bold -top-4 bg-slate-950/90 px-2 py-0.5 rounded border border-sky-500/50 shadow">
+          <div className="absolute w-24 h-24 rounded-full border-4 border-sky-400 animate-ping opacity-75" />
+          <div className="absolute font-silkscreen text-[8px] text-sky-300 font-bold -top-3 bg-slate-950/90 px-1.5 py-0.5 rounded border border-sky-500/50">
             💧 {skillName}
           </div>
         </div>
       )}
       {(element === 'planta' || element === 'tierra') && (
         <div className="relative w-full h-full flex items-center justify-center">
-          <div className="absolute w-24 h-24 rounded-full bg-emerald-500/30 animate-ping" />
-          <div className="absolute w-24 h-3 bg-gradient-to-r from-emerald-300 via-green-500 to-emerald-800 -rotate-30 rounded-full shadow-[0_0_12px_#10b981]" />
-          <div className="absolute w-16 h-2 bg-gradient-to-r from-lime-300 to-green-600 rotate-60 rounded-full shadow-[0_0_10px_#84cc16]" />
-          <div className="absolute font-silkscreen text-[9px] text-emerald-300 font-bold -top-4 bg-slate-950/90 px-2 py-0.5 rounded border border-emerald-500/50 shadow">
+          <div className="absolute w-20 h-20 rounded-full bg-emerald-500/30 animate-ping" />
+          <div className="absolute font-silkscreen text-[8px] text-emerald-300 font-bold -top-3 bg-slate-950/90 px-1.5 py-0.5 rounded border border-emerald-500/50">
             🌿 {skillName}
           </div>
         </div>
       )}
       {element === 'viento' && (
         <div className="relative w-full h-full flex items-center justify-center">
-          <div className="absolute w-28 h-28 rounded-full border-2 border-teal-300/80 animate-spin" />
-          <div className="absolute w-20 h-2 bg-gradient-to-r from-teal-200 via-white to-cyan-400 rotate-45 shadow-[0_0_15px_#2dd4bf]" />
-          <div className="absolute font-silkscreen text-[9px] text-teal-300 font-bold -top-4 bg-slate-950/90 px-2 py-0.5 rounded border border-teal-500/50 shadow">
+          <div className="absolute w-24 h-24 rounded-full border-2 border-teal-300/80 animate-spin" />
+          <div className="absolute font-silkscreen text-[8px] text-teal-300 font-bold -top-3 bg-slate-950/90 px-1.5 py-0.5 rounded border border-teal-500/50">
             🌪️ {skillName}
           </div>
         </div>
       )}
       {element === 'hielo' && (
         <div className="relative w-full h-full flex items-center justify-center">
-          <div className="absolute w-24 h-24 bg-cyan-200/20 rotate-45 border-2 border-cyan-300 animate-pulse" />
-          <div className="absolute w-20 h-20 bg-sky-200/20 -rotate-45 border-2 border-sky-300" />
-          <div className="absolute font-silkscreen text-[9px] text-cyan-200 font-bold -top-4 bg-slate-950/90 px-2 py-0.5 rounded border border-cyan-500/50 shadow">
+          <div className="absolute w-20 h-20 bg-cyan-200/20 rotate-45 border-2 border-cyan-300 animate-pulse" />
+          <div className="absolute font-silkscreen text-[8px] text-cyan-200 font-bold -top-3 bg-slate-950/90 px-1.5 py-0.5 rounded border border-cyan-500/50">
             ❄️ {skillName}
           </div>
         </div>
       )}
-      {element === 'sagrado' && (
+      {(element === 'sagrado' || element === 'normal') && (
         <div className="relative w-full h-full flex items-center justify-center">
-          <div className="absolute w-32 h-32 rounded-full bg-amber-400/30 animate-ping" />
-          <div className="absolute w-12 h-36 bg-gradient-to-b from-amber-200 via-yellow-400 to-amber-600 rounded-full shadow-[0_0_25px_#facc15] blur-xs" />
-          <div className="absolute font-silkscreen text-[9px] text-amber-300 font-bold -top-4 bg-slate-950/90 px-2 py-0.5 rounded border border-amber-500/50 shadow">
-            ✨ {skillName}
-          </div>
-        </div>
-      )}
-      {element === 'normal' && (
-        <div className="relative w-full h-full flex items-center justify-center">
-          <div className="absolute w-24 h-2 bg-white rotate-45 shadow-[0_0_12px_#ffffff]" />
-          <div className="absolute w-24 h-2 bg-white -rotate-45 shadow-[0_0_12px_#ffffff]" />
-          <div className="absolute font-silkscreen text-[9px] text-slate-200 font-bold -top-4 bg-slate-950/90 px-2 py-0.5 rounded border border-slate-600 shadow">
+          <div className="absolute w-24 h-24 rounded-full bg-amber-300/25 animate-ping" />
+          <div className="absolute font-silkscreen text-[8px] text-zinc-100 font-bold -top-3 bg-slate-950/90 px-1.5 py-0.5 rounded border border-zinc-500">
             ⚔️ {skillName}
           </div>
         </div>
