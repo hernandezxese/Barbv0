@@ -4,19 +4,19 @@
  * Main Game State Controller & Shell
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   GameState,
   RegionId,
   SpiritCreature,
   BarbaraHero,
   InventoryItem,
-  JobClass,
   HeroGender,
+  REGION_MEDALS,
 } from './types/game';
 import { REGIONS_DATA } from './data/regionsData';
-import { createSpiritInstance } from './data/spiritsData';
-import { INITIAL_ITEMS, JOBS_CONFIG } from './data/itemsData';
+import { createSpiritInstance, checkNewMovesToLearn } from './data/spiritsData';
+import { INITIAL_ITEMS } from './data/itemsData';
 import { sound } from './services/audioService';
 import { storageService } from './services/storageService';
 
@@ -36,6 +36,7 @@ import { PrologueModal } from './components/PrologueModal';
 import { SystemMenuModal } from './components/SystemMenuModal';
 import { SaveLoadModal } from './components/SaveLoadModal';
 import { AdventureGuideModal } from './components/AdventureGuideModal';
+import { ProfileModal } from './components/ProfileModal';
 import { Trophy, RotateCcw, CheckCircle2, AlertTriangle, Compass } from 'lucide-react';
 
 const SAFE_SPAWN_BY_REGION: Record<RegionId, { x: number; y: number }> = {
@@ -72,7 +73,7 @@ export default function App() {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
 
-  // Protagonist State (passive-only hero, no hero MP)
+  // Protagonist State
   const [barbara, setBarbara] = useState<BarbaraHero>({
     name: 'Bárbara',
     gender: 'female',
@@ -81,12 +82,13 @@ export default function App() {
     maxExp: 100,
     currentHp: 120,
     maxHp: 120,
-    job: 'naturalista',
-    jobMastery: { naturalista: 1, chaman: 1, guardaparque: 1, mistica: 1 },
     limitGauge: 20,
     resonanceOrbs: 8,
     gold: 200,
     activeSpiritUids: [],
+    medals: [],
+    battlesWon: 0,
+    spiritsCaptured: 0,
   });
 
   // Party Spirits
@@ -111,9 +113,18 @@ export default function App() {
     portraitSprite?: string;
   } | null>(null);
 
+  // Regional atmospheric ambient audio sync
+  useEffect(() => {
+    if (gameState === 'exploration') {
+      sound.startAmbient(currentRegionId);
+    } else {
+      sound.stopAmbient();
+    }
+  }, [gameState, currentRegionId]);
+
   const showToast = (msg: string) => {
     setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 3000);
+    setTimeout(() => setToastMessage(null), 3200);
   };
 
   const handleToggleMute = () => {
@@ -252,12 +263,13 @@ export default function App() {
       maxExp: 100,
       currentHp: 120,
       maxHp: 120,
-      job: 'naturalista',
-      jobMastery: { naturalista: 1, chaman: 1, guardaparque: 1, mistica: 1 },
       limitGauge: 20,
       resonanceOrbs: 8,
       gold: 200,
       activeSpiritUids: [],
+      medals: [],
+      battlesWon: 0,
+      spiritsCaptured: 0,
     });
 
     setInventory(INITIAL_ITEMS);
@@ -329,7 +341,7 @@ export default function App() {
     setGameState('battle');
   };
 
-  // Victory in Battle
+  // Victory in Battle (with Duplicate Capture EXP conversion & Boss Guardian Medals)
   const handleBattleVictory = (
     updatedPlayerSpirit: SpiritCreature,
     updatedBarbara: BarbaraHero,
@@ -346,63 +358,147 @@ export default function App() {
       setActiveEncounterEntityId(null);
     }
 
+    let duplicateBonusMsg: string | null = null;
+
     setPartySpirits(prev => {
       const next = prev.map(s => (s.uid === updatedPlayerSpirit.uid ? updatedPlayerSpirit : s));
       if (capturedSpirit) {
-        next.push(capturedSpirit);
+        const existingIdx = next.findIndex(s => s.baseId === capturedSpirit.baseId);
+        if (existingIdx !== -1) {
+          const orig = next[existingIdx];
+          const bonusExp = capturedSpirit.level * 55;
+          let expAcc = orig.exp + bonusExp;
+          let lvl = orig.level;
+          let maxExp = orig.maxExp;
+          let gainedLevels = 0;
+          const skills = [...orig.skills];
+
+          while (expAcc >= maxExp) {
+            expAcc -= maxExp;
+            lvl += 1;
+            maxExp = lvl * 65;
+            gainedLevels += 1;
+            const learned = checkNewMovesToLearn(orig, lvl);
+            learned.forEach(m => {
+              if (!skills.some(s => s.id === m.id)) skills.push(m);
+            });
+          }
+
+          const hpGain = gainedLevels * 12;
+          const mpGain = gainedLevels * 5;
+          next[existingIdx] = {
+            ...orig,
+            level: lvl,
+            exp: expAcc,
+            maxExp,
+            skills,
+            maxHp: orig.maxHp + hpGain,
+            currentHp: Math.min(orig.maxHp + hpGain, orig.currentHp + hpGain),
+            maxMp: orig.maxMp + mpGain,
+            currentMp: Math.min(orig.maxMp + mpGain, orig.currentMp + mpGain),
+            attack: orig.attack + gainedLevels * 3,
+            defense: orig.defense + gainedLevels * 3,
+            spAttack: orig.spAttack + gainedLevels * 4,
+            spDefense: orig.spDefense + gainedLevels * 3,
+            speed: orig.speed + gainedLevels * 2,
+          };
+
+          duplicateBonusMsg =
+            gainedLevels > 0
+              ? `✨ ¡${capturedSpirit.name} repetido dio +${bonusExp} EXP y subió a ${orig.name} a Nv.${lvl}!`
+              : `✨ ¡${capturedSpirit.name} repetido otorgó +${bonusExp} EXP a tu ${orig.name}!`;
+        } else {
+          next.push(capturedSpirit);
+        }
       }
       return next;
     });
 
-    setBarbara(updatedBarbara);
+    if (duplicateBonusMsg) {
+      showToast(duplicateBonusMsg);
+    }
+
+    // Track victory counters & check Boss Guardian Medal eligibility
+    const nextHeroState: BarbaraHero = {
+      ...updatedBarbara,
+      medals: [...(updatedBarbara.medals || [])],
+      battlesWon: (updatedBarbara.battlesWon ?? 0) + 1,
+      spiritsCaptured: (updatedBarbara.spiritsCaptured ?? 0) + (capturedSpirit ? 1 : 0),
+    };
+
+    if (isBossBattle) {
+      let medalToGrant: string | null = null;
+      if (currentRegionId === 'santiago') medalToGrant = 'medalla_rm';
+      else if (currentRegionId === 'biobio') medalToGrant = 'medalla_biobio';
+      else if (currentRegionId === 'araucania') medalToGrant = 'medalla_araucania';
+      else if (currentRegionId === 'losrios') medalToGrant = 'medalla_losrios';
+      else if (currentRegionId === 'loslagos') {
+        const regEntities = REGIONS_DATA.loslagos.entities;
+        const caiCai = regEntities.find(e => e.id === 'boss_loslagos_caicai');
+        const viluVilu = regEntities.find(e => e.id === 'boss_loslagos_viluvilu');
+        if (caiCai?.cleared && viluVilu?.cleared) {
+          medalToGrant = 'medalla_loslagos';
+        }
+      }
+
+      if (medalToGrant && !nextHeroState.medals.includes(medalToGrant)) {
+        nextHeroState.medals.push(medalToGrant);
+        const medalMeta = REGION_MEDALS.find(m => m.id === medalToGrant);
+        if (medalMeta) {
+          showToast(`🏅 ¡Obtuviste la ${medalMeta.name}!`);
+        }
+      }
+    }
+
+    setBarbara(nextHeroState);
 
     if (isBossBattle) {
       if (currentRegionId === 'santiago') {
         if (!unlockedRegions.includes('biobio')) {
           setUnlockedRegions(prev => [...prev, 'biobio']);
           setActiveDialogue({
-            speaker: 'Don Ignacio',
+            speaker: 'Maestro Vínculo Rodrigo',
             lines: [
-              `¡Extraordinario trabajo, ${updatedBarbara.name}! Has purificado la energía de la Región Metropolitana.`,
-              'El sendero otoñal hacia la Región del Biobío y los Saltos del Laja ha sido despejado.',
-              '¡Cruza el portal sur o abre el Mapa de Chile para continuar tu travesía!',
+              `¡Extraordinario combate, ${nextHeroState.name}! Te entrego la Medalla Valle Central de la Región Metropolitana.`,
+              'El sendero nuboso hacia la Región del Biobío y sus zonas prehistóricas ha sido despejado.',
             ],
+            portraitSprite: 'npc_maestro_vinculo',
           });
         }
       } else if (currentRegionId === 'biobio') {
         if (!unlockedRegions.includes('araucania')) {
           setUnlockedRegions(prev => [...prev, 'araucania']);
           setActiveDialogue({
-            speaker: 'Pascual (Guardaparques del Laja)',
+            speaker: 'Maestro Vínculo Lautaro',
             lines: [
-              '¡El Guardián del Biobío vuelve a fluir en armonía con el río y el otoño!',
-              'Ahora debes internarte en la Región de La Araucanía, entre araucarias milenarias y las faldas del Volcán Villarrica.',
-              'Cruza el portal sur para continuar hacia el territorio pewén.',
+              '¡El Rex Fósil del Biobío reconoce tu fuerza! Recibes la Medalla Jurásica Biobío.',
+              'Ahora puedes cruzar al sur hacia los bosques verdes y volcanes de La Araucanía.',
             ],
+            portraitSprite: 'npc_maestro_vinculo',
           });
         }
       } else if (currentRegionId === 'araucania') {
         if (!unlockedRegions.includes('losrios')) {
           setUnlockedRegions(prev => [...prev, 'losrios']);
           setActiveDialogue({
-            speaker: 'Nahuel (Herrero Volcánico)',
+            speaker: 'Maestro Vínculo Kallfü',
             lines: [
-              '¡Has dominado la furia del Pillán en La Araucanía! Su fuego ahora arde en equilibrio.',
-              'Tu siguiente destino es la Región de Los Ríos: bosques de arrayanes, nalcas gigantes y ríos cristalinos.',
-              '¡Cruza el portal sur para adentrarte en la selva valdiviana!',
+              '¡La Araucaria Madre ha vuelto a florecer en equilibrio! Aquí tienes la Medalla Pewén Araucanía.',
+              'Tu siguiente destino es la Región de Los Ríos y su selva valdiviana.',
             ],
+            portraitSprite: 'npc_maestro_vinculo',
           });
         }
       } else if (currentRegionId === 'losrios') {
         if (!unlockedRegions.includes('loslagos')) {
           setUnlockedRegions(prev => [...prev, 'loslagos']);
           setActiveDialogue({
-            speaker: 'Rayén (Botánica de Los Ríos)',
+            speaker: 'Maestra Vínculo Antonia',
             lines: [
-              '¡Las aguas de Los Ríos han recuperado su pureza cristalina!',
-              'El destino final te aguarda en la Región de Los Lagos: los fiordos, alerces milenarios y ventisqueros de Hornopirén.',
-              '¡Allí salvaremos el corazón austral de la naturaleza de Chile!',
+              '¡Las aguas del Calle-Calle brillan limpias! Recibes la Medalla Selva Valdiviana.',
+              'El desafío final te espera en la Región de Los Lagos frente a Cai Cai y Vilu Vilu.',
             ],
+            portraitSprite: 'npc_maestro_vinculo',
           });
         }
       } else if (currentRegionId === 'loslagos') {
@@ -416,13 +512,13 @@ export default function App() {
           return;
         } else {
           setActiveDialogue({
-            speaker: 'Don Checho (Guardián del Alerce)',
+            speaker: 'Maestros Kalfú y Llankal',
             lines: [
               !caiCai?.cleared
-                ? '¡Gran victoria sobre Vilu Vilu! Aún resta purificar a Cai Cai Vilu en el flanco oeste del Santuario.'
-                : '¡Gran victoria sobre Cai Cai Vilu! Aún resta purificar a Vilu Vilu en el flanco este del Santuario.',
+                ? '¡Gran triunfo ante Vilu Vilu! Ahora derrota a Cai Cai Vilu para ganar la Medalla Serpientes Australes.'
+                : '¡Gran triunfo ante Cai Cai Vilu! Ahora derrota a Vilu Vilu para ganar la Medalla Serpientes Australes.',
             ],
-            portraitSprite: 'npc_explorer',
+            portraitSprite: 'npc_maestro_vinculo',
           });
         }
       }
@@ -520,13 +616,17 @@ export default function App() {
     showToast('✨ ¡Evolución ancestral completada con éxito!');
   };
 
-  // Change Hero's Job Class (Final Fantasy III)
-  const handleChangeJob = (newJob: JobClass) => {
-    setBarbara(prev => ({
-      ...prev,
-      job: newJob,
-    }));
-    showToast(`🛡️ ¡${barbara.name} cambió de clase a ${JOBS_CONFIG[newJob]?.name}!`);
+  // Sync Battle Party (persists HP/MP & leader order across team switches)
+  const handleSyncBattleParty = (updatedParty: SpiritCreature[], activeUid: string) => {
+    const idx = updatedParty.findIndex(s => s.uid === activeUid);
+    if (idx > 0) {
+      const reordered = [...updatedParty];
+      const [active] = reordered.splice(idx, 1);
+      reordered.unshift(active);
+      setPartySpirits(reordered);
+    } else {
+      setPartySpirits(updatedParty);
+    }
   };
 
   // Set Party Leader
@@ -697,7 +797,9 @@ export default function App() {
           currentRegion={currentRegion}
           unlockedRegions={unlockedRegions}
           isMuted={isMuted}
+          medalsCount={(barbara.medals || []).length}
           onToggleMute={handleToggleMute}
+          onOpenProfile={() => setGameState('profile')}
           onOpenSaveLoad={() => setSaveLoadMode('manage')}
           onOpenEvolution={() => setGameState('evolution')}
           onOpenBestiary={() => setGameState('bestiary')}
@@ -751,6 +853,7 @@ export default function App() {
           onOpenInventory={() => setGameState('inventory')}
           onOpenMap={() => setGameState('map')}
           onOpenSystemMenu={() => setShowSystemMenu(true)}
+          onOpenProfile={() => setGameState('profile')}
           onTriggerDialogue={(speaker, lines, afterAction, portraitSprite) =>
             setActiveDialogue({ speaker, lines, afterAction, portraitSprite })
           }
@@ -766,6 +869,7 @@ export default function App() {
         <BattleView
           playerSpirit={activeSpirit}
           partySpirits={partySpirits}
+          existingBaseIds={partySpirits.map(s => s.baseId)}
           barbara={barbara}
           enemySpirit={activeEnemySpirit}
           isBossBattle={isBossBattle}
@@ -776,6 +880,7 @@ export default function App() {
           onDefeat={handleBattleDefeat}
           onFlee={() => setGameState('exploration')}
           onSwitchActiveSpirit={(newUid) => handleSetLeaderSpirit(newUid)}
+          onSyncBattleParty={handleSyncBattleParty}
           onUseItem={(itemId) => {
             if (inventory[itemId]) {
               setInventory(prev => ({
@@ -797,13 +902,23 @@ export default function App() {
         />
       )}
 
-      {/* 5. PARTY & JOB CLASS MENU (FF3) */}
+      {/* 5. PARTY MENU */}
       {gameState === 'party' && (
         <PartyMenu
           partySpirits={partySpirits}
           barbara={barbara}
-          onChangeJob={handleChangeJob}
           onSetLeaderSpirit={handleSetLeaderSpirit}
+          onOpenProfile={() => setGameState('profile')}
+          onClose={() => setGameState('exploration')}
+        />
+      )}
+
+      {/* 5B. PROTAGONIST PROFILE & BOSS MEDALS */}
+      {gameState === 'profile' && (
+        <ProfileModal
+          barbara={barbara}
+          partySpirits={partySpirits}
+          unlockedRegions={unlockedRegions}
           onClose={() => setGameState('exploration')}
         />
       )}
@@ -942,6 +1057,8 @@ export default function App() {
                 regionSubtitle: action.regionSubtitle,
               });
               setGameState('shop');
+            } else if (action?.type === 'evolution') {
+              setGameState('evolution');
             } else if (action?.type === 'battle') {
               handleTriggerBattle(action.spiritId, action.isBoss, action.atPos, action.entityId);
             } else if (action?.type === 'portal') {

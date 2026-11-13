@@ -72,7 +72,7 @@ body {
 /* Scanline subtle overlay for retro aesthetic */
 .scanlines {
   background: linear-gradient(
-    rgba(18, 16, 16, 0) 50%, 
+    rgba(18, 16, 16, 0) 50%,
     rgba(0, 0, 0, 0.25) 50%
   ), linear-gradient(
     90deg,
@@ -158,4 +158,178 @@ body {
 
 .animate-affinity-burst {
   animation: affinityBurst 1.35s ease-out forwards;
+}
+
+/* ============================================================================
+ * Regional CSS Atmospheric Particle Effects (Pure CSS, GPU-composited)
+ * ============================================================================ */
+
+/* 1. Región Metropolitana (santiago): Floating golden dust & pollen */
+@keyframes pollenFloat {
+  0% {
+    transform: translate3d(0, 0, 0) scale(0.85);
+    opacity: 0;
+  }
+  25% {
+    opacity: 0.8;
+  }
+  75% {
+    opacity: 0.7;
+  }
+  100% {
+    transform: translate3d(38px, -55px, 0) scale(1.15);
+    opacity: 0;
+  }
+}
+
+.env-pollen-dot {
+  position: absolute;
+  border-radius: 9999px;
+  background: radial-gradient(circle, rgba(254, 240, 138, 0.95) 0%, rgba(250, 204, 21, 0.15) 75%);
+  box-shadow: 0 0 6px rgba(250, 204, 21, 0.65);
+  animation: pollenFloat var(--dur, 5s) ease-in-out var(--delay, 0s) infinite;
+  pointer-events: none;
+}
+
+/* 2. Biobío: Dense drifting fog bank */
+@keyframes fogDriftA {
+  0% {
+    transform: translate3d(-12%, 0, 0);
+  }
+  50% {
+    transform: translate3d(10%, -2%, 0);
+  }
+  100% {
+    transform: translate3d(-12%, 0, 0);
+  }
+}
+
+@keyframes fogDriftB {
+  0% {
+    transform: translate3d(12%, 3%, 0);
+  }
+  50% {
+    transform: translate3d(-10%, -1%, 0);
+  }
+  100% {
+    transform: translate3d(12%, 3%, 0);
+  }
+}
+
+.env-fog-layer-1 {
+  position: absolute;
+  inset: -20%;
+  background:
+    radial-gradient(ellipse 65% 42% at 25% 35%, rgba(226, 232, 240, 0.34), transparent 70%),
+    radial-gradient(ellipse 55% 38% at 75% 65%, rgba(203, 213, 225, 0.30), transparent 72%);
+  animation: fogDriftA 14s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.env-fog-layer-2 {
+  position: absolute;
+  inset: -20%;
+  background:
+    radial-gradient(ellipse 70% 45% at 65% 25%, rgba(241, 245, 249, 0.25), transparent 72%),
+    radial-gradient(ellipse 60% 40% at 30% 78%, rgba(148, 163, 184, 0.26), transparent 70%);
+  animation: fogDriftB 18s ease-in-out infinite;
+  pointer-events: none;
+}
+
+/* 3. Araucanía: Static vertical rain + subtle ash flecks */
+@keyframes rainVertical {
+  0% {
+    transform: translate3d(0, -10%, 0);
+  }
+  100% {
+    transform: translate3d(0, 110%, 0);
+  }
+}
+
+.env-rain-drop-static {
+  position: absolute;
+  top: -12%;
+  width: 1.5px;
+  height: 16px;
+  background: linear-gradient(to bottom, transparent, rgba(226, 232, 240, 0.68));
+  animation: rainVertical var(--dur, 0.85s) linear var(--delay, 0s) infinite;
+  pointer-events: none;
+}
+
+/* 4. Los Ríos: Wind-slanted Valdivian rain */
+@keyframes rainWind {
+  0% {
+    transform: translate3d(15px, -15%, 0) rotate(18deg);
+  }
+  100% {
+    transform: translate3d(-75px, 115%, 0) rotate(18deg);
+  }
+}
+
+.env-rain-drop-wind {
+  position: absolute;
+  top: -15%;
+  width: 2px;
+  height: 22px;
+  background: linear-gradient(to bottom, transparent, rgba(167, 243, 208, 0.65));
+  animation: rainWind var(--dur, 0.72s) linear var(--delay, 0s) infinite;
+  pointer-events: none;
+}
+
+/* 5. Los Lagos: Heavy storm rain + lightning flash */
+@keyframes rainStorm {
+  0% {
+    transform: translate3d(20px, -15%, 0) rotate(22deg);
+  }
+  100% {
+    transform: translate3d(-95px, 115%, 0) rotate(22deg);
+  }
+}
+
+@keyframes lightningFlash {
+  0%, 84%, 100% {
+    opacity: 0;
+  }
+  85% {
+    opacity: 0.72;
+  }
+  87% {
+    opacity: 0.1;
+  }
+  89% {
+    opacity: 0.85;
+  }
+  92% {
+    opacity: 0;
+  }
+}
+
+.env-rain-drop-storm {
+  position: absolute;
+  top: -15%;
+  width: 2px;
+  height: 26px;
+  background: linear-gradient(to bottom, transparent, rgba(224, 242, 254, 0.78));
+  animation: rainStorm var(--dur, 0.56s) linear var(--delay, 0s) infinite;
+  pointer-events: none;
+}
+
+.env-lightning-flash {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 50% 25%, rgba(255, 255, 255, 0.92), rgba(186, 230, 253, 0.55));
+  animation: lightningFlash 6.5s ease-out infinite;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .env-pollen-dot,
+  .env-fog-layer-1,
+  .env-fog-layer-2,
+  .env-rain-drop-static,
+  .env-rain-drop-wind,
+  .env-rain-drop-storm,
+  .env-lightning-flash {
+    animation: none !important;
+  }
 }
