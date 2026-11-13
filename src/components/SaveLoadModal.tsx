@@ -28,6 +28,16 @@ const REGION_NAMES: Record<RegionId, string> = {
   tienda: 'Tienda Regional (Interior)',
 };
 
+function formatPlayTime(seconds = 0): string {
+  const total = Math.max(0, Math.floor(seconds));
+  const hrs = Math.floor(total / 3600);
+  const mins = Math.floor((total % 3600) / 60);
+  const secs = total % 60;
+  const pad = (n: number) => String(n).padStart(2, '0');
+  if (hrs > 0) return `${hrs}h ${pad(mins)}m ${pad(secs)}s`;
+  return `${pad(mins)}m ${pad(secs)}s`;
+}
+
 export const SaveLoadModal: React.FC<SaveLoadModalProps> = ({
   mode,
   onSaveSlot,
@@ -69,19 +79,19 @@ export const SaveLoadModal: React.FC<SaveLoadModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-zinc-950/88 backdrop-blur-md flex items-center justify-center p-3 sm:p-4">
-      <div className="bg-zinc-900 border-2 border-zinc-400/70 rounded-2xl p-4 sm:p-6 max-w-xl w-full shadow-2xl animate-in zoom-in-95 duration-200 flex flex-col max-h-[92dvh]">
+    <div className="fixed inset-0 z-50 bg-black/65 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
+      <div className="bg-[#F4F4F2] border-2 border-stone-300 text-[#1E2022] rounded-2xl p-4 sm:p-6 max-w-xl w-full shadow-2xl animate-in zoom-in-95 duration-200 flex flex-col max-h-[92dvh]">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-zinc-800 pb-3 mb-4 gap-2">
+        <div className="flex items-center justify-between border-b border-stone-300 pb-3 mb-4 gap-2">
           <div className="flex items-center gap-2.5 min-w-0">
-            <div className="w-8 h-8 rounded-lg bg-zinc-100 border border-zinc-300 flex items-center justify-center text-zinc-950 shrink-0">
+            <div className="w-8 h-8 rounded-lg bg-[#1E2022] flex items-center justify-center text-[#F4F4F2] shrink-0">
               <FolderOpen className="w-4 h-4" />
             </div>
             <div className="min-w-0">
-              <h2 className="font-silkscreen text-xs sm:text-base text-zinc-100 truncate">
+              <h2 className="font-silkscreen text-xs sm:text-base text-[#1E2022] truncate">
                 {mode === 'load' ? 'CARGAR PARTIDA (3 RANURAS)' : 'GUARDAR / CARGAR (3 RANURAS)'}
               </h2>
-              <p className="text-[10px] sm:text-[11px] font-mono text-zinc-400 truncate">
+              <p className="text-[10px] sm:text-[11px] font-mono text-stone-600 truncate">
                 {mode === 'load'
                   ? 'Elige una ranura guardada para continuar tu viaje'
                   : 'Guarda, carga o administra tus archivos de aventura'}
@@ -93,7 +103,7 @@ export const SaveLoadModal: React.FC<SaveLoadModalProps> = ({
               sound.playCancel();
               onClose();
             }}
-            className="p-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded-lg cursor-pointer transition-colors shrink-0 active:scale-95 border border-zinc-700"
+            className="min-h-[40px] min-w-[40px] p-2 bg-[#E7E7E2] hover:bg-stone-300 text-[#1E2022] rounded-xl cursor-pointer transition-colors shrink-0 active:scale-95 border border-stone-300 flex items-center justify-center"
           >
             <X className="w-4 h-4" />
           </button>
@@ -101,8 +111,8 @@ export const SaveLoadModal: React.FC<SaveLoadModalProps> = ({
 
         {/* Feedback message banner */}
         {activeMessage && (
-          <div className="mb-3 p-2.5 bg-zinc-800 border border-zinc-400 rounded-xl text-zinc-100 font-mono text-xs flex items-center gap-2 animate-in fade-in">
-            <CheckCircle2 className="w-4 h-4 text-zinc-200 flex-shrink-0" />
+          <div className="mb-3 p-2.5 bg-emerald-50 border border-emerald-400 rounded-xl text-emerald-900 font-mono text-xs flex items-center gap-2 animate-in fade-in font-bold">
+            <CheckCircle2 className="w-4 h-4 text-emerald-700 flex-shrink-0" />
             <span>{activeMessage}</span>
           </div>
         )}
@@ -116,16 +126,16 @@ export const SaveLoadModal: React.FC<SaveLoadModalProps> = ({
             return (
               <div
                 key={slotId}
-                className={`p-3 sm:p-3.5 rounded-xl border-2 transition-all ${
+                className={`p-3.5 rounded-xl border-2 transition-all ${
                   isFilled
-                    ? 'bg-zinc-950/80 border-zinc-700 hover:border-zinc-400'
-                    : 'bg-zinc-950/40 border-dashed border-zinc-800 hover:border-zinc-600'
+                    ? 'bg-white border-stone-300 hover:border-stone-400 shadow-sm'
+                    : 'bg-[#E7E7E2] border-dashed border-stone-300 hover:border-stone-400'
                 }`}
               >
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   {/* Slot Header info */}
                   <div className="flex items-start gap-2.5 sm:gap-3 min-w-0">
-                    <div className="w-9 h-9 rounded-lg bg-zinc-200 border border-zinc-400 flex items-center justify-center font-silkscreen text-xs text-zinc-950 font-bold flex-shrink-0">
+                    <div className="w-9 h-9 rounded-lg bg-[#1E2022] flex items-center justify-center font-silkscreen text-xs text-[#F4F4F2] font-bold flex-shrink-0">
                       #{slotId}
                     </div>
 
@@ -133,30 +143,30 @@ export const SaveLoadModal: React.FC<SaveLoadModalProps> = ({
                       {isFilled ? (
                         <>
                           <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-                            <span className="font-silkscreen text-xs text-zinc-100 truncate">
+                            <span className="font-silkscreen text-xs text-[#1E2022] truncate font-bold">
                               {slot.barbaraName} &middot; {slot.leaderSpiritIcon} {slot.leaderSpiritName}
                             </span>
-                            <span className="text-[10px] font-mono px-1.5 py-0.2 bg-zinc-800 text-zinc-200 rounded border border-zinc-600">
+                            <span className="text-[10px] font-mono px-1.5 py-0.5 bg-[#E7E7E2] text-[#1E2022] rounded border border-stone-300 font-bold">
                               Nv. {slot.barbaraLevel}
                             </span>
-                            <span className="text-[10px] font-mono text-zinc-300">
+                            <span className="text-[10px] font-mono text-stone-700 font-bold">
                               💰 {slot.gold}
                             </span>
                           </div>
-                          <div className="text-[11px] font-mono text-zinc-300 mt-0.5 flex items-center gap-1">
-                            <Compass className="w-3 h-3 text-zinc-400 shrink-0" />
+                          <div className="text-[11px] font-mono text-stone-700 mt-0.5 flex items-center gap-1">
+                            <Compass className="w-3 h-3 text-emerald-700 shrink-0" />
                             <span className="truncate">{REGION_NAMES[slot.regionId] || slot.regionId}</span>
                           </div>
-                          <div className="text-[10px] font-mono text-zinc-500 mt-1">
-                            {new Date(slot.savedAt).toLocaleString()} &middot; {slot.spiritCount} Criaturas Espirituales
+                          <div className="text-[10px] font-mono text-stone-500 mt-1 tabular-nums">
+                            {new Date(slot.savedAt).toLocaleString()} &middot; {slot.spiritCount} Criaturas &middot; ⏱ {formatPlayTime(slot.playTimeSeconds || 0)}
                           </div>
                         </>
                       ) : (
                         <div className="py-1">
-                          <span className="font-silkscreen text-xs text-zinc-500 italic">
+                          <span className="font-silkscreen text-xs text-stone-500 italic">
                             [ Ranura {slotId} Vacía ]
                           </span>
-                          <p className="text-[10px] font-mono text-zinc-500 mt-0.5">
+                          <p className="text-[10px] font-mono text-stone-500 mt-0.5">
                             {mode === 'load' ? 'Sin datos guardados.' : 'Disponible para guardar tu aventura actual.'}
                           </p>
                         </div>
@@ -169,7 +179,7 @@ export const SaveLoadModal: React.FC<SaveLoadModalProps> = ({
                     {mode !== 'load' && (
                       <button
                         onClick={() => handleSave(slotId)}
-                        className="px-3 py-2 bg-zinc-100 hover:bg-white text-zinc-950 rounded-lg font-mono text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-md transition-colors active:scale-95"
+                        className="min-h-[40px] px-3 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg font-mono text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-sm transition-colors active:scale-95"
                         title={`Guardar partida actual en Ranura ${slotId}`}
                       >
                         <Save className="w-3.5 h-3.5" />
@@ -180,7 +190,7 @@ export const SaveLoadModal: React.FC<SaveLoadModalProps> = ({
                     {isFilled && (
                       <button
                         onClick={() => handleLoad(slotId)}
-                        className="px-3 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-100 border border-zinc-600 rounded-lg font-mono text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-md transition-colors active:scale-95"
+                        className="min-h-[40px] px-3 py-2 bg-[#1E2022] hover:bg-zinc-800 text-[#F4F4F2] rounded-lg font-mono text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-sm transition-colors active:scale-95"
                         title={`Cargar datos de Ranura ${slotId}`}
                       >
                         <FolderOpen className="w-3.5 h-3.5" />
@@ -191,16 +201,16 @@ export const SaveLoadModal: React.FC<SaveLoadModalProps> = ({
                     {isFilled && (
                       <>
                         {confirmDeleteSlot === slotId ? (
-                          <div className="flex items-center gap-1 bg-zinc-900 p-1 rounded-lg border border-zinc-400">
+                          <div className="flex items-center gap-1 bg-red-50 p-1 rounded-lg border border-red-300">
                             <button
                               onClick={() => handleDelete(slotId)}
-                              className="px-2 py-1.5 bg-zinc-100 hover:bg-white text-zinc-950 rounded font-mono text-[10px] font-bold cursor-pointer"
+                              className="min-h-[34px] px-2.5 py-1 bg-red-600 hover:bg-red-700 text-white rounded font-mono text-[10px] font-bold cursor-pointer"
                             >
                               Borrar
                             </button>
                             <button
                               onClick={() => setConfirmDeleteSlot(null)}
-                              className="px-1.5 py-1.5 text-zinc-400 hover:text-white font-mono text-[10px] cursor-pointer"
+                              className="min-h-[34px] px-2 py-1 text-stone-600 hover:text-[#1E2022] font-mono text-[10px] font-bold cursor-pointer"
                             >
                               X
                             </button>
@@ -208,7 +218,7 @@ export const SaveLoadModal: React.FC<SaveLoadModalProps> = ({
                         ) : (
                           <button
                             onClick={() => setConfirmDeleteSlot(slotId)}
-                            className="p-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-zinc-100 rounded-lg cursor-pointer transition-colors border border-zinc-700"
+                            className="min-h-[40px] min-w-[40px] p-2 bg-[#E7E7E2] hover:bg-red-50 text-stone-600 hover:text-red-700 rounded-lg cursor-pointer transition-colors border border-stone-300 hover:border-red-300 flex items-center justify-center"
                             title="Borrar ranura"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
@@ -224,13 +234,13 @@ export const SaveLoadModal: React.FC<SaveLoadModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="mt-4 pt-3 border-t border-zinc-800 flex justify-end">
+        <div className="mt-4 pt-3 border-t border-stone-300 flex justify-end">
           <button
             onClick={() => {
               sound.playCancel();
               onClose();
             }}
-            className="w-full sm:w-auto px-5 py-2.5 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-xl text-zinc-200 font-mono text-xs font-bold cursor-pointer active:scale-95"
+            className="w-full sm:w-auto min-h-[42px] px-5 py-2.5 bg-[#E7E7E2] hover:bg-stone-300 border border-stone-300 rounded-xl text-[#1E2022] font-mono text-xs font-bold cursor-pointer active:scale-95"
           >
             Cerrar
           </button>

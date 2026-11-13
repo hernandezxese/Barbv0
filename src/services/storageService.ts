@@ -40,6 +40,7 @@ export interface SlotSummary {
   gold: number;
   medalsCount: number;
   hasCompletedStory?: boolean;
+  playTimeSeconds?: number;
 }
 
 const SLOT_KEY_PREFIX = 'barbara_cronicas_slot_';
@@ -87,7 +88,7 @@ function normalizeHero(raw: any): BarbaraHero {
   }
 
   return {
-    name: raw?.name || 'Bárbara',
+    name: raw?.name || 'Elegido',
     gender: normalizeGender(raw?.gender),
     level: raw?.level || 1,
     exp: raw?.exp || 0,
@@ -105,6 +106,10 @@ function normalizeHero(raw: any): BarbaraHero {
     registeredEvolutionKeys: Array.isArray(raw?.registeredEvolutionKeys) ? Array.from(new Set(raw.registeredEvolutionKeys)) : [],
     battlesWon: typeof raw?.battlesWon === 'number' ? raw.battlesWon : 0,
     spiritsCaptured: typeof raw?.spiritsCaptured === 'number' ? raw.spiritsCaptured : 0,
+    playTimeSeconds:
+      typeof raw?.playTimeSeconds === 'number' && raw.playTimeSeconds >= 0
+        ? Math.floor(raw.playTimeSeconds)
+        : 0,
   };
 }
 
@@ -203,7 +208,7 @@ export const storageService = {
       slotId,
       savedAt: data.savedAt,
       regionId: data.currentRegionId,
-      barbaraName: data.barbara?.name || 'Bárbara',
+      barbaraName: data.barbara?.name || 'Elegido',
       barbaraLevel: data.barbara?.level || 1,
       spiritCount: data.partySpirits?.length || 0,
       leaderSpiritName: leader?.name || 'Compañero',
@@ -211,6 +216,7 @@ export const storageService = {
       gold: data.barbara?.gold || 0,
       medalsCount: data.barbara?.medals?.length || 0,
       hasCompletedStory: Boolean(data.hasCompletedStory),
+      playTimeSeconds: data.barbara?.playTimeSeconds || 0,
     };
   },
 

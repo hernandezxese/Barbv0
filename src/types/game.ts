@@ -172,7 +172,68 @@ export interface BarbaraHero {
   registeredEvolutionKeys?: string[];
   battlesWon: number;
   spiritsCaptured: number;
+  playTimeSeconds?: number;
 }
+
+export interface HeroMedalSkillInfo {
+  medalId: string;
+  skillName: string;
+  elements: ElementType[];
+  description: string;
+}
+
+export const HERO_MEDAL_SKILLS: HeroMedalSkillInfo[] = [
+  {
+    medalId: 'medalla_rm',
+    skillName: 'Llama Urbana',
+    elements: ['fuego'],
+    description: 'Desbloquea al Elegido para derretir o encender obstáculos de Fuego en cualquier mapa.',
+  },
+  {
+    medalId: 'medalla_biobio',
+    skillName: 'Corriente del Biobío',
+    elements: ['agua'],
+    description: 'Desbloquea al Elegido para purificar y cruzar obstáculos de Agua en cualquier mapa.',
+  },
+  {
+    medalId: 'medalla_araucania',
+    skillName: 'Raíz del Pewén',
+    elements: ['planta'],
+    description: 'Desbloquea al Elegido para abrir y sanar senderos de Planta en cualquier mapa.',
+  },
+  {
+    medalId: 'medalla_losrios',
+    skillName: 'Brisa Glaciar Valdiviana',
+    elements: ['hielo'],
+    description: 'Desbloquea al Elegido para congelar corrientes y activar puentes de Hielo.',
+  },
+  {
+    medalId: 'medalla_loslagos',
+    skillName: 'Pulso Austral',
+    elements: ['tierra', 'sagrado'],
+    description: 'Desbloquea al Elegido para despejar rocas de Tierra y sellos Sagrados en todo Chile.',
+  },
+];
+
+export function getHeroUnlockedElements(medals: string[] = []): ElementType[] {
+  const unlocked = new Set<ElementType>();
+  HERO_MEDAL_SKILLS.forEach(sk => {
+    if (medals.includes(sk.medalId)) {
+      sk.elements.forEach(el => unlocked.add(el));
+    }
+  });
+  return Array.from(unlocked);
+}
+
+export const RARE_SUMMIT_CREATURE_BY_REGION: Partial<
+  Record<RegionId, { spiritId: string; level: number; label: string }>
+> = {
+  santiago: { spiritId: 'condor', level: 5, label: 'Pichón de Cóndor Andino' },
+  biobio: { spiritId: 'velociraptor', level: 7, label: 'Velociraptor Austral' },
+  araucania: { spiritId: 'puducito', level: 9, label: 'Puducito del Bosque' },
+  losrios: { spiritId: 'hualita', level: 11, label: 'Hualita Valdiviana' },
+  loslagos: { spiritId: 'pinguino', level: 13, label: 'Pingüino Austral' },
+};
 
 export interface InventoryItem {
   id: string;
@@ -181,7 +242,7 @@ export interface InventoryItem {
   description: string;
   count: number;
   icon: string;
-  effectType: 'heal_hp' | 'heal_mp' | 'revive' | 'evolution' | 'resonance' | 'cure_status';
+  effectType: 'heal_hp' | 'heal_mp' | 'revive' | 'evolution' | 'resonance' | 'cure_status' | 'level_up';
   effectValue: number;
   price?: number;
   targetRequiredItemName?: string;
@@ -195,6 +256,7 @@ export interface OverworldEntity {
   name: string;
   sprite: string;
   direction?: 'down' | 'up' | 'left' | 'right';
+  patrolPath?: { x: number; y: number }[];
   dialog?: string[];
   rewardItem?: { id: string; count: number };
   rewardGold?: number;
@@ -214,9 +276,19 @@ export interface OverworldEntity {
   isShop?: boolean;
   isHospital?: boolean;
   isEvolutionSanctuary?: boolean;
+  isBonusObstacle?: boolean;
+  requiresStoryCleared?: boolean;
   revealsRegionMap?: boolean;
   healHpPercent?: number;
   healMpPercent?: number;
+  footprint?: { dx: number; dy: number }[];
+}
+
+export function getEntityFootprintTiles(ent: OverworldEntity): { x: number; y: number }[] {
+  if (ent.footprint && ent.footprint.length > 0) {
+    return ent.footprint.map(offset => ({ x: ent.x + offset.dx, y: ent.y + offset.dy }));
+  }
+  return [{ x: ent.x, y: ent.y }];
 }
 
 export interface MapRegion {
@@ -234,7 +306,7 @@ export interface MapRegion {
   weatherLabel?: string;
   bgmId: RegionId;
   entities: OverworldEntity[];
-  wildEncounterTable: { spiritId: string; minLevel: number; maxLevel: number; weight: number }[];
+  wildEncounterTable: { spiritId: string; minLevel: number; maxLevel: number; weight: number; stage?: number }[];
   isUnlocked: boolean;
 }
 

@@ -10,7 +10,16 @@
  */
 
 import React, { useRef, useEffect, useState, useCallback } from 'react';
-import { MapRegion, SpiritCreature, BarbaraHero, OverworldEntity, RegionId, ElementType } from '../types/game';
+import {
+  MapRegion,
+  SpiritCreature,
+  BarbaraHero,
+  OverworldEntity,
+  RegionId,
+  ElementType,
+  getEntityFootprintTiles,
+  getHeroUnlockedElements,
+} from '../types/game';
 import { sound } from '../services/audioService';
 import { drawBarbaraSprite, drawEntitySprite, drawCreatureSprite } from '../utils/pixelRenderer';
 import { getCurrentQuest, isStageBossAwakened } from '../data/questData';
@@ -30,6 +39,8 @@ import {
   Wind,
   CloudLightning,
   Home,
+  X,
+  HelpCircle,
 } from 'lucide-react';
 
 export type PostDialogueAction =
@@ -49,6 +60,7 @@ interface ExplorationViewProps {
   initialSpawnPos?: { x: number; y: number };
   revealedTiles?: Record<string, string[]>;
   importantMessage?: string | null;
+  onDismissImportantMessage?: () => void;
   onRevealTiles?: (regionId: RegionId, newCoords: string[]) => void;
   onRevealRegionMap?: (regionId: RegionId) => void;
   onCollectPickup?: (entityId: string, healHpPercent?: number, healMpPercent?: number, label?: string) => void;
@@ -62,8 +74,16 @@ interface ExplorationViewProps {
   onOpenSystemMenu: () => void;
   onOpenProfile?: () => void;
   onOpenEvolution?: () => void;
+  onOpenGuide?: () => void;
   onTriggerDialogue: (speaker: string, lines: string[], afterAction?: PostDialogueAction, portraitSprite?: string) => void;
-  onTriggerBattle: (enemySpiritId: string, isBoss: boolean, atPos?: { x: number; y: number }, entityId?: string) => void;
+  onTriggerBattle: (
+    enemySpiritId: string,
+    isBoss: boolean,
+    atPos?: { x: number; y: number },
+    entityId?: string,
+    overrideLevel?: number,
+    overrideStage?: number
+  ) => void;
   onClearObstacle: (entityId: string, message: string) => void;
   onOpenChest: (entityId: string, itemReward?: { id: string; count: number }, gold?: number) => void;
   onTravelPortal: (destinationRegion: RegionId, destX?: number, destY?: number, portalEntity?: OverworldEntity) => void;
@@ -118,61 +138,287 @@ const WIND_STREAKS = Array.from({ length: 8 }, (_, i) => ({
   delay: `${-(i * 0.35)}s`,
 }));
 
-function getSpeciesMovementOffset(ent: OverworldEntity, currentTime: number, tileSize: number): { dx: number; dy: number } {
+function getSpeciesMovementOffset(
+  ent: OverworldEntity,
+  currentTime: number,
+  tileSize: number
+): { dx: number; dy: number; flip: boolean } {
   const hash = ent.id.split('').reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
   const t = currentTime * 0.001 + hash * 0.37;
   const species = (ent.encounterSpiritId || ent.sprite.replace('wild_', '')).toLowerCase();
 
-  if (species === 'puducito' || species === 'pudu') {
+  // Ciervos / Pudú: saltos ágiles en arco con trote breve
+  if (species === 'puducito' || species === 'pudu' || species === 'culpeo') {
+    const vx = Math.cos(t * 1.55);
+    const hopCycle = Math.max(0, Math.sin(t * 4.2));
     return {
-      dx: Math.sin(t * 1.45) * tileSize * 0.45,
-      dy: -Math.abs(Math.sin(t * 4.4)) * 6,
+      dx: Math.sin(t * 1.55) * tileSize * 0.55,
+      dy: -hopCycle * 7,
+      flip: vx < 0,
     };
   }
+  // Aves (Loica, Torcaza, Chucao, Hualita, Cóndor): planeo circular / ovalado con elevación de vuelo
   if (species === 'loica' || species === 'torcaza' || species === 'chucao' || species === 'hualita' || species === 'condor') {
+    const speed = species === 'condor' ? 1.15 : 1.9;
+    const radius = species === 'condor' ? tileSize * 1.05 : tileSize * 0.78;
+    const vx = Math.cos(t * speed);
     return {
-      dx: Math.sin(t * 1.8) * tileSize * 0.85,
-      dy: Math.sin(t * 3.6) * tileSize * 0.42 - 3,
+      dx: Math.sin(t * speed) * radius,
+      dy: Math.sin(t * speed * 2) * tileSize * 0.35 - 5,
+      flip: vx < 0,
     };
   }
+  // Ranita de Darwin: saltos discretos con pausas entre brincos
+  if (species === 'ranita') {
+    const hopPhase = t * 2.1;
+    const jump = Math.max(0, Math.sin(hopPhase));
+    const vx = Math.cos(t * 0.9);
+    return {
+      dx: Math.sin(t * 0.9) * tileSize * 0.42,
+      dy: -Math.pow(jump, 1.4) * 9,
+      flip: vx < 0,
+    };
+  }
+  // Dinosaurios grandes y Jabalí: paso lento y pesado con pisada firme
   if (species === 'cuellilargo' || species === 'trex' || species === 'jabali') {
+    const vx = Math.cos(t * 0.7);
     return {
-      dx: Math.sin(t * 0.65) * tileSize * 0.5,
-      dy: Math.abs(Math.sin(t * 1.3)) * 2,
+      dx: Math.sin(t * 0.7) * tileSize * 0.52,
+      dy: Math.abs(Math.sin(t * 2.2)) * 2.5,
+      flip: vx < 0,
     };
   }
+  // Pingüino: bamboleo simpático en la orilla / nieve
   if (species === 'pinguino') {
+    const vx = Math.cos(t * 2.1);
     return {
-      dx: Math.sin(t * 2.2) * tileSize * 0.48,
-      dy: Math.abs(Math.sin(t * 4.4)) * 3,
+      dx: Math.sin(t * 2.1) * tileSize * 0.48,
+      dy: Math.abs(Math.sin(t * 5.2)) * 3.5,
+      flip: vx < 0,
     };
   }
-  if (species === 'hongo' || species === 'huevo_dino') {
+  // Objetos / Hongos / Huevos / Flores: vibración o balanceo en su punto
+  if (species === 'hongo' || species === 'huevo_dino' || species === 'copihue') {
     return {
-      dx: Math.sin(t * 1.1) * 3,
-      dy: Math.sin(t * 2.6) * 3.5,
+      dx: Math.sin(t * 1.4) * 2.5,
+      dy: Math.sin(t * 3.2) * 3.2,
+      flip: false,
     };
   }
+  // Perros (Quiltro) & Felinos (Gato Güiña) & Velociraptor: trote ágil exploratorio
   if (species === 'quiltro' || species === 'gato_chileno' || species === 'velociraptor') {
+    const spd = species === 'gato_chileno' ? 2.65 : 2.35;
+    const vx = Math.cos(t * spd);
     return {
-      dx: Math.sin(t * 2.5) * tileSize * 0.72,
-      dy: Math.cos(t * 1.9) * tileSize * 0.42,
+      dx: Math.sin(t * spd) * tileSize * 0.72,
+      dy: Math.cos(t * 1.8) * tileSize * 0.36 - Math.abs(Math.sin(t * 5)) * 2,
+      flip: vx < 0,
     };
   }
-  if (species === 'pillancito') {
+  // Espíritu volcánico flotante
+  if (species === 'pillancito' || species === 'ventisquero') {
+    const vx = Math.cos(t * 2.7);
     return {
-      dx: Math.sin(t * 3.1) * tileSize * 0.58,
-      dy: Math.cos(t * 3.7) * tileSize * 0.5,
+      dx: Math.sin(t * 2.7) * tileSize * 0.58,
+      dy: Math.cos(t * 3.4) * tileSize * 0.45 - 4,
+      flip: vx < 0,
     };
   }
+  // Pez Puye Cristal: nado sinuoso lateral en las orillas
+  if (species === 'puye') {
+    const vx = Math.cos(t * 2.4);
+    return {
+      dx: Math.sin(t * 2.4) * tileSize * 0.65,
+      dy: Math.sin(t * 5.2) * 3.5,
+      flip: vx < 0,
+    };
+  }
+  const vx = -Math.sin(t * 1.2);
   return {
-    dx: Math.cos(t * 1.2) * tileSize * 0.6,
-    dy: Math.sin(t * 1.2) * tileSize * 0.35,
+    dx: Math.cos(t * 1.2) * tileSize * 0.58,
+    dy: Math.sin(t * 1.2) * tileSize * 0.34,
+    flip: vx < 0,
   };
 }
 
 function isInteriorRegion(id: RegionId): boolean {
   return id === 'casa' || id === 'hospital' || id === 'santuario' || id === 'tienda';
+}
+
+type Building2x2Kind = 'hospital' | 'santuario' | 'tienda' | 'casa_propia' | 'generic_2x2';
+
+function classify2x2Building(region: MapRegion, tlX: number, tlY: number): Building2x2Kind {
+  const nearbyPortal = region.entities.find(
+    e =>
+      e.type === 'portal' &&
+      e.x >= tlX - 1 &&
+      e.x <= tlX + 2 &&
+      e.y >= tlY &&
+      e.y <= tlY + 3
+  );
+  if (nearbyPortal?.id.startsWith('portal_hospital')) return 'hospital';
+  if (nearbyPortal?.id.startsWith('portal_santuario')) return 'santuario';
+  if (nearbyPortal?.id.startsWith('portal_tienda')) return 'tienda';
+  if (nearbyPortal?.id.startsWith('portal_casa_propia')) return 'casa_propia';
+  return 'generic_2x2';
+}
+
+function draw2x2ExteriorBuilding(
+  ctx: CanvasRenderingContext2D,
+  kind: Building2x2Kind,
+  px: number,
+  py: number,
+  tileSize: number,
+  currentTime: number
+) {
+  const w = tileSize * 2;
+  const h = tileSize * 2;
+
+  if (kind === 'hospital') {
+    // Ground shadow
+    ctx.fillStyle = 'rgba(0,0,0,0.28)';
+    ctx.fillRect(px + 2, py + h - 5, w - 4, 6);
+    // Crisp white clinic walls
+    ctx.fillStyle = '#f8fafc';
+    ctx.fillRect(px + 4, py + 24, w - 8, h - 26);
+    ctx.fillStyle = '#e2e8f0';
+    ctx.fillRect(px + 4, py + 24, w - 8, 5);
+    // Cyan medical trim stripe
+    ctx.fillStyle = '#0284c7';
+    ctx.fillRect(px + 4, py + 38, w - 8, 4);
+    // Sloped clinic roof
+    ctx.fillStyle = '#0369a1';
+    ctx.beginPath();
+    ctx.moveTo(px + w / 2, py + 2);
+    ctx.lineTo(px + w - 1, py + 25);
+    ctx.lineTo(px + 1, py + 25);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = '#38bdf8';
+    ctx.fillRect(px + 6, py + 23, w - 12, 3);
+    // Red Medical Cross sign on roof
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(px + w / 2 - 8, py + 9, 16, 13);
+    ctx.fillStyle = '#ef4444';
+    ctx.fillRect(px + w / 2 - 2, py + 11, 4, 9);
+    ctx.fillRect(px + w / 2 - 5, py + 13.5, 10, 4);
+    // Glass automatic door + windows
+    ctx.fillStyle = '#0ea5e9';
+    ctx.fillRect(px + w / 2 - 7, py + 45, 14, h - 47);
+    ctx.fillStyle = '#bae6fd';
+    ctx.fillRect(px + w / 2 - 5, py + 47, 4, 12);
+    ctx.fillRect(px + w / 2 + 1, py + 47, 4, 12);
+    ctx.fillRect(px + 9, py + 29, 10, 7);
+    ctx.fillRect(px + w - 19, py + 29, 10, 7);
+  } else if (kind === 'santuario') {
+    ctx.fillStyle = 'rgba(0,0,0,0.32)';
+    ctx.fillRect(px + 2, py + h - 5, w - 4, 6);
+    // Basalt sanctuary stone walls + mossy pillars
+    ctx.fillStyle = '#1e293b';
+    ctx.fillRect(px + 5, py + 23, w - 10, h - 25);
+    ctx.fillStyle = '#334155';
+    ctx.fillRect(px + 7, py + 25, 8, h - 28);
+    ctx.fillRect(px + w - 15, py + 25, 8, h - 28);
+    // Golden & emerald temple roof
+    ctx.fillStyle = '#065f46';
+    ctx.beginPath();
+    ctx.moveTo(px + w / 2, py + 2);
+    ctx.lineTo(px + w - 1, py + 25);
+    ctx.lineTo(px + 1, py + 25);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = '#facc15';
+    ctx.fillRect(px + 4, py + 23, w - 8, 3);
+    // Pulsing emerald crystal centerpiece
+    const glow = 0.65 + Math.sin(currentTime * 0.005) * 0.35;
+    ctx.fillStyle = `rgba(16, 185, 129, ${glow})`;
+    ctx.beginPath();
+    ctx.arc(px + w / 2, py + 15, 5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#a7f3d0';
+    ctx.fillRect(px + w / 2 - 2, py + 13, 4, 4);
+    // Sanctuary arched portal
+    ctx.fillStyle = '#022c22';
+    ctx.fillRect(px + w / 2 - 7, py + 42, 14, h - 44);
+    ctx.fillStyle = '#10b981';
+    ctx.fillRect(px + w / 2 - 5, py + 44, 10, h - 47);
+  } else if (kind === 'tienda') {
+    ctx.fillStyle = 'rgba(0,0,0,0.28)';
+    ctx.fillRect(px + 2, py + h - 5, w - 4, 6);
+    // Warm timber walls
+    ctx.fillStyle = '#fef3c7';
+    ctx.fillRect(px + 4, py + 24, w - 8, h - 26);
+    // Wood roof
+    ctx.fillStyle = '#b45309';
+    ctx.beginPath();
+    ctx.moveTo(px + w / 2, py + 3);
+    ctx.lineTo(px + w - 1, py + 23);
+    ctx.lineTo(px + 1, py + 23);
+    ctx.closePath();
+    ctx.fill();
+    // Classic red & cream striped awning
+    for (let s = 0; s < 7; s++) {
+      ctx.fillStyle = s % 2 === 0 ? '#dc2626' : '#fef2f2';
+      ctx.fillRect(px + 4 + s * 8, py + 23, 8, 9);
+    }
+    // Shop sign & windows + door
+    ctx.fillStyle = '#78350f';
+    ctx.fillRect(px + w / 2 - 14, py + 12, 28, 9);
+    ctx.fillStyle = '#fde047';
+    ctx.fillRect(px + w / 2 - 12, py + 14, 24, 5);
+    ctx.fillStyle = '#92400e';
+    ctx.fillRect(px + w / 2 - 6, py + 44, 12, h - 46);
+    ctx.fillStyle = '#38bdf8';
+    ctx.fillRect(px + 9, py + 36, 12, 10);
+    ctx.fillRect(px + w - 21, py + 36, 12, 10);
+  } else if (kind === 'casa_propia') {
+    ctx.fillStyle = 'rgba(0,0,0,0.26)';
+    ctx.fillRect(px + 2, py + h - 5, w - 4, 6);
+    // Chimney + gentle animated hearth smoke
+    ctx.fillStyle = '#78350f';
+    ctx.fillRect(px + w - 18, py + 2, 8, 16);
+    const puff = Math.sin(currentTime * 0.004) * 2;
+    ctx.fillStyle = 'rgba(244,244,245,0.65)';
+    ctx.beginPath();
+    ctx.arc(px + w - 14 + puff, py - 2, 3.5, 0, Math.PI * 2);
+    ctx.arc(px + w - 10 - puff, py - 7, 2.5, 0, Math.PI * 2);
+    ctx.fill();
+    // Cozy cream stucco family house
+    ctx.fillStyle = '#fef3c7';
+    ctx.fillRect(px + 5, py + 25, w - 10, h - 27);
+    // Warm terracotta gable roof
+    ctx.fillStyle = '#c2410c';
+    ctx.beginPath();
+    ctx.moveTo(px + w / 2, py + 3);
+    ctx.lineTo(px + w - 1, py + 27);
+    ctx.lineTo(px + 1, py + 27);
+    ctx.closePath();
+    ctx.fill();
+    // Wooden door + glowing warm windows + flower boxes
+    ctx.fillStyle = '#78350f';
+    ctx.fillRect(px + w / 2 - 6, py + 44, 12, h - 46);
+    ctx.fillStyle = '#fde047';
+    ctx.fillRect(px + 10, py + 34, 11, 10);
+    ctx.fillRect(px + w - 21, py + 34, 11, 10);
+    ctx.fillStyle = '#16a34a';
+    ctx.fillRect(px + 9, py + 44, 13, 3);
+    ctx.fillRect(px + w - 22, py + 44, 13, 3);
+    ctx.fillStyle = '#f43f5e';
+    ctx.fillRect(px + 11, py + 43, 3, 2);
+    ctx.fillRect(px + w - 18, py + 43, 3, 2);
+  } else {
+    ctx.fillStyle = '#fef3c7';
+    ctx.fillRect(px + 5, py + 24, w - 10, h - 26);
+    ctx.fillStyle = '#9a3412';
+    ctx.beginPath();
+    ctx.moveTo(px + w / 2, py + 4);
+    ctx.lineTo(px + w - 1, py + 26);
+    ctx.lineTo(px + 1, py + 26);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = '#78350f';
+    ctx.fillRect(px + w / 2 - 6, py + 44, 12, h - 46);
+  }
 }
 
 function getStageZoom(regionId: RegionId, width: number): number {
@@ -202,6 +448,7 @@ export const ExplorationView: React.FC<ExplorationViewProps> = ({
   initialSpawnPos = { x: 5, y: 6 },
   revealedTiles,
   importantMessage,
+  onDismissImportantMessage,
   onRevealTiles,
   onRevealRegionMap,
   onCollectPickup,
@@ -215,6 +462,7 @@ export const ExplorationView: React.FC<ExplorationViewProps> = ({
   onOpenSystemMenu,
   onOpenProfile,
   onOpenEvolution,
+  onOpenGuide,
   onTriggerDialogue,
   onTriggerBattle,
   onClearObstacle,
@@ -235,7 +483,30 @@ export const ExplorationView: React.FC<ExplorationViewProps> = ({
   const [interactPrompt, setInteractPrompt] = useState<string | null>(null);
   const [nearbyEntity, setNearbyEntity] = useState<OverworldEntity | null>(null);
 
-  const currentQuest = getCurrentQuest(currentRegion, unlockedRegions, partySpirits);
+  // Smooth climate cross-fade state when changing regions
+  const prevWeatherRegionRef = useRef<RegionId>(currentRegion.id);
+  const [fadingOutRegionId, setFadingOutRegionId] = useState<RegionId | null>(null);
+  const [climateFadeActive, setClimateFadeActive] = useState(false);
+
+  useEffect(() => {
+    if (prevWeatherRegionRef.current !== currentRegion.id) {
+      const oldId = prevWeatherRegionRef.current;
+      prevWeatherRegionRef.current = currentRegion.id;
+      setFadingOutRegionId(oldId);
+      setClimateFadeActive(false);
+      const raf = requestAnimationFrame(() => setClimateFadeActive(true));
+      const timer = setTimeout(() => {
+        setFadingOutRegionId(null);
+        setClimateFadeActive(false);
+      }, 720);
+      return () => {
+        cancelAnimationFrame(raf);
+        clearTimeout(timer);
+      };
+    }
+  }, [currentRegion.id]);
+
+  const currentQuest = getCurrentQuest(currentRegion, unlockedRegions, partySpirits, barbara.medals);
 
   const posRef = useRef({ x: initialSpawnPos.x, y: initialSpawnPos.y });
   const targetPosRef = useRef({ x: initialSpawnPos.x, y: initialSpawnPos.y });
@@ -255,7 +526,7 @@ export const ExplorationView: React.FC<ExplorationViewProps> = ({
   const tapMarkerRef = useRef<{ x: number; y: number; startedAt: number } | null>(null);
   const pendingInteractRef = useRef<{ entityId: string; faceDir: 'down' | 'up' | 'left' | 'right' } | null>(null);
 
-  // Active-Spirit Obstacle Clearance Animation State
+  // Active-Spirit / Hero Medal Obstacle Clearance Animation State
   const obstacleSkillAnimRef = useRef<{
     entityId: string;
     targetX: number;
@@ -265,6 +536,37 @@ export const ExplorationView: React.FC<ExplorationViewProps> = ({
     duration: number;
     msg: string;
   } | null>(null);
+
+  // Summit Light-Wave Burst Animation when clearing regional Fog of War
+  const summitRevealAnimRef = useRef<{
+    x: number;
+    y: number;
+    startedAt: number;
+    duration: number;
+  } | null>(null);
+
+  // Patrol coordinates ref for NPCs with looping patrolPath routes
+  const patrolStateRef = useRef<Record<string, { x: number; y: number; segIdx: number; prog: number }>>({});
+
+  useEffect(() => {
+    const nextPatrols: Record<string, { x: number; y: number; segIdx: number; prog: number }> = {};
+    currentRegion.entities.forEach(ent => {
+      if (ent.patrolPath && ent.patrolPath.length > 1) {
+        nextPatrols[ent.id] = {
+          x: ent.patrolPath[0].x,
+          y: ent.patrolPath[0].y,
+          segIdx: 0,
+          prog: 0,
+        };
+      }
+    });
+    patrolStateRef.current = nextPatrols;
+  }, [currentRegion.id]);
+
+  const getEntityLiveCoords = useCallback((ent: OverworldEntity): { x: number; y: number } => {
+    const live = patrolStateRef.current[ent.id];
+    return live ? { x: live.x, y: live.y } : { x: ent.x, y: ent.y };
+  }, []);
 
   // Fast local Fog of War set synced with prop
   const revealedSetRef = useRef<Set<string>>(new Set(revealedTiles?.[currentRegion.id] || []));
@@ -297,7 +599,7 @@ export const ExplorationView: React.FC<ExplorationViewProps> = ({
           const revealedSet = new Set(newlyRevealed);
           const sightedIds: string[] = [];
           currentRegion.entities.forEach(ent => {
-            if (ent.cleared) return;
+            if (ent.cleared || (ent.requiresStoryCleared && !hasCompletedStory)) return;
             if (ent.type !== 'wild_encounter' && ent.type !== 'boss') return;
             if (revealedSet.has(`${ent.x},${ent.y}`)) {
               const sid = ent.encounterSpiritId || ent.bossSpiritId || ent.sprite.replace('wild_', '');
@@ -310,7 +612,7 @@ export const ExplorationView: React.FC<ExplorationViewProps> = ({
         }
       }
     },
-    [currentRegion.id, currentRegion.width, currentRegion.height, currentRegion.entities, onRevealTiles, onSightSpecies]
+    [currentRegion.id, currentRegion.width, currentRegion.height, currentRegion.entities, hasCompletedStory, onRevealTiles, onSightSpecies]
   );
 
   // Reveal around spawn whenever entering region
@@ -373,13 +675,13 @@ export const ExplorationView: React.FC<ExplorationViewProps> = ({
       if (tileType === 2 || tileType === 3 || tileType === 4 || tileType === 5 || tileType === 8) return true;
 
       const obstacle = currentRegion.entities.find(
-        e => e.x === x && e.y === y && !e.cleared && e.type === 'obstacle'
+        e => e.x === x && e.y === y && !e.cleared && (!e.requiresStoryCleared || hasCompletedStory) && e.type === 'obstacle'
       );
       if (obstacle) return true;
 
       return false;
     },
-    [currentRegion]
+    [currentRegion, hasCompletedStory]
   );
 
   // BFS Shortest Path Finder
@@ -543,7 +845,13 @@ export const ExplorationView: React.FC<ExplorationViewProps> = ({
         );
       } else if (entity.type === 'decorative' || entity.sprite.startsWith('deco_')) {
         if (entity.revealsRegionMap) {
-          sound.playLevelUp();
+          sound.playSummitReveal();
+          summitRevealAnimRef.current = {
+            x: entity.x,
+            y: entity.y,
+            startedAt: performance.now(),
+            duration: 1500,
+          };
           onRevealRegionMap?.(currentRegion.id);
         } else {
           sound.playAnimalSound(entity.sprite || entity.name);
@@ -554,18 +862,23 @@ export const ExplorationView: React.FC<ExplorationViewProps> = ({
       } else if (entity.type === 'obstacle') {
         if (obstacleSkillAnimRef.current) return;
         const reqEl = entity.elementRequired || 'tierra';
-        const isActiveMatch =
+        const isCompanionMatch =
           playerSpirit.currentHp > 0 &&
           (playerSpirit.primaryElement === reqEl || playerSpirit.secondaryElement === reqEl);
+        const heroUnlocked = getHeroUnlockedElements(barbara.medals);
+        const isHeroSkillMatch = heroUnlocked.includes(reqEl);
 
-        if (isActiveMatch) {
+        if (isCompanionMatch || isHeroSkillMatch) {
           if (reqEl === 'fuego') sound.playFireSpell();
           else if (reqEl === 'agua' || reqEl === 'hielo') sound.playWaterSpell();
           else if (reqEl === 'planta') sound.playHeal();
           else if (reqEl === 'viento') sound.playWindSpell();
           else sound.playEarthSpell();
           const elLabel = ELEMENT_META[reqEl]?.label || reqEl.toUpperCase();
-          const msg = `${playerSpirit.name} (Líder) canalizó ${elLabel}: ${
+          const actorLabel = isCompanionMatch
+            ? `${playerSpirit.name} (Compañero Espiritual)`
+            : `${barbara.name} (Habilidad de Amuleto)`;
+          const msg = `${actorLabel} canalizó ${elLabel}: ${
             entity.obstacleClearMessage || '¡Obstáculo superado!'
           }`;
           heldKeysRef.current.clear();
@@ -584,12 +897,17 @@ export const ExplorationView: React.FC<ExplorationViewProps> = ({
         } else {
           sound.playCancel();
           const elLabel = ELEMENT_META[reqEl]?.label || reqEl.toUpperCase();
+          const matchingAlly = partySpirits?.find(
+            s => s.currentHp > 0 && (s.primaryElement === reqEl || s.secondaryElement === reqEl)
+          );
           onTriggerDialogue(
-            'Habilidad de la Criatura Espiritual Activa',
+            `Barrera Elemental (${elLabel})`,
             [
               entity.dialog?.[0] ||
-                `Asigna una Criatura Espiritual sana de tipo ${elLabel} como tu Líder Activo en Equipo para despejar este paso.`,
-              `Tu líder actual (${playerSpirit.name}) no cuenta con el elemento ${elLabel} disponible.`,
+                `Necesitas una Criatura Espiritual de tipo ${elLabel} como Compañero Espiritual (o el Amuleto regional correspondiente) para despejar este paso.`,
+              matchingAlly
+                ? `Pasos para despejar: 1) Abre Equipo arriba. 2) Elige a ${matchingAlly.name} (${elLabel}). 3) Presiona "Hacer Compañero". 4) Toca de nuevo esta barrera.`
+                : `Pasos para despejar: 1) Captura una Criatura Espiritual de tipo ${elLabel} en esta zona. 2) Abre Equipo arriba y selecciónala. 3) Presiona "Hacer Compañero". 4) Toca esta barrera.`,
             ]
           );
         }
@@ -610,7 +928,10 @@ export const ExplorationView: React.FC<ExplorationViewProps> = ({
     [
       currentRegion,
       hasCompletedStory,
+      barbara.name,
+      barbara.medals,
       playerSpirit,
+      partySpirits,
       onHealAtHome,
       onCollectPickup,
       onRevealRegionMap,
@@ -632,15 +953,22 @@ export const ExplorationView: React.FC<ExplorationViewProps> = ({
     if (dirRef.current === 'left') targetX -= 1;
     if (dirRef.current === 'right') targetX += 1;
 
-    const entity = currentRegion.entities.find(
-      e =>
-        ((e.x === targetX && e.y === targetY) || (e.x === currentX && e.y === currentY)) &&
-        (!e.cleared || e.type === 'npc')
-    );
+    const entity = currentRegion.entities.find(e => {
+      if (e.cleared && e.type !== 'npc') return false;
+      if (e.requiresStoryCleared && !hasCompletedStory) return false;
+      const live = getEntityLiveCoords(e);
+      if (e.patrolPath) {
+        const ex = Math.round(live.x);
+        const ey = Math.round(live.y);
+        return (ex === targetX && ey === targetY) || (ex === currentX && ey === currentY);
+      }
+      const footprint = getEntityFootprintTiles(e);
+      return footprint.some(ft => (ft.x === targetX && ft.y === targetY) || (ft.x === currentX && ft.y === currentY));
+    });
 
     if (!entity) return;
     interactWithEntity(entity, currentX, currentY);
-  }, [syncCurrentPos, currentRegion.entities, interactWithEntity]);
+  }, [syncCurrentPos, currentRegion.entities, hasCompletedStory, getEntityLiveCoords, interactWithEntity]);
 
   // Tap/Click on Map Canvas -> Convert screen click to tile & initiate BFS walk
   const handleCanvasPointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
@@ -673,10 +1001,23 @@ export const ExplorationView: React.FC<ExplorationViewProps> = ({
     const startX = targetPosRef.current.x;
     const startY = targetPosRef.current.y;
 
-    // Check if user tapped directly on an entity
-    const tappedEntity = currentRegion.entities.find(
-      ent => ent.x === tileX && ent.y === tileY && (!ent.cleared || ent.type === 'npc')
-    );
+    // Check if user tapped directly on an entity or any tile in its multi-tile footprint
+    const tappedEntity = currentRegion.entities.find(ent => {
+      if (ent.cleared && ent.type !== 'npc') return false;
+      if (ent.requiresStoryCleared && !hasCompletedStory) return false;
+      const live = getEntityLiveCoords(ent);
+      if (ent.patrolPath) {
+        const lx = Math.round(live.x);
+        const ly = Math.round(live.y);
+        return (lx === tileX && ly === tileY) || (Math.abs(live.x - tileX) <= 0.65 && Math.abs(live.y - tileY) <= 0.65);
+      }
+      const footprint = getEntityFootprintTiles(ent);
+      return footprint.some(ft => ft.x === tileX && ft.y === tileY);
+    });
+
+    const tappedLive = tappedEntity ? getEntityLiveCoords(tappedEntity) : null;
+    const entityTileX = tappedLive ? Math.round(tappedLive.x) : tileX;
+    const entityTileY = tappedLive ? Math.round(tappedLive.y) : tileY;
 
     // If user tapped right where they stand and an interactable is there, trigger it
     if (tileX === startX && tileY === startY) {
@@ -686,14 +1027,29 @@ export const ExplorationView: React.FC<ExplorationViewProps> = ({
       return;
     }
 
-    // If tapped on a solid tile or entity, find adjacent walkable stand tile if tappedEntity exists
-    if (tappedEntity && (isTileBlocked(tileX, tileY) || tappedEntity.type === 'npc' || tappedEntity.type === 'boss' || tappedEntity.type === 'chest' || tappedEntity.type === 'decorative' || tappedEntity.type === 'obstacle')) {
-      const neighbors = [
-        { x: tileX, y: tileY + 1, face: 'up' as const },
-        { x: tileX, y: tileY - 1, face: 'down' as const },
-        { x: tileX - 1, y: tileY, face: 'right' as const },
-        { x: tileX + 1, y: tileY, face: 'left' as const },
-      ];
+    // If tapped on a solid tile or entity, find adjacent walkable stand tile across entity's footprint
+    if (
+      tappedEntity &&
+      (isTileBlocked(entityTileX, entityTileY) ||
+        tappedEntity.type === 'npc' ||
+        tappedEntity.type === 'boss' ||
+        tappedEntity.type === 'chest' ||
+        tappedEntity.type === 'decorative' ||
+        tappedEntity.type === 'obstacle')
+    ) {
+      const targetFootprint = tappedEntity.patrolPath
+        ? [{ x: entityTileX, y: entityTileY }]
+        : getEntityFootprintTiles(tappedEntity);
+
+      const neighbors: { x: number; y: number; face: 'down' | 'up' | 'left' | 'right' }[] = [];
+      targetFootprint.forEach(ft => {
+        neighbors.push(
+          { x: ft.x, y: ft.y + 1, face: 'up' },
+          { x: ft.x, y: ft.y - 1, face: 'down' },
+          { x: ft.x - 1, y: ft.y, face: 'right' },
+          { x: ft.x + 1, y: ft.y, face: 'left' }
+        );
+      });
 
       // Already standing adjacent? Face & interact immediately!
       const alreadyAdj = neighbors.find(n => n.x === startX && n.y === startY);
@@ -825,11 +1181,18 @@ export const ExplorationView: React.FC<ExplorationViewProps> = ({
     if (playerDir === 'left') targetX -= 1;
     if (playerDir === 'right') targetX += 1;
 
-    const entity = currentRegion.entities.find(
-      e =>
-        ((e.x === targetX && e.y === targetY) || (e.x === currentX && e.y === currentY)) &&
-        (!e.cleared || e.type === 'npc')
-    );
+    const entity = currentRegion.entities.find(e => {
+      if (e.cleared && e.type !== 'npc') return false;
+      if (e.requiresStoryCleared && !hasCompletedStory) return false;
+      const live = getEntityLiveCoords(e);
+      if (e.patrolPath) {
+        const ex = Math.round(live.x);
+        const ey = Math.round(live.y);
+        return (ex === targetX && ey === targetY) || (ex === currentX && ey === currentY);
+      }
+      const footprint = getEntityFootprintTiles(e);
+      return footprint.some(ft => (ft.x === targetX && ft.y === targetY) || (ft.x === currentX && ft.y === currentY));
+    });
 
     if (entity) {
       setNearbyEntity(entity);
@@ -847,7 +1210,7 @@ export const ExplorationView: React.FC<ExplorationViewProps> = ({
       setNearbyEntity(null);
       setInteractPrompt(null);
     }
-  }, [playerGridPos, playerDir, currentRegion]);
+  }, [playerGridPos, playerDir, currentRegion, hasCompletedStory, getEntityLiveCoords]);
 
   // Main 60fps simulation & render loop
   useEffect(() => {
@@ -864,12 +1227,34 @@ export const ExplorationView: React.FC<ExplorationViewProps> = ({
         isMovingRef.current = false;
         if (currentTime - activeSkillAnim.startedAt >= activeSkillAnim.duration) {
           obstacleSkillAnimRef.current = null;
-          sound.playConfirm();
+          sound.playLevelUp();
           onClearObstacle(activeSkillAnim.entityId, activeSkillAnim.msg);
         }
       }
 
       const pos = posRef.current;
+      // Advance looping patrol NPCs (pauses gently if hero is right next to them)
+      currentRegion.entities.forEach(ent => {
+        if (!ent.patrolPath || ent.patrolPath.length < 2) return;
+        const pState = patrolStateRef.current[ent.id];
+        if (!pState) return;
+        if (Math.hypot(pState.x - pos.x, pState.y - pos.y) <= 1.25) return;
+
+        const fromPt = ent.patrolPath[pState.segIdx];
+        const nextSegIdx = (pState.segIdx + 1) % ent.patrolPath.length;
+        const toPt = ent.patrolPath[nextSegIdx];
+        const segLen = Math.max(0.5, Math.hypot(toPt.x - fromPt.x, toPt.y - fromPt.y));
+        pState.prog += (1.35 * dt) / segLen;
+        if (pState.prog >= 1) {
+          pState.prog = 0;
+          pState.segIdx = nextSegIdx;
+          pState.x = toPt.x;
+          pState.y = toPt.y;
+        } else {
+          pState.x = fromPt.x + (toPt.x - fromPt.x) * pState.prog;
+          pState.y = fromPt.y + (toPt.y - fromPt.y) * pState.prog;
+        }
+      });
       const target = targetPosRef.current;
 
       const dx = target.x - pos.x;
@@ -953,6 +1338,7 @@ export const ExplorationView: React.FC<ExplorationViewProps> = ({
           // Contact with roaming wild spirits
           const roamingSpirit = currentRegion.entities.find(e => {
             if (e.cleared) return false;
+            if (e.requiresStoryCleared && !hasCompletedStory) return false;
             if (e.type !== 'wild_encounter' && !e.sprite.startsWith('wild_')) return false;
             return Math.abs(e.x - target.x) <= 0.6 && Math.abs(e.y - target.y) <= 0.6;
           });
@@ -969,7 +1355,8 @@ export const ExplorationView: React.FC<ExplorationViewProps> = ({
             return;
           }
 
-          // Encounter rates: 0% on path (tile 1), railway tracks (tile 11), or interior (tile 10); 2.5% (1%-3%) off-path (0,6,7,9)
+          // Encounter rates: 0% on path (tile 1), railway tracks (tile 11), or interior (tile 10);
+          // 6%-12% (9% step roll) in Santiago/Biobío/Araucanía; 8%-16% (12% step roll) in Los Ríos/Los Lagos
           const arrivedTile = currentRegion.tiles[target.y]?.[target.x];
           if (
             currentRegion.wildEncounterTable.length > 0 &&
@@ -977,8 +1364,10 @@ export const ExplorationView: React.FC<ExplorationViewProps> = ({
             arrivedTile !== 10 &&
             arrivedTile !== 11
           ) {
+            const baseOffPathRate =
+              currentRegion.id === 'losrios' || currentRegion.id === 'loslagos' ? 0.12 : 0.09;
             const encounterProb =
-              arrivedTile === 0 || arrivedTile === 6 || arrivedTile === 7 || arrivedTile === 9 ? 0.025 : 0;
+              arrivedTile === 0 || arrivedTile === 6 || arrivedTile === 7 || arrivedTile === 9 ? baseOffPathRate : 0;
             if (encounterProb > 0 && Math.random() < encounterProb) {
               heldKeysRef.current.clear();
               pathQueueRef.current = [];
@@ -986,8 +1375,18 @@ export const ExplorationView: React.FC<ExplorationViewProps> = ({
               tapMarkerRef.current = null;
               isMovingRef.current = false;
               const chosen = pickWeightedEncounter(currentRegion.wildEncounterTable);
+              const lvl =
+                chosen.minLevel +
+                Math.floor(Math.random() * Math.max(1, chosen.maxLevel - chosen.minLevel + 1));
               sound.playEncounter();
-              onTriggerBattle(chosen.spiritId, false, { x: target.x, y: target.y });
+              onTriggerBattle(
+                chosen.spiritId,
+                false,
+                { x: target.x, y: target.y },
+                undefined,
+                lvl,
+                chosen.stage || 1
+              );
               return;
             }
           }
@@ -1150,6 +1549,42 @@ export const ExplorationView: React.FC<ExplorationViewProps> = ({
             }
           }
 
+          // Track 2x2 building blocks on outdoor maps so they draw as unified 64x64 structures
+          const building2x2Map = new Set<string>();
+          const buildingsToDraw: { x: number; y: number; kind: Building2x2Kind }[] = [];
+          if (!interior) {
+            for (let by = 0; by < currentRegion.height - 1; by++) {
+              for (let bx = 0; bx < currentRegion.width - 1; bx++) {
+                const k0 = `${bx},${by}`;
+                if (building2x2Map.has(k0)) continue;
+                const isBlock =
+                  currentRegion.tiles[by]?.[bx] === 8 &&
+                  currentRegion.tiles[by]?.[bx + 1] === 8 &&
+                  currentRegion.tiles[by + 1]?.[bx] === 8 &&
+                  currentRegion.tiles[by + 1]?.[bx + 1] === 8;
+                if (isBlock) {
+                  building2x2Map.add(k0);
+                  building2x2Map.add(`${bx + 1},${by}`);
+                  building2x2Map.add(`${bx},${by + 1}`);
+                  building2x2Map.add(`${bx + 1},${by + 1}`);
+                  const anyRevealed =
+                    fogSet.size === 0 ||
+                    fogSet.has(k0) ||
+                    fogSet.has(`${bx + 1},${by}`) ||
+                    fogSet.has(`${bx},${by + 1}`) ||
+                    fogSet.has(`${bx + 1},${by + 1}`);
+                  if (anyRevealed) {
+                    buildingsToDraw.push({
+                      x: bx,
+                      y: by,
+                      kind: classify2x2Building(currentRegion, bx, by),
+                    });
+                  }
+                }
+              }
+            }
+          }
+
           for (let y = 0; y < currentRegion.height; y++) {
             for (let x = 0; x < currentRegion.width; x++) {
               const tile = currentRegion.tiles[y]?.[x] ?? 0;
@@ -1159,16 +1594,24 @@ export const ExplorationView: React.FC<ExplorationViewProps> = ({
               const isRevealed = interior || fogSet.size === 0 || fogSet.has(tileKey);
 
               if (!isRevealed) {
-                // Dark unexplored fog-of-war shroud
-                ctx.fillStyle = '#09090b';
+                // Organic misty twilight Fog of War (softens near revealed neighbors with cloud wisps)
+                const hasRevealedNeighbor =
+                  fogSet.has(`${x - 1},${y}`) ||
+                  fogSet.has(`${x + 1},${y}`) ||
+                  fogSet.has(`${x},${y - 1}`) ||
+                  fogSet.has(`${x},${y + 1}`);
+                ctx.fillStyle = hasRevealedNeighbor ? '#1e293b' : '#0f172a';
                 ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
-                ctx.fillStyle = 'rgba(39, 39, 42, 0.35)';
-                ctx.fillRect(px + 6, py + 6, 4, 4);
-                ctx.fillRect(px + 20, py + 20, 4, 4);
+                const drift = Math.sin(currentTime * 0.0018 + x * 0.7 + y * 0.5) * 3;
+                ctx.fillStyle = hasRevealedNeighbor ? 'rgba(226, 232, 240, 0.22)' : 'rgba(148, 163, 184, 0.14)';
+                ctx.beginPath();
+                ctx.arc(px + 10 + drift, py + 12, hasRevealedNeighbor ? 9 : 7, 0, Math.PI * 2);
+                ctx.arc(px + 22 - drift, py + 21, hasRevealedNeighbor ? 8 : 6, 0, Math.PI * 2);
+                ctx.fill();
                 continue;
               }
 
-              if (tile === 0) {
+              if (tile === 0 || (!interior && tile === 8 && building2x2Map.has(tileKey))) {
                 if (currentRegion.id === 'casa') {
                   ctx.fillStyle = '#92400e';
                   ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
@@ -1595,6 +2038,11 @@ export const ExplorationView: React.FC<ExplorationViewProps> = ({
             }
           }
 
+          // Render cohesive 2x2 (64x64px) buildings (Hospital, Santuario, Tienda, Casa)
+          buildingsToDraw.forEach(b => {
+            draw2x2ExteriorBuilding(ctx, b.kind, b.x * TILE_SIZE, b.y * TILE_SIZE, TILE_SIZE, currentTime);
+          });
+
           // Pulsing tap-to-move destination marker
           if (tapMarkerRef.current) {
             const tm = tapMarkerRef.current;
@@ -1613,18 +2061,31 @@ export const ExplorationView: React.FC<ExplorationViewProps> = ({
           const stageBossAwakened = isStageBossAwakened(currentRegion, hasCompletedStory);
 
           currentRegion.entities.forEach(ent => {
-            const entKey = `${ent.x},${ent.y}`;
-            const isEntVisible = interior || fogSet.size === 0 || fogSet.has(entKey);
+            if (ent.requiresStoryCleared && !hasCompletedStory) return;
+            const live = patrolStateRef.current[ent.id];
+            const footprint = ent.patrolPath ? [{ x: Math.round(live?.x ?? ent.x), y: Math.round(live?.y ?? ent.y) }] : getEntityFootprintTiles(ent);
+            const isEntVisible =
+              interior ||
+              fogSet.size === 0 ||
+              footprint.some(ft => fogSet.has(`${ft.x},${ft.y}`));
             if (!isEntVisible) return;
 
-            let renderX = ent.x * TILE_SIZE;
-            let renderY = ent.y * TILE_SIZE;
+            const isMultiTileSummit = Boolean(ent.revealsRegionMap && ent.footprint && ent.footprint.length >= 4);
+            const minFx = isMultiTileSummit ? Math.min(...footprint.map(t => t.x)) : live ? live.x : ent.x;
+            const minFy = isMultiTileSummit ? Math.min(...footprint.map(t => t.y)) : live ? live.y : ent.y;
+            const drawSize = isMultiTileSummit ? TILE_SIZE * 2 : TILE_SIZE;
+
+            let renderX = minFx * TILE_SIZE;
+            let renderY = minFy * TILE_SIZE;
+            let spriteFlipped = false;
 
             if (!ent.cleared && (ent.type === 'wild_encounter' || ent.sprite.startsWith('wild_'))) {
               const offset = getSpeciesMovementOffset(ent, currentTime, TILE_SIZE);
               renderX += offset.dx;
               renderY += offset.dy;
+              spriteFlipped = offset.flip;
             } else if (
+              !ent.patrolPath &&
               ent.type === 'npc' &&
               !ent.isShop &&
               !ent.isHospital &&
@@ -1632,7 +2093,16 @@ export const ExplorationView: React.FC<ExplorationViewProps> = ({
               !ent.rewardItem
             ) {
               const hash = ent.id.charCodeAt(ent.id.length - 1) || 2;
-              renderX += Math.sin(currentTime * 0.001 + hash) * (TILE_SIZE * 0.25);
+              renderX += Math.sin(currentTime * 0.001 + hash) * (TILE_SIZE * 0.22);
+            }
+
+            if (isMultiTileSummit) {
+              // Subtle golden summit halo around 4-tile peak
+              const haloPulse = 0.22 + Math.sin(currentTime * 0.004) * 0.1;
+              ctx.fillStyle = ent.cleared ? 'rgba(56, 189, 248, 0.14)' : `rgba(250, 204, 21, ${haloPulse})`;
+              ctx.beginPath();
+              ctx.arc(renderX + drawSize / 2, renderY + drawSize / 2, drawSize * 0.56, 0, Math.PI * 2);
+              ctx.fill();
             }
 
             drawEntitySprite(
@@ -1641,16 +2111,17 @@ export const ExplorationView: React.FC<ExplorationViewProps> = ({
               ent.sprite,
               renderX,
               renderY,
-              TILE_SIZE,
+              drawSize,
               ent.cleared || false,
               Math.floor(currentTime * 0.005),
-              stageBossAwakened
+              stageBossAwakened,
+              spriteFlipped
             );
 
             if (ent.type === 'boss' && !ent.cleared) {
               const bPulse = Math.sin(currentTime * 0.007) * 4;
               if (stageBossAwakened) {
-                ctx.strokeStyle = 'rgba(239, 68, 68, 0.8)';
+                ctx.strokeStyle = 'rgba(220, 38, 38, 0.85)';
                 ctx.lineWidth = 2;
                 ctx.beginPath();
                 ctx.arc(
@@ -1662,33 +2133,33 @@ export const ExplorationView: React.FC<ExplorationViewProps> = ({
                 );
                 ctx.stroke();
 
-                const badgeW = 96;
+                const badgeW = 98;
                 const badgeH = 18;
                 const bx = ent.x * TILE_SIZE + TILE_SIZE / 2 - badgeW / 2;
                 const by = ent.y * TILE_SIZE - 20 + bPulse;
 
-                ctx.fillStyle = 'rgba(15, 23, 42, 0.95)';
+                ctx.fillStyle = 'rgba(244, 244, 242, 0.96)';
                 ctx.fillRect(bx, by, badgeW, badgeH);
-                ctx.strokeStyle = '#ef4444';
+                ctx.strokeStyle = '#dc2626';
                 ctx.lineWidth = 1.5;
                 ctx.strokeRect(bx, by, badgeW, badgeH);
 
-                ctx.fillStyle = '#fca5a5';
+                ctx.fillStyle = '#b91c1c';
                 ctx.font = 'bold 8px monospace';
                 ctx.fillText('⚔️ JEFE DESPIERTO', bx + 6, by + 12);
               } else {
-                const badgeW = 92;
+                const badgeW = 94;
                 const badgeH = 16;
                 const bx = ent.x * TILE_SIZE + TILE_SIZE / 2 - badgeW / 2;
                 const by = ent.y * TILE_SIZE - 18 + bPulse * 0.5;
 
-                ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
+                ctx.fillStyle = 'rgba(244, 244, 242, 0.94)';
                 ctx.fillRect(bx, by, badgeW, badgeH);
-                ctx.strokeStyle = '#a855f7';
+                ctx.strokeStyle = '#3f3f46';
                 ctx.lineWidth = 1;
                 ctx.strokeRect(bx, by, badgeW, badgeH);
 
-                ctx.fillStyle = '#d8b4fe';
+                ctx.fillStyle = '#1e2022';
                 ctx.font = 'bold 8px monospace';
                 ctx.fillText('🔒 SELLO ACTIVO', bx + 6, by + 11);
               }
@@ -1701,20 +2172,22 @@ export const ExplorationView: React.FC<ExplorationViewProps> = ({
               !ent.cleared
             ) {
               const pulse = Math.sin(currentTime * 0.008) * 4;
+              const markerX = isMultiTileSummit ? renderX + drawSize / 2 : ent.x * TILE_SIZE + TILE_SIZE / 2;
+              const markerY = isMultiTileSummit ? renderY : ent.y * TILE_SIZE;
               ctx.fillStyle = '#facc15';
               ctx.beginPath();
-              ctx.moveTo(ent.x * TILE_SIZE + TILE_SIZE / 2, ent.y * TILE_SIZE - 4 + pulse);
-              ctx.lineTo(ent.x * TILE_SIZE + TILE_SIZE / 2 - 6, ent.y * TILE_SIZE - 14 + pulse);
-              ctx.lineTo(ent.x * TILE_SIZE + TILE_SIZE / 2 + 6, ent.y * TILE_SIZE - 14 + pulse);
+              ctx.moveTo(markerX, markerY - 4 + pulse);
+              ctx.lineTo(markerX - 6, markerY - 14 + pulse);
+              ctx.lineTo(markerX + 6, markerY - 14 + pulse);
               ctx.closePath();
               ctx.fill();
 
               ctx.fillStyle = 'rgba(250, 204, 21, 0.25)';
               ctx.beginPath();
               ctx.arc(
-                ent.x * TILE_SIZE + TILE_SIZE / 2,
-                ent.y * TILE_SIZE + TILE_SIZE / 2,
-                TILE_SIZE / 1.5 + pulse,
+                markerX,
+                markerY + drawSize / 2,
+                drawSize * 0.58 + pulse,
                 0,
                 Math.PI * 2
               );
@@ -1912,6 +2385,40 @@ export const ExplorationView: React.FC<ExplorationViewProps> = ({
             ctx.restore();
           }
 
+          // Summit Map-Reveal Expanding Golden / Sky Light Wave Burst
+          if (summitRevealAnimRef.current) {
+            const sAnim = summitRevealAnimRef.current;
+            const elapsed = currentTime - sAnim.startedAt;
+            if (elapsed >= sAnim.duration) {
+              summitRevealAnimRef.current = null;
+            } else {
+              const p = elapsed / sAnim.duration;
+              const cx = sAnim.x * TILE_SIZE + TILE_SIZE / 2;
+              const cy = sAnim.y * TILE_SIZE + TILE_SIZE / 2;
+              ctx.save();
+              for (let r = 0; r < 3; r++) {
+                const rp = Math.max(0, p - r * 0.14);
+                const rad = rp * TILE_SIZE * 14;
+                ctx.strokeStyle =
+                  r % 2 === 0
+                    ? `rgba(250, 204, 21, ${Math.max(0, 0.85 * (1 - rp))})`
+                    : `rgba(56, 189, 248, ${Math.max(0, 0.75 * (1 - rp))})`;
+                ctx.lineWidth = 4 - r;
+                ctx.beginPath();
+                ctx.arc(cx, cy, rad, 0, Math.PI * 2);
+                ctx.stroke();
+              }
+              const grad = ctx.createRadialGradient(cx, cy, 4, cx, cy, p * TILE_SIZE * 10);
+              grad.addColorStop(0, `rgba(254, 240, 138, ${0.45 * (1 - p)})`);
+              grad.addColorStop(1, 'rgba(254, 240, 138, 0)');
+              ctx.fillStyle = grad;
+              ctx.beginPath();
+              ctx.arc(cx, cy, p * TILE_SIZE * 10, 0, Math.PI * 2);
+              ctx.fill();
+              ctx.restore();
+            }
+          }
+
           ctx.restore();
 
           // Regional ambient tint
@@ -1977,6 +2484,8 @@ export const ExplorationView: React.FC<ExplorationViewProps> = ({
   ]);
 
   const currentTileType = currentRegion.tiles[playerGridPos.y]?.[playerGridPos.x] ?? 0;
+  const offPathRangeText =
+    currentRegion.id === 'losrios' || currentRegion.id === 'loslagos' ? '8%-16%' : '6%-12%';
   const encounterRateLabel =
     currentRegion.wildEncounterTable.length === 0
       ? 'Hogar · 0%'
@@ -1986,25 +2495,176 @@ export const ExplorationView: React.FC<ExplorationViewProps> = ({
       ? 'Vía Férrea · 0%'
       : currentTileType === 1
       ? 'Camino · 0%'
-      : 'Fuera · 1%-3%';
+      : `Fuera · ${offPathRangeText}`;
 
   const getWeatherBadge = () => {
     const w = currentRegion.weather;
-    if (w === 'soleado') return { icon: <Sun className="w-3 h-3 text-amber-300 shrink-0" />, text: currentRegion.weatherLabel || 'Soleado' };
-    if (w === 'lluvia_intermitente') return { icon: <CloudFog className="w-3 h-3 text-zinc-200 shrink-0" />, text: currentRegion.weatherLabel || 'Niebla y Lluvia' };
-    if (w === 'lluvia_suave') return { icon: <CloudRain className="w-3 h-3 text-sky-300 shrink-0" />, text: currentRegion.weatherLabel || 'Lluvia Fija' };
-    if (w === 'lluvia_viento') return { icon: <Wind className="w-3 h-3 text-lime-300 shrink-0" />, text: currentRegion.weatherLabel || 'Lluvia y Viento' };
-    if (w === 'ventisca_austral') return { icon: <CloudLightning className="w-3 h-3 text-cyan-300 shrink-0" />, text: currentRegion.weatherLabel || 'Tormenta Austral' };
-    return { icon: <Home className="w-3 h-3 text-zinc-200 shrink-0" />, text: currentRegion.weatherLabel || 'Interior' };
+    if (w === 'soleado') return { icon: <Sun className="w-3 h-3 text-amber-600 shrink-0" />, text: 'Soleado' };
+    if (w === 'lluvia_intermitente') return { icon: <CloudFog className="w-3 h-3 text-zinc-600 shrink-0" />, text: 'Niebla/Lluvia' };
+    if (w === 'lluvia_suave') return { icon: <CloudRain className="w-3 h-3 text-sky-600 shrink-0" />, text: 'Lluvia Fija' };
+    if (w === 'lluvia_viento') return { icon: <Wind className="w-3 h-3 text-emerald-700 shrink-0" />, text: 'Lluvia/Viento' };
+    if (w === 'ventisca_austral') return { icon: <CloudLightning className="w-3 h-3 text-cyan-700 shrink-0" />, text: 'Tormenta' };
+    return { icon: <Home className="w-3 h-3 text-zinc-700 shrink-0" />, text: 'Interior' };
   };
   const weatherBadge = getWeatherBadge();
+
+  const renderWeatherParticles = (rId: RegionId) => {
+    if (rId === 'santiago') {
+      return (
+        <>
+          <div className="env-sunbeams-shimmer" />
+          <div className="env-cloud-layer-1" />
+          {POLLEN_PARTICLES.map((p, idx) => (
+            <div
+              key={idx}
+              className="env-pollen-dot"
+              style={
+                {
+                  left: p.left,
+                  top: p.top,
+                  width: p.size,
+                  height: p.size,
+                  '--dur': p.dur,
+                  '--delay': p.delay,
+                } as React.CSSProperties
+              }
+            />
+          ))}
+        </>
+      );
+    }
+    if (rId === 'biobio') {
+      return (
+        <>
+          <div className="env-cloud-layer-1" />
+          <div className="env-cloud-layer-2" />
+          <div className="env-fog-layer-1" />
+          <div className="env-fog-layer-2" />
+          {INTERMITTENT_RAIN_DROPS.map((d, idx) => (
+            <div
+              key={idx}
+              className="env-rain-drop-intermittent"
+              style={
+                {
+                  left: d.left,
+                  '--dur': d.dur,
+                  '--delay': d.delay,
+                } as React.CSSProperties
+              }
+            />
+          ))}
+        </>
+      );
+    }
+    if (rId === 'araucania') {
+      return (
+        <>
+          <div className="env-cloud-layer-1" />
+          <div className="env-cloud-layer-2" />
+          {STATIC_RAIN_DROPS.map((d, idx) => (
+            <div
+              key={idx}
+              className="env-rain-drop-static"
+              style={
+                {
+                  left: d.left,
+                  '--dur': d.dur,
+                  '--delay': d.delay,
+                } as React.CSSProperties
+              }
+            />
+          ))}
+        </>
+      );
+    }
+    if (rId === 'losrios') {
+      return (
+        <>
+          <div className="env-cloud-layer-1" />
+          <div className="env-cloud-layer-2" />
+          {WIND_STREAKS.map((w, idx) => (
+            <div
+              key={`wr-${idx}`}
+              className="env-wind-streak"
+              style={
+                {
+                  top: w.top,
+                  width: w.width,
+                  '--dur': w.dur,
+                  '--delay': w.delay,
+                } as React.CSSProperties
+              }
+            />
+          ))}
+          {WIND_RAIN_DROPS.map((d, idx) => (
+            <div
+              key={idx}
+              className="env-rain-drop-wind"
+              style={
+                {
+                  left: d.left,
+                  '--dur': d.dur,
+                  '--delay': d.delay,
+                } as React.CSSProperties
+              }
+            />
+          ))}
+        </>
+      );
+    }
+    if (rId === 'loslagos') {
+      return (
+        <>
+          <div className="env-cloud-layer-1" />
+          <div className="env-cloud-layer-2" />
+          {WIND_STREAKS.map((w, idx) => (
+            <div
+              key={`wl-${idx}`}
+              className="env-wind-streak"
+              style={
+                {
+                  top: w.top,
+                  width: w.width,
+                  '--dur': w.dur,
+                  '--delay': w.delay,
+                } as React.CSSProperties
+              }
+            />
+          ))}
+          {STORM_RAIN_DROPS.map((d, idx) => (
+            <div
+              key={idx}
+              className="env-rain-drop-storm"
+              style={
+                {
+                  left: d.left,
+                  '--dur': d.dur,
+                  '--delay': d.delay,
+                } as React.CSSProperties
+              }
+            />
+          ))}
+          <div className="env-lightning-flash" />
+        </>
+      );
+    }
+    return null;
+  };
+
+  const isImportantKeyMsg = Boolean(
+    importantMessage &&
+      /(Amuleto|Fruto|Esencia|Orbe|Cima|Cristal|Corazón|Botín|despejad|evolución|Nv\.)/i.test(importantMessage)
+  );
 
   return (
     <div
       ref={containerRef}
       className="relative w-full h-[100dvh] bg-zinc-950 flex flex-col justify-between overflow-hidden select-none touch-manipulation"
     >
-      {/* 60fps Canvas Viewport (Tap anywhere to walk) */}
+      {/* Subtle stage enter fade overlay */}
+      <div key={currentRegion.id} className="pointer-events-none fixed inset-0 z-30 bg-zinc-950 animate-stage-enter" />
+
+      {/* 60fps Canvas Viewport (Tap anywhere to walk & interact) */}
       <div className="absolute inset-0 flex items-center justify-center">
         <canvas
           ref={canvasRef}
@@ -2015,144 +2675,28 @@ export const ExplorationView: React.FC<ExplorationViewProps> = ({
         />
       </div>
 
+      {/* Outgoing Climate Cross-Fade Layer */}
+      {fadingOutRegionId && (
+        <div
+          className={`absolute inset-0 z-10 pointer-events-none overflow-hidden transition-opacity duration-700 ease-out ${
+            climateFadeActive ? 'opacity-0' : 'opacity-100'
+          }`}
+          aria-hidden="true"
+        >
+          {renderWeatherParticles(fadingOutRegionId)}
+        </div>
+      )}
+
       {/* Multi-Layer CSS Regional Atmospheric Climate & Particle Effects */}
-      <div className="absolute inset-0 z-10 pointer-events-none overflow-hidden" aria-hidden="true">
-        {currentRegion.id === 'santiago' && (
-          <>
-            <div className="env-sunbeams-shimmer" />
-            <div className="env-cloud-layer-1" />
-            {POLLEN_PARTICLES.map((p, idx) => (
-              <div
-                key={idx}
-                className="env-pollen-dot"
-                style={
-                  {
-                    left: p.left,
-                    top: p.top,
-                    width: p.size,
-                    height: p.size,
-                    '--dur': p.dur,
-                    '--delay': p.delay,
-                  } as React.CSSProperties
-                }
-              />
-            ))}
-          </>
-        )}
-
-        {currentRegion.id === 'biobio' && (
-          <>
-            <div className="env-cloud-layer-1" />
-            <div className="env-cloud-layer-2" />
-            <div className="env-fog-layer-1" />
-            <div className="env-fog-layer-2" />
-            {INTERMITTENT_RAIN_DROPS.map((d, idx) => (
-              <div
-                key={idx}
-                className="env-rain-drop-intermittent"
-                style={
-                  {
-                    left: d.left,
-                    '--dur': d.dur,
-                    '--delay': d.delay,
-                  } as React.CSSProperties
-                }
-              />
-            ))}
-          </>
-        )}
-
-        {currentRegion.id === 'araucania' && (
-          <>
-            <div className="env-cloud-layer-1" />
-            <div className="env-cloud-layer-2" />
-            {STATIC_RAIN_DROPS.map((d, idx) => (
-              <div
-                key={idx}
-                className="env-rain-drop-static"
-                style={
-                  {
-                    left: d.left,
-                    '--dur': d.dur,
-                    '--delay': d.delay,
-                  } as React.CSSProperties
-                }
-              />
-            ))}
-          </>
-        )}
-
-        {currentRegion.id === 'losrios' && (
-          <>
-            <div className="env-cloud-layer-1" />
-            <div className="env-cloud-layer-2" />
-            {WIND_STREAKS.map((w, idx) => (
-              <div
-                key={`wr-${idx}`}
-                className="env-wind-streak"
-                style={
-                  {
-                    top: w.top,
-                    width: w.width,
-                    '--dur': w.dur,
-                    '--delay': w.delay,
-                  } as React.CSSProperties
-                }
-              />
-            ))}
-            {WIND_RAIN_DROPS.map((d, idx) => (
-              <div
-                key={idx}
-                className="env-rain-drop-wind"
-                style={
-                  {
-                    left: d.left,
-                    '--dur': d.dur,
-                    '--delay': d.delay,
-                  } as React.CSSProperties
-                }
-              />
-            ))}
-          </>
-        )}
-
-        {currentRegion.id === 'loslagos' && (
-          <>
-            <div className="env-cloud-layer-1" />
-            <div className="env-cloud-layer-2" />
-            {WIND_STREAKS.map((w, idx) => (
-              <div
-                key={`wl-${idx}`}
-                className="env-wind-streak"
-                style={
-                  {
-                    top: w.top,
-                    width: w.width,
-                    '--dur': w.dur,
-                    '--delay': w.delay,
-                  } as React.CSSProperties
-                }
-              />
-            ))}
-            {STORM_RAIN_DROPS.map((d, idx) => (
-              <div
-                key={idx}
-                className="env-rain-drop-storm"
-                style={
-                  {
-                    left: d.left,
-                    '--dur': d.dur,
-                    '--delay': d.delay,
-                  } as React.CSSProperties
-                }
-              />
-            ))}
-            <div className="env-lightning-flash" />
-          </>
-        )}
+      <div
+        key={`weather-${currentRegion.id}`}
+        className="absolute inset-0 z-10 pointer-events-none overflow-hidden animate-in fade-in duration-700"
+        aria-hidden="true"
+      >
+        {renderWeatherParticles(currentRegion.id)}
       </div>
 
-      {/* Top Floating Monochrome HUD */}
+      {/* Top Floating Blanco Humo + Negro Grafito HUD */}
       <header className="relative z-20 w-full p-2 sm:p-3 flex flex-col gap-1.5 max-w-6xl mx-auto pointer-events-none">
         <div className="flex justify-between items-start gap-1.5 sm:gap-2">
           {/* Region, Protagonist Avatar & Profile Shortcut */}
@@ -2163,10 +2707,10 @@ export const ExplorationView: React.FC<ExplorationViewProps> = ({
               syncCurrentPos();
               onOpenProfile?.();
             }}
-            className="bg-zinc-900/95 hover:bg-zinc-800 backdrop-blur border border-zinc-600/80 px-2 sm:px-2.5 py-1.5 rounded-xl shadow-lg pointer-events-auto flex items-center gap-2 min-w-0 cursor-pointer text-left active:scale-95 transition-all"
+            className="bg-[#F4F4F2]/95 hover:bg-white backdrop-blur border border-zinc-400 px-2 sm:px-2.5 py-1.5 rounded-xl shadow-lg pointer-events-auto flex items-center gap-2 min-w-0 cursor-pointer text-left active:scale-95 transition-all"
             title="Ver Perfil y Amuletos Espirituales"
           >
-            <div className="w-8 h-8 rounded-lg bg-zinc-950 border border-zinc-400 flex items-center justify-center shrink-0 overflow-hidden">
+            <div className="w-8 h-8 rounded-lg bg-[#E7E7E2] border border-zinc-400 flex items-center justify-center shrink-0 overflow-hidden">
               <canvas
                 ref={heroAvatarCanvasRef}
                 width={44}
@@ -2175,21 +2719,21 @@ export const ExplorationView: React.FC<ExplorationViewProps> = ({
               />
             </div>
             <div className="min-w-0">
-              <h3 className="font-pixel text-[9px] sm:text-[11px] text-zinc-100 truncate">
+              <h3 className="font-pixel text-[9px] sm:text-[11px] text-[#1E2022] truncate">
                 {currentRegion.name.split('&')[0].trim()}
               </h3>
-              <div className="flex items-center gap-1 text-[9px] sm:text-[10px] font-mono text-zinc-300 truncate">
-                <span className="text-zinc-100 font-bold truncate">{barbara.name}</span>
+              <div className="flex items-center gap-1 text-[9px] sm:text-[10px] font-mono text-zinc-700 truncate">
+                <span className="text-[#1E2022] font-bold truncate">{barbara.name}</span>
                 <span>&middot;</span>
                 <span>{barbara.gold} Oro</span>
-                <span className="hidden xs:inline-flex items-center gap-0.5 text-zinc-100 font-bold">
+                <span className="hidden xs:inline-flex items-center gap-0.5 text-emerald-700 font-bold">
                   &middot; <Award className="w-2.5 h-2.5 inline" /> {(barbara.medals || []).length}/5
                 </span>
               </div>
             </div>
           </button>
 
-          {/* Mobile-Friendly Top Action Buttons */}
+          {/* Mobile-Friendly Top Action Buttons (Blanco Humo + Negro Grafito + Guía) */}
           <div className="flex items-center gap-1 sm:gap-1.5 pointer-events-auto shrink-0">
             <button
               onClick={() => {
@@ -2198,11 +2742,11 @@ export const ExplorationView: React.FC<ExplorationViewProps> = ({
                 syncCurrentPos();
                 onOpenParty();
               }}
-              className="p-2 sm:px-2.5 sm:py-2 bg-zinc-900/95 hover:bg-zinc-800 border border-zinc-600 rounded-xl text-zinc-100 transition-colors flex items-center gap-1 text-xs font-mono cursor-pointer shadow-md active:scale-95"
-              title="Equipo"
+              className="px-2 sm:px-3 py-1.5 sm:py-2 bg-[#1E2022] hover:bg-zinc-800 border border-zinc-700 rounded-xl text-[#F4F4F2] transition-all flex items-center gap-1 text-[10px] sm:text-xs font-silkscreen font-bold cursor-pointer shadow-lg active:scale-95"
+              title="Equipo Espiritual"
             >
-              <Swords className="w-4 h-4 text-zinc-200" />
-              <span className="hidden md:inline">Equipo</span>
+              <Swords className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#F4F4F2] shrink-0" />
+              <span>Equipo</span>
             </button>
 
             <button
@@ -2212,11 +2756,11 @@ export const ExplorationView: React.FC<ExplorationViewProps> = ({
                 syncCurrentPos();
                 onOpenInventory();
               }}
-              className="p-2 sm:px-2.5 sm:py-2 bg-zinc-900/95 hover:bg-zinc-800 border border-zinc-600 rounded-xl text-zinc-100 transition-colors flex items-center gap-1 text-xs font-mono cursor-pointer shadow-md active:scale-95"
+              className="p-1.5 sm:px-2.5 sm:py-2 bg-[#F4F4F2]/95 hover:bg-white border border-zinc-400 rounded-xl text-[#1E2022] transition-colors flex items-center gap-1 text-xs font-mono cursor-pointer shadow-md active:scale-95"
               title="Mochila"
             >
-              <Backpack className="w-4 h-4 text-zinc-200" />
-              <span className="hidden md:inline">Mochila</span>
+              <Backpack className="w-4 h-4 text-[#1E2022]" />
+              <span className="hidden md:inline font-bold">Mochila</span>
             </button>
 
             <button
@@ -2226,22 +2770,39 @@ export const ExplorationView: React.FC<ExplorationViewProps> = ({
                 syncCurrentPos();
                 onOpenMap();
               }}
-              className="p-2 sm:px-2.5 sm:py-2 bg-zinc-900/95 hover:bg-zinc-800 border border-zinc-600 rounded-xl text-zinc-100 transition-colors flex items-center gap-1 text-xs font-mono cursor-pointer shadow-md active:scale-95"
+              className="px-2 sm:px-3 py-1.5 sm:py-2 bg-emerald-700 hover:bg-emerald-800 border border-emerald-800 rounded-xl text-[#F4F4F2] transition-all flex items-center gap-1 text-[10px] sm:text-xs font-silkscreen font-bold cursor-pointer shadow-lg active:scale-95"
               title="Mapa de Chile"
             >
-              <MapPin className="w-4 h-4 text-zinc-200" />
-              <span className="hidden md:inline">Mapa</span>
+              <MapPin className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#F4F4F2] shrink-0" />
+              <span>Mapa</span>
             </button>
+
+            {onOpenGuide && (
+              <button
+                onClick={() => {
+                  sound.init();
+                  sound.playSelect();
+                  syncCurrentPos();
+                  onOpenGuide();
+                }}
+                className="p-1.5 sm:px-2.5 sm:py-2 bg-[#F4F4F2]/95 hover:bg-white border border-zinc-400 rounded-xl text-[#1E2022] transition-colors flex items-center gap-1 text-xs font-mono cursor-pointer shadow-md active:scale-95"
+                title="Guía, Cómo Jugar y Objetivos"
+                aria-label="Abrir Guía de Aventura"
+              >
+                <HelpCircle className="w-4 h-4 text-[#1E2022]" />
+                <span className="hidden lg:inline font-bold">Guía</span>
+              </button>
+            )}
 
             <button
               onClick={() => {
                 sound.init();
                 onToggleMute();
               }}
-              className="p-2 bg-zinc-900/95 hover:bg-zinc-800 border border-zinc-600 rounded-xl text-zinc-200 transition-colors cursor-pointer shadow-md active:scale-95"
+              className="p-1.5 sm:p-2 bg-[#F4F4F2]/95 hover:bg-white border border-zinc-400 rounded-xl text-[#1E2022] transition-colors cursor-pointer shadow-md active:scale-95"
               title="Silenciar / Activar Audio"
             >
-              {isMuted ? <VolumeX className="w-4 h-4 text-zinc-400" /> : <Volume2 className="w-4 h-4 text-zinc-100" />}
+              {isMuted ? <VolumeX className="w-4 h-4 text-red-600" /> : <Volume2 className="w-4 h-4 text-[#1E2022]" />}
             </button>
 
             <button
@@ -2251,16 +2812,16 @@ export const ExplorationView: React.FC<ExplorationViewProps> = ({
                 syncCurrentPos();
                 onOpenSystemMenu();
               }}
-              className="px-2.5 py-2 bg-zinc-100 hover:bg-white border border-zinc-300 rounded-xl text-zinc-950 transition-all flex items-center gap-1 text-[11px] font-silkscreen font-bold cursor-pointer shadow-lg active:scale-95"
+              className="px-2 sm:px-2.5 py-1.5 sm:py-2 bg-[#E7E7E2] hover:bg-white border border-zinc-400 rounded-xl text-[#1E2022] transition-all flex items-center gap-1 text-[11px] font-silkscreen font-bold cursor-pointer shadow-lg active:scale-95"
               title="Menú, Perfil, Misiones y Guardado"
             >
-              <Settings className="w-4 h-4 text-zinc-900" />
+              <Settings className="w-4 h-4 text-[#1E2022]" />
               <span className="hidden sm:inline">Menú</span>
             </button>
           </div>
         </div>
 
-        {/* Mission Pill + Clima + Encounter Probability Pill */}
+        {/* Mission Pill (Blanco Humo) + Region + Clima + Encounter */}
         <div className="flex flex-wrap items-center justify-between gap-1">
           <button
             onClick={() => {
@@ -2269,33 +2830,40 @@ export const ExplorationView: React.FC<ExplorationViewProps> = ({
               syncCurrentPos();
               onOpenSystemMenu();
             }}
-            className="pointer-events-auto max-w-full sm:max-w-[54%] px-2.5 py-0.5 bg-zinc-950/90 backdrop-blur border border-zinc-500/70 rounded-full text-[9px] sm:text-[10px] font-mono text-zinc-200 shadow-md flex items-center gap-1 cursor-pointer active:scale-95"
+            className="pointer-events-auto h-7 sm:h-8 max-w-full sm:max-w-[58%] px-3 bg-[#F4F4F2]/95 hover:bg-white backdrop-blur border border-zinc-400 rounded-full text-[11px] sm:text-xs font-mono text-[#1E2022] shadow-lg flex items-center gap-1.5 cursor-pointer active:scale-95 overflow-hidden"
           >
-            <Target className="w-3 h-3 text-zinc-100 shrink-0" />
-            <span className="text-zinc-100 font-bold shrink-0">
-              Paso {currentQuest.stepNumber}/{currentQuest.totalSteps}:
+            <Target className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
+            <span className="text-[#1E2022] font-bold shrink-0">
+              {currentQuest.totalSteps > 0 ? `Paso ${currentQuest.stepNumber}/${currentQuest.totalSteps}:` : 'Zona:'}
             </span>
-            <span className="truncate">{currentQuest.shortText}</span>
+            {currentQuest.requiredElement && (
+              <span
+                className={`px-1.5 py-0 rounded font-silkscreen text-[9px] font-bold shrink-0 ${ELEMENT_META[currentQuest.requiredElement].badgeClass}`}
+              >
+                {ELEMENT_META[currentQuest.requiredElement].icon} {ELEMENT_META[currentQuest.requiredElement].label.toUpperCase()}
+              </span>
+            )}
+            <span className="truncate font-semibold text-zinc-800">{currentQuest.shortText}</span>
           </button>
 
           <div className="flex flex-wrap items-center gap-1 pointer-events-auto">
-            <div className="px-2 py-0.5 rounded-full bg-zinc-100 border border-zinc-300 text-[9px] sm:text-[10px] font-silkscreen font-bold text-zinc-950 flex items-center gap-1 shadow-md">
-              <MapPin className="w-3 h-3 text-zinc-900 shrink-0" />
-              <span className="truncate max-w-[125px]">{currentRegion.name}</span>
+            <div className="px-2 py-0.5 rounded-full bg-[#F4F4F2]/92 border border-zinc-400 text-[9px] sm:text-[10px] font-silkscreen text-[#1E2022] flex items-center gap-1 shadow-sm whitespace-nowrap shrink-0">
+              <MapPin className="w-3 h-3 text-zinc-600 shrink-0" />
+              <span>{currentRegion.name.split('&')[0].trim()}</span>
             </div>
 
-            <div className="px-2 py-0.5 rounded-full bg-zinc-900/90 border border-zinc-600 text-[9px] sm:text-[10px] font-mono text-zinc-100 flex items-center gap-1 shadow-md">
+            <div className="px-2 py-0.5 rounded-full bg-[#F4F4F2]/92 border border-zinc-400 text-[9px] sm:text-[10px] font-mono text-[#1E2022] flex items-center gap-1 shadow-sm whitespace-nowrap shrink-0">
               {weatherBadge.icon}
-              <span className="truncate max-w-[115px]">{weatherBadge.text}</span>
+              <span>{weatherBadge.text}</span>
             </div>
 
             <div
-              className={`px-2 py-0.5 rounded-full border text-[9px] sm:text-[10px] font-mono shadow-md ${
+              className={`px-2 py-0.5 rounded-full border text-[9px] sm:text-[10px] font-mono shadow-sm whitespace-nowrap shrink-0 font-bold ${
                 currentTileType === 1 || currentTileType === 10 || currentTileType === 11 || currentRegion.wildEncounterTable.length === 0
-                  ? 'bg-zinc-900/90 border-zinc-600 text-zinc-200'
-                  : 'bg-zinc-200 border-zinc-400 text-zinc-950 font-bold'
+                  ? 'bg-emerald-50 border-emerald-400 text-emerald-800'
+                  : 'bg-[#E7E7E2] border-zinc-500 text-[#1E2022]'
               }`}
-              title="Caminos/Vía Férrea/Interior: 0% · Fuera de camino: 1%-3%"
+              title={`Caminos/Vía Férrea/Interior: 0% · Fuera de camino: ${offPathRangeText}`}
             >
               Enc: {encounterRateLabel}
             </div>
@@ -2303,58 +2871,100 @@ export const ExplorationView: React.FC<ExplorationViewProps> = ({
         </div>
       </header>
 
-      {/* Bottom Left Active Spirit + ACCIÓN + Unified Important Message Panel on Right */}
-      <footer className="relative z-20 w-full p-2 sm:p-4 flex items-end gap-2 sm:gap-3 max-w-5xl mx-auto pointer-events-none">
-        {/* Bottom-Left: Active Spirit Card & ACCIÓN Button */}
-        <div className="pointer-events-auto flex flex-col items-start gap-1.5 shrink-0">
-          <div className="bg-zinc-900/95 backdrop-blur border border-zinc-600 p-1.5 sm:p-2 rounded-xl shadow-lg flex items-center gap-2">
-            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-zinc-950 border border-zinc-400/70 shrink-0 flex items-center justify-center overflow-hidden shadow-inner">
-              <canvas
-                ref={activeAvatarCanvasRef}
-                width={48}
-                height={48}
-                className="w-full h-full object-contain image-render-pixel"
+      {/* Bottom Left Compañero Espiritual Card (Blanco Humo) & Right Unified Fixed-Height Alert/Prompt Slot */}
+      <footer className="relative z-20 w-full p-2 sm:p-4 flex items-end justify-between gap-2 sm:gap-3 max-w-5xl mx-auto pointer-events-none">
+        {/* Bottom-Left: Compañero Espiritual Mini-Card */}
+        <button
+          onClick={() => {
+            sound.init();
+            sound.playSelect();
+            syncCurrentPos();
+            onOpenParty();
+          }}
+          className="pointer-events-auto bg-[#F4F4F2]/95 hover:bg-white backdrop-blur border-2 border-zinc-400 p-1.5 sm:p-2 rounded-2xl shadow-xl flex items-center gap-2 shrink-0 cursor-pointer active:scale-95 transition-all text-left"
+          title="Cambiar Compañero Espiritual en Equipo"
+        >
+          <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-[#E7E7E2] border border-zinc-400 shrink-0 flex items-center justify-center overflow-hidden shadow-inner">
+            <canvas
+              ref={activeAvatarCanvasRef}
+              width={48}
+              height={48}
+              className="w-full h-full object-contain image-render-pixel"
+            />
+          </div>
+          <div className="min-w-[82px] sm:min-w-[98px]">
+            <div className="text-[7px] font-silkscreen text-emerald-700 font-bold uppercase leading-none mb-0.5">
+              ★ Compañero
+            </div>
+            <div className="flex items-center justify-between gap-1">
+              <span className="font-pixel text-[9px] text-[#1E2022] truncate max-w-[74px] sm:max-w-[92px]">
+                {playerSpirit.name}
+              </span>
+              <span className="font-mono text-[9px] text-zinc-700 font-bold shrink-0">Nv.{playerSpirit.level}</span>
+            </div>
+            <div className="w-full h-1.5 bg-zinc-300 rounded-full overflow-hidden mt-1 border border-zinc-400" title="Salud (PS)">
+              <div
+                className={`h-full transition-all duration-300 ${
+                  playerSpirit.currentHp / Math.max(1, playerSpirit.maxHp) < 0.3
+                    ? 'bg-red-600'
+                    : 'bg-emerald-600'
+                }`}
+                style={{ width: `${Math.max(0, Math.min(100, (playerSpirit.currentHp / Math.max(1, playerSpirit.maxHp)) * 100))}%` }}
               />
             </div>
-            <div>
-              <div className="flex items-center gap-1">
-                <span className="font-pixel text-[9px] text-zinc-100 truncate max-w-[78px] sm:max-w-[100px]">
-                  {playerSpirit.name}
-                </span>
-                <span className="font-mono text-[9px] text-zinc-300 font-bold">Nv.{playerSpirit.level}</span>
-              </div>
-              <div className="w-16 sm:w-20 h-1.5 bg-zinc-950 rounded-full overflow-hidden mt-1 border border-zinc-800">
-                <div
-                  className="h-full bg-zinc-200"
-                  style={{ width: `${Math.max(0, Math.min(100, (playerSpirit.currentHp / playerSpirit.maxHp) * 100))}%` }}
-                />
-              </div>
+            <div className="w-full h-1 bg-zinc-300 rounded-full overflow-hidden mt-0.5 border border-zinc-400/80" title={`EXP ${playerSpirit.exp}/${playerSpirit.maxExp}`}>
+              <div
+                className="h-full bg-[#1E2022] transition-all duration-300"
+                style={{ width: `${Math.max(0, Math.min(100, (playerSpirit.exp / Math.max(1, playerSpirit.maxExp)) * 100))}%` }}
+              />
             </div>
           </div>
+        </button>
 
-          <button
-            onClick={handleInteract}
-            className="w-16 h-16 sm:w-18 sm:h-18 bg-zinc-100 hover:bg-white text-zinc-950 rounded-full font-pixel text-[10px] sm:text-xs font-black shadow-xl shadow-black/70 border-4 border-zinc-500 flex flex-col items-center justify-center cursor-pointer active:scale-90 transition-transform touch-none"
-          >
-            <span>ACCIÓN</span>
-          </button>
-        </div>
-
-        {/* Right Side of ACCIÓN: Unified Important Message Slot */}
-        <div className="flex-1 min-w-0 flex items-end pb-1">
+        {/* Bottom-Right: Fixed-Height Unified Important Message & Dismissible Alert / Tap Prompt Slot */}
+        <div className="flex-1 min-w-0 flex items-end justify-end">
           {(importantMessage || interactPrompt) && (
             importantMessage ? (
-              <div className="w-full max-w-md bg-zinc-900/95 border-2 border-zinc-300 text-zinc-100 rounded-2xl px-3 py-2.5 shadow-2xl font-mono text-[10px] sm:text-xs flex items-center gap-2 animate-in fade-in slide-in-from-bottom-2 duration-150">
-                <span className="w-2 h-2 rounded-full bg-zinc-100 shrink-0" />
-                <span className="leading-snug">{importantMessage}</span>
+              <div
+                className={`pointer-events-auto w-full max-w-md h-[48px] sm:h-[52px] rounded-2xl px-3 py-1.5 shadow-2xl font-mono text-[10px] sm:text-xs flex items-center gap-2 animate-in fade-in slide-in-from-bottom-2 duration-150 border-2 overflow-hidden ${
+                  isImportantKeyMsg
+                    ? 'bg-[#F4F4F2]/95 border-emerald-600 text-[#1E2022]'
+                    : 'bg-[#F4F4F2]/95 border-zinc-500 text-[#1E2022]'
+                }`}
+              >
+                <span
+                  className={`w-2 h-2 rounded-full shrink-0 ${
+                    isImportantKeyMsg ? 'bg-emerald-600' : 'bg-[#1E2022]'
+                  }`}
+                />
+                <span className="leading-tight flex-1 min-w-0 line-clamp-2 overflow-hidden font-semibold">{importantMessage}</span>
+                {onDismissImportantMessage && (
+                  <button
+                    onClick={() => {
+                      sound.playCancel();
+                      onDismissImportantMessage();
+                    }}
+                    aria-label="Cerrar aviso"
+                    className="p-1 rounded-lg bg-[#E7E7E2] hover:bg-zinc-300 border border-zinc-400 text-[#1E2022] shrink-0 cursor-pointer active:scale-90"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                )}
               </div>
             ) : (
               <button
                 onClick={handleInteract}
-                className="pointer-events-auto w-full max-w-md bg-zinc-900/95 hover:bg-zinc-800 border-2 border-zinc-300 text-zinc-100 rounded-2xl px-3 py-2.5 shadow-2xl font-mono text-[10px] sm:text-xs flex items-center gap-2 cursor-pointer active:scale-98 transition-transform text-left animate-in fade-in slide-in-from-bottom-2 duration-150"
+                className="pointer-events-auto w-full max-w-md h-[48px] sm:h-[52px] bg-[#F4F4F2]/95 hover:bg-white border-2 border-zinc-500 text-[#1E2022] rounded-2xl px-3 py-1.5 shadow-2xl font-mono text-[10px] sm:text-xs flex items-center gap-2 cursor-pointer active:scale-98 transition-transform text-left animate-in fade-in slide-in-from-bottom-2 duration-150 overflow-hidden font-semibold"
               >
-                <span className="w-2 h-2 rounded-full bg-zinc-100 animate-ping shrink-0" />
+                <span className="w-2 h-2 rounded-full bg-emerald-600 animate-ping shrink-0" />
                 <span className="leading-snug truncate">{interactPrompt}</span>
+                {nearbyEntity?.type === 'obstacle' && nearbyEntity.elementRequired && (
+                  <span
+                    className={`ml-auto px-1.5 py-0.5 rounded font-silkscreen text-[8px] font-bold shrink-0 ${ELEMENT_META[nearbyEntity.elementRequired].badgeClass}`}
+                  >
+                    {ELEMENT_META[nearbyEntity.elementRequired].icon} {ELEMENT_META[nearbyEntity.elementRequired].label.toUpperCase()}
+                  </span>
+                )}
               </button>
             )
           )}

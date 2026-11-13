@@ -334,6 +334,24 @@ class SoundEngine {
     this.playTone(64, 'sawtooth', 0.4, 0.05, 0.35);
   }
 
+  public playSummitReveal() {
+    const summitChord = [392.0, 493.88, 587.33, 783.99, 987.77, 1174.66];
+    summitChord.forEach((f, idx) => {
+      this.playTone(f, 'triangle', 0.32, idx * 0.075, 0.85);
+      this.playTone(f * 1.5, 'sine', 0.35, idx * 0.075 + 0.03, 0.45);
+    });
+  }
+
+  public playDodgeSuccess() {
+    this.playTone(740, 'triangle', 0.07, 0, 0.85);
+    this.playTone(1108.73, 'sine', 0.14, 0.05, 0.95);
+  }
+
+  public playDodgePartial() {
+    this.playTone(440, 'triangle', 0.09, 0, 0.75);
+    this.playTone(554.37, 'triangle', 0.11, 0.05, 0.7);
+  }
+
   // --- Animal & Wildlife Sound Effects ---
 
   public playDogBark() {

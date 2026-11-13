@@ -1216,6 +1216,99 @@ export function drawCreatureSprite(
     ctx.fillStyle = '#18181b';
     ctx.fillRect(cx - pixel * 3.4, cy + pixel * (4.4 + stage * 0.4), pixel * 1.8, pixel * 2.6);
     ctx.fillRect(cx + pixel * 2.0, cy + pixel * (4.4 + stage * 0.4), pixel * 1.8, pixel * 2.6);
+  } else if (baseId === 'copihue') {
+    // COPIHUE CARMESÍ (Planta — 2 etapas: Brote de Copihue -> Enredadera Real)
+    const sway = Math.sin(animatedTime * 4) * pixel * 0.6;
+    // Emerald leafy vine body
+    ctx.fillStyle = stage >= 2 ? '#047857' : '#10b981';
+    ctx.fillRect(cx - pixel * 0.9, cy - pixel * 2, pixel * 1.8, pixel * 7.5);
+    ctx.fillStyle = '#34d399';
+    ctx.beginPath();
+    ctx.ellipse(cx - pixel * 2.8, cy + pixel * 2.2, pixel * 2.2, pixel * 1.1, -0.4, 0, Math.PI * 2);
+    ctx.ellipse(cx + pixel * 2.8, cy + pixel * 1.8, pixel * 2.2, pixel * 1.1, 0.4, 0, Math.PI * 2);
+    ctx.fill();
+    // Main crimson bell flower head
+    ctx.fillStyle = '#dc2626';
+    ctx.beginPath();
+    ctx.moveTo(cx - pixel * (3.0 + stage * 0.6) + sway, cy + pixel * 1.2);
+    ctx.lineTo(cx - pixel * 1.4, cy - pixel * (4.2 + stage * 0.5));
+    ctx.lineTo(cx + pixel * 1.4, cy - pixel * (4.2 + stage * 0.5));
+    ctx.lineTo(cx + pixel * (3.0 + stage * 0.6) + sway, cy + pixel * 1.2);
+    ctx.closePath();
+    ctx.fill();
+    // White-pink petal highlight & golden stamens
+    ctx.fillStyle = '#fda4af';
+    ctx.fillRect(cx - pixel * 1.1, cy - pixel * 2.8, pixel * 0.9, pixel * 2.6);
+    ctx.fillStyle = '#fef08a';
+    ctx.fillRect(cx - pixel * 1.4 + sway * 0.5, cy + pixel * 1.0, pixel * 0.9, pixel * 1.1);
+    ctx.fillRect(cx + pixel * 0.5 + sway * 0.5, cy + pixel * 1.0, pixel * 0.9, pixel * 1.1);
+    // Expressive eyes
+    ctx.fillStyle = '#0f172a';
+    ctx.fillRect(cx - pixel * 1.4, cy - pixel * 1.5, pixel * 0.9, pixel * 1.1);
+    ctx.fillRect(cx + pixel * 0.5, cy - pixel * 1.5, pixel * 0.9, pixel * 1.1);
+    // Stage 2: Twin satellite scarlet blossoms
+    if (stage >= 2) {
+      ctx.fillStyle = '#ef4444';
+      ctx.beginPath();
+      ctx.arc(cx - pixel * 4.4, cy - pixel * 1.4 - sway * 0.5, pixel * 1.8, 0, Math.PI * 2);
+      ctx.arc(cx + pixel * 4.4, cy - pixel * 1.4 + sway * 0.5, pixel * 1.8, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#fde047';
+      ctx.fillRect(cx - pixel * 4.7, cy - pixel * 0.2, pixel * 0.7, pixel * 0.7);
+      ctx.fillRect(cx + pixel * 4.0, cy - pixel * 0.2, pixel * 0.7, pixel * 0.7);
+    }
+  } else if (baseId === 'puye') {
+    // PUYE CRISTAL (Stage 1) -> PEJERREY AUSTRAL (Stage 2) Chilean Water Fish
+    const swim = Math.sin(animatedTime * 6.5) * pixel * 0.9;
+    // Water aura bubbles
+    ctx.fillStyle = 'rgba(56, 189, 248, 0.28)';
+    ctx.beginPath();
+    ctx.arc(cx - pixel * 5.2, cy - pixel * 2.5 + swim * 0.5, pixel * 1.1, 0, Math.PI * 2);
+    ctx.arc(cx + pixel * 4.8, cy - pixel * 3.4 - swim * 0.4, pixel * 0.8, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Forked tail fin
+    ctx.fillStyle = stage >= 2 ? '#0284c7' : '#38bdf8';
+    ctx.beginPath();
+    ctx.moveTo(cx + pixel * (3.8 + stage * 0.8), cy + swim * 0.4);
+    ctx.lineTo(cx + pixel * (7.2 + stage * 0.8), cy - pixel * (2.6 + stage * 0.4) + swim);
+    ctx.lineTo(cx + pixel * (6.2 + stage * 0.8), cy + swim * 0.4);
+    ctx.lineTo(cx + pixel * (7.2 + stage * 0.8), cy + pixel * (2.6 + stage * 0.4) + swim);
+    ctx.closePath();
+    ctx.fill();
+
+    // Streamlined translucent/silver fish body
+    ctx.fillStyle = stage >= 2 ? '#94a3b8' : '#bae6fd';
+    ctx.beginPath();
+    ctx.ellipse(cx - pixel * 0.4, cy + pixel * 0.4, pixel * (4.8 + stage * 0.9), pixel * (2.2 + stage * 0.4), 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Dorsal teal-turquoise ridge + gleaming lateral stripe
+    ctx.fillStyle = stage >= 2 ? '#0369a1' : '#0ea5e9';
+    ctx.fillRect(cx - pixel * 3.8, cy - pixel * (1.4 + stage * 0.2), pixel * (7.2 + stage), pixel * 1.1);
+    ctx.fillStyle = '#f8fafc';
+    ctx.fillRect(cx - pixel * 3.5, cy + pixel * 0.3, pixel * (6.8 + stage), pixel * 0.9);
+
+    // Dorsal & pectoral fins
+    ctx.fillStyle = stage >= 2 ? '#38bdf8' : '#7dd3fc';
+    ctx.beginPath();
+    ctx.moveTo(cx - pixel * 0.8, cy - pixel * (1.5 + stage * 0.3));
+    ctx.lineTo(cx + pixel * 1.4, cy - pixel * (3.8 + stage * 0.5));
+    ctx.lineTo(cx + pixel * 2.2, cy - pixel * (1.5 + stage * 0.3));
+    ctx.closePath();
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(cx - pixel * 1.6, cy + pixel * 1.6);
+    ctx.lineTo(cx + pixel * 0.2, cy + pixel * (3.6 + stage * 0.3) - swim * 0.4);
+    ctx.lineTo(cx + pixel * 1.0, cy + pixel * 1.5);
+    ctx.closePath();
+    ctx.fill();
+
+    // Expressive eye
+    ctx.fillStyle = '#0f172a';
+    ctx.fillRect(cx - pixel * 3.8, cy - pixel * 0.4, pixel * 1.3, pixel * 1.3);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(cx - pixel * 3.8, cy - pixel * 0.4, pixel * 0.5, pixel * 0.5);
   } else {
     // LOICA LINE: Loica -> Loica Carmesí -> Sol de la Loica
     const flap = Math.sin(animatedTime * 8) * pixel;
@@ -1294,7 +1387,8 @@ export function drawEntitySprite(
   size: number,
   cleared: boolean = false,
   stepFrame: number = 0,
-  isBossAwakened: boolean = true
+  isBossAwakened: boolean = true,
+  isFlipped: boolean = false
 ) {
   const pixel = size / 16;
 
@@ -1315,7 +1409,7 @@ export function drawEntitySprite(
 
     ctx.save();
     ctx.translate(x, y + bob);
-    drawCreatureSprite(ctx, spiritId, 1, 0, 0, size, stepFrame * 0.1, false);
+    drawCreatureSprite(ctx, spiritId, 1, 0, 0, size, stepFrame * 0.1, isFlipped);
     ctx.restore();
 
     ctx.fillStyle = '#facc15';
@@ -1511,11 +1605,14 @@ export function drawEntitySprite(
 
     const coatColor =
       sprite === 'npc_old_man' ? '#475569' :
+      sprite === 'npc_abuela' ? '#7e22ce' :
       sprite === 'npc_ranger' ? '#047857' :
       sprite === 'npc_miner' || sprite === 'npc_obrero' ? '#c2410c' :
       sprite === 'npc_explorer' || sprite === 'npc_arqueologo' ? '#92400e' :
-      sprite === 'npc_escolar' ? '#1d4ed8' :
-      sprite === 'npc_agricultor' ? '#15803d' :
+      sprite === 'npc_escolar' || sprite === 'npc_nino' ? '#2563eb' :
+      sprite === 'npc_nina' ? '#eab308' :
+      sprite === 'npc_duena_casa' ? '#be185d' :
+      sprite === 'npc_agricultor' || sprite === 'npc_agricultora' ? '#15803d' :
       sprite === 'npc_musico' ? '#6d28d9' :
       sprite === 'npc_feriante' ? '#0d9488' :
       sprite === 'npc_soldado' ? '#365314' :
@@ -1524,13 +1621,18 @@ export function drawEntitySprite(
       sprite === 'npc_chilote' ? '#57534e' :
       sprite === 'npc_buzo' ? '#ca8a04' :
       sprite === 'npc_cocinera' ? '#991b1b' :
+      sprite === 'npc_enfermo' ? '#7dd3fc' :
+      sprite === 'npc_doctor' || sprite === 'npc_doctora' ? '#f8fafc' :
       sprite === 'npc_villager_f' ? '#9d174d' : '#0369a1';
     const hatColor =
-      sprite === 'npc_old_man' || sprite === 'npc_cocinera' ? '#f8fafc' :
+      sprite === 'npc_old_man' || sprite === 'npc_cocinera' || sprite === 'npc_abuela' ? '#f8fafc' :
       sprite === 'npc_ranger' ? '#10b981' :
       sprite === 'npc_obrero' || sprite === 'npc_miner' || sprite === 'npc_pescador_m' ? '#facc15' :
       sprite === 'npc_escolar' ? '#0f172a' :
-      sprite === 'npc_agricultor' ? '#d97706' :
+      sprite === 'npc_nino' ? '#ef4444' :
+      sprite === 'npc_nina' ? '#78350f' :
+      sprite === 'npc_duena_casa' ? '#451a03' :
+      sprite === 'npc_agricultor' || sprite === 'npc_agricultora' ? '#d97706' :
       sprite === 'npc_arqueologo' ? '#78350f' :
       sprite === 'npc_musico' ? '#312e81' :
       sprite === 'npc_feriante' ? '#fbbf24' :
@@ -1539,6 +1641,9 @@ export function drawEntitySprite(
       sprite === 'npc_chilote' ? '#78350f' :
       sprite === 'npc_buzo' ? '#475569' :
       sprite === 'npc_explorer' ? '#92400e' :
+      sprite === 'npc_enfermo' ? '#94a3b8' :
+      sprite === 'npc_doctor' ? '#1e293b' :
+      sprite === 'npc_doctora' ? '#7c2d12' :
       sprite === 'npc_villager_f' ? '#581c87' : '#0f766e';
 
     ctx.fillStyle = 'rgba(0,0,0,0.28)';
@@ -1548,9 +1653,9 @@ export function drawEntitySprite(
 
     ctx.fillStyle = coatColor;
     ctx.fillRect(x + pixel * 3, y + pixel * 6 + idleBob, pixel * 10, pixel * 8);
-    if (sprite === 'npc_cocinera') {
-      // White kitchen apron
-      ctx.fillStyle = '#f8fafc';
+    if (sprite === 'npc_cocinera' || sprite === 'npc_abuela') {
+      // White apron / shawl
+      ctx.fillStyle = sprite === 'npc_abuela' ? '#f3e8ff' : '#f8fafc';
       ctx.fillRect(x + pixel * 5, y + pixel * 7 + idleBob, pixel * 6, pixel * 6.5);
     } else if (sprite === 'npc_buzo') {
       // Diving suit visor band
@@ -1560,6 +1665,17 @@ export function drawEntitySprite(
       // Guitar strap diagonal
       ctx.fillStyle = '#f59e0b';
       ctx.fillRect(x + pixel * 4, y + pixel * 8 + idleBob, pixel * 8, pixel * 1.4);
+    } else if (sprite === 'npc_doctor' || sprite === 'npc_doctora') {
+      // Inner scrub shirt & stethoscope
+      ctx.fillStyle = sprite === 'npc_doctor' ? '#0284c7' : '#e11d48';
+      ctx.fillRect(x + pixel * 6.5, y + pixel * 6.5 + idleBob, pixel * 3, pixel * 4.5);
+      ctx.fillStyle = '#334155';
+      ctx.fillRect(x + pixel * 4.5, y + pixel * 6.2 + idleBob, pixel * 1.2, pixel * 4.5);
+      ctx.fillRect(x + pixel * 10.3, y + pixel * 6.2 + idleBob, pixel * 1.2, pixel * 4.5);
+    } else if (sprite === 'npc_nino' || sprite === 'npc_nina') {
+      // Playful horizontal stripe
+      ctx.fillStyle = '#fef08a';
+      ctx.fillRect(x + pixel * 3, y + pixel * 9 + idleBob, pixel * 10, pixel * 1.5);
     }
     ctx.fillStyle = '#fed7aa';
     ctx.fillRect(x + pixel * 4, y + pixel * 2.5 + idleBob, pixel * 8, pixel * 4);
@@ -1569,9 +1685,18 @@ export function drawEntitySprite(
     if (sprite === 'npc_old_man') {
       ctx.fillStyle = '#f1f5f9';
       ctx.fillRect(x + pixel * 5, y + pixel * 5.8 + idleBob, pixel * 6, pixel * 2);
+    } else if (sprite === 'npc_enfermo') {
+      // Forehead cooling patch
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(x + pixel * 5.5, y + pixel * 2.6 + idleBob, pixel * 5, pixel * 1.3);
     }
     ctx.fillStyle = hatColor;
     ctx.fillRect(x + pixel * 2.5, y + pixel * (sprite === 'npc_cocinera' ? 0.2 : 1) + idleBob, pixel * 11, pixel * (sprite === 'npc_cocinera' ? 2.8 : 2));
+    if (sprite === 'npc_abuela') {
+      // Cozy silver hair bun on top
+      ctx.fillStyle = '#e2e8f0';
+      ctx.fillRect(x + pixel * 6, y - pixel * 0.6 + idleBob, pixel * 4, pixel * 2);
+    }
     return;
   }
 

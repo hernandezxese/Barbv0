@@ -53,20 +53,20 @@ body {
   letter-spacing: 0.01em;
 }
 
-/* Custom scrollbars for retro menus */
+/* Custom scrollbars for Blanco Humo + Negro Grafito retro menus */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: #0f172a;
+  background: #e7e7e2;
 }
 ::-webkit-scrollbar-thumb {
-  background: #334155;
+  background: #a1a1aa;
   border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #475569;
+  background: #71717a;
 }
 
 /* Scanline subtle overlay for retro aesthetic */
@@ -500,6 +500,238 @@ body {
   animation: bannerFloatMotion 11s ease-in-out infinite;
 }
 
+@keyframes prologuePanMotion {
+  0% {
+    transform: scale(1.04) translate3d(-1.5%, 0%, 0);
+  }
+  50% {
+    transform: scale(1.12) translate3d(1.5%, -1.5%, 0);
+  }
+  100% {
+    transform: scale(1.04) translate3d(-1.5%, 0%, 0);
+  }
+}
+
+.animate-prologue-pan {
+  animation: prologuePanMotion 14s ease-in-out infinite;
+}
+
+@keyframes lungeRight {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  35% {
+    transform: translate3d(26px, -10px, 0) scale(1.08);
+  }
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@keyframes lungeLeft {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  35% {
+    transform: translate3d(-26px, 10px, 0) scale(1.08);
+  }
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+.animate-lunge-right {
+  animation: lungeRight 0.38s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.animate-lunge-left {
+  animation: lungeLeft 0.38s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes captureWobble {
+  0%, 100% {
+    transform: translate3d(0, 0, 0) rotate(0deg) scale(1);
+  }
+  20% {
+    transform: translate3d(-6px, -3px, 0) rotate(-8deg) scale(0.96);
+  }
+  40% {
+    transform: translate3d(6px, -3px, 0) rotate(8deg) scale(0.96);
+  }
+  60% {
+    transform: translate3d(-5px, 0, 0) rotate(-6deg) scale(1.02);
+  }
+  80% {
+    transform: translate3d(5px, 0, 0) rotate(6deg) scale(1.02);
+  }
+}
+
+.animate-capture-wobble {
+  animation: captureWobble 0.72s ease-in-out infinite;
+}
+
+@keyframes summonSpriteFloat {
+  0%, 100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(0, -10px, 0) scale(1.08);
+  }
+}
+
+.animate-summon-sprite {
+  animation: summonSpriteFloat 1.5s ease-in-out infinite;
+}
+
+@keyframes stageEnterFade {
+  0% {
+    opacity: 0.92;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+.animate-stage-enter {
+  animation: stageEnterFade 0.55s ease-out forwards;
+}
+
+@keyframes vincularThrow {
+  0% {
+    opacity: 0;
+    transform: translate3d(-140px, 95px, 0) scale(0.45) rotate(0deg);
+  }
+  55% {
+    opacity: 1;
+    transform: translate3d(-35px, -28px, 0) scale(1.18) rotate(220deg);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1) rotate(360deg);
+  }
+}
+
+@keyframes vincularShake {
+  0%, 100% {
+    transform: translate3d(0, 0, 0) rotate(0deg) scale(1);
+  }
+  18% {
+    transform: translate3d(-7px, -2px, 0) rotate(-18deg) scale(1.06);
+  }
+  36% {
+    transform: translate3d(7px, -2px, 0) rotate(18deg) scale(1.06);
+  }
+  54% {
+    transform: translate3d(-5px, 0, 0) rotate(-12deg) scale(1.02);
+  }
+  72% {
+    transform: translate3d(5px, 0, 0) rotate(12deg) scale(1.02);
+  }
+}
+
+@keyframes vincularBurst {
+  0% {
+    opacity: 0.9;
+    transform: scale(0.6);
+  }
+  45% {
+    opacity: 1;
+    transform: scale(1.38);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes vincularFail {
+  0% {
+    opacity: 1;
+    transform: scale(1) rotate(0deg);
+  }
+  40% {
+    opacity: 1;
+    transform: scale(1.18) rotate(-14deg);
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(0, 18px, 0) scale(0.55) rotate(24deg);
+  }
+}
+
+.animate-vincular-throw {
+  animation: vincularThrow 0.45s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.animate-vincular-shake {
+  animation: vincularShake 0.48s ease-in-out infinite;
+}
+
+.animate-vincular-burst {
+  animation: vincularBurst 0.55s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.animate-vincular-fail {
+  animation: vincularFail 0.55s ease-out forwards;
+}
+
+@keyframes vfxRingExpand {
+  0% {
+    opacity: 0.95;
+    transform: scale(0.35);
+  }
+  70% {
+    opacity: 0.75;
+    transform: scale(1.25);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.55);
+  }
+}
+
+@keyframes vfxSlashCut {
+  0% {
+    opacity: 0;
+    transform: scaleX(0.2) rotate(-32deg);
+  }
+  30% {
+    opacity: 1;
+    transform: scaleX(1.15) rotate(-32deg);
+  }
+  100% {
+    opacity: 0;
+    transform: scaleX(1.3) rotate(-32deg);
+  }
+}
+
+@keyframes vfxShardRise {
+  0% {
+    opacity: 0;
+    transform: translateY(14px) scale(0.5);
+  }
+  40% {
+    opacity: 1;
+    transform: translateY(-6px) scale(1.12);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-22px) scale(0.85);
+  }
+}
+
+.vfx-ring-expand {
+  animation: vfxRingExpand 0.62s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.vfx-slash-cut {
+  animation: vfxSlashCut 0.45s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.vfx-shard-rise {
+  animation: vfxShardRise 0.62s ease-out forwards;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .env-pollen-dot,
   .env-fog-layer-1,
@@ -514,9 +746,22 @@ body {
   .env-sunbeams-shimmer,
   .env-wind-streak,
   .animate-banner-float,
+  .animate-prologue-pan,
+  .animate-lunge-right,
+  .animate-lunge-left,
+  .animate-capture-wobble,
+  .animate-summon-sprite,
+  .animate-stage-enter,
+  .animate-vincular-throw,
+  .animate-vincular-shake,
+  .animate-vincular-burst,
+  .animate-vincular-fail,
   .medal-earned-glow,
   .animate-victory-burst,
-  .bestiary-master-glow {
+  .bestiary-master-glow,
+  .vfx-ring-expand,
+  .vfx-slash-cut,
+  .vfx-shard-rise {
     animation: none !important;
   }
 }

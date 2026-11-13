@@ -156,15 +156,15 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
             ctx.arc(walkTarget.x * tw + tw / 2, walkTarget.y * th + th / 2, 7 + Math.sin(t * 0.01) * 2, 0, Math.PI * 2);
             ctx.stroke();
 
-            // Labels 0% on road vs 1-3% grass
-            ctx.fillStyle = 'rgba(24,24,27,0.82)';
-            ctx.fillRect(6, 4, 86, 14);
-            ctx.fillStyle = '#fde047';
+            // Labels 0% on road vs 6-16% grass
+            ctx.fillStyle = 'rgba(24,24,27,0.88)';
+            ctx.fillRect(6, 4, 96, 14);
+            ctx.fillStyle = '#86efac';
             ctx.font = 'bold 9px monospace';
-            ctx.fillText('Pasto: 1%-3%', 10, 14);
-            ctx.fillStyle = 'rgba(24,24,27,0.82)';
+            ctx.fillText('Pasto: 6%-16%', 10, 14);
+            ctx.fillStyle = 'rgba(24,24,27,0.88)';
             ctx.fillRect(W - 92, th + 4, 86, 14);
-            ctx.fillStyle = '#e4e4e7';
+            ctx.fillStyle = '#f4f4f2';
             ctx.font = 'bold 9px monospace';
             ctx.fillText('Camino: 0%', W - 86, th + 14);
 
@@ -232,122 +232,126 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-zinc-950/94 backdrop-blur-md flex items-center justify-center p-2.5 sm:p-4 select-none text-zinc-100 font-ui">
-      <div className="max-w-lg w-full bg-zinc-900 border-2 border-zinc-400 rounded-3xl p-3.5 sm:p-5 shadow-2xl animate-in zoom-in-95 duration-200 flex flex-col gap-2.5 max-h-[94dvh] overflow-y-auto">
+    <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-2.5 sm:p-4 select-none text-[#1E2022] font-ui">
+      <div className="max-w-lg w-full bg-[#F4F4F2] border-2 border-stone-300 rounded-3xl p-4 sm:p-5 shadow-2xl animate-in zoom-in-95 duration-200 flex flex-col gap-3 max-h-[94dvh] overflow-y-auto">
         {/* Progress Header */}
-        <div className="flex items-center justify-between border-b border-zinc-800 pb-2">
-          <div className="flex items-center gap-2">
-            <span className="w-7 h-7 rounded-lg bg-zinc-100 text-zinc-950 flex items-center justify-center">
+        <div className="flex items-center justify-between border-b border-stone-300 pb-2.5">
+          <div className="flex items-center gap-2.5">
+            <span className="w-8 h-8 rounded-lg bg-[#1E2022] text-[#F4F4F2] flex items-center justify-center">
               {step === 0 ? <Target className="w-4 h-4" /> : <Compass className="w-4 h-4" />}
             </span>
             <div>
-              <h2 className="font-silkscreen text-xs sm:text-sm text-zinc-100">
+              <h2 className="font-silkscreen text-xs sm:text-sm text-[#1E2022]">
                 {step === 0 ? 'OBJETIVOS DE LA EXPEDICIÓN' : 'CÓMO JUGAR (PRÁCTICO)'}
               </h2>
-              <p className="text-[10px] font-mono text-zinc-400">
+              <p className="text-[10px] font-mono text-stone-600">
                 {heroName} y {starterName} · Paso {step + 1}/2
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-1">
-            <span className={`w-2.5 h-2.5 rounded-full ${step === 0 ? 'bg-zinc-100' : 'bg-zinc-700'}`} />
-            <span className={`w-2.5 h-2.5 rounded-full ${step === 1 ? 'bg-zinc-100' : 'bg-zinc-700'}`} />
+          <div className="flex items-center gap-1.5 text-[10px] font-mono font-bold text-stone-500">
+            <span className={step === 0 ? 'text-[#1E2022]' : ''}>1</span>
+            <span>/</span>
+            <span className={step === 1 ? 'text-[#1E2022]' : ''}>2</span>
           </div>
         </div>
 
         {step === 0 ? (
           <div className="space-y-2.5">
             {/* Animated Visual Banner */}
-            <div className="bg-zinc-950 border border-zinc-700 rounded-2xl p-2 flex flex-col items-center gap-1.5">
+            <div className="bg-[#E7E7E2] border border-stone-300 rounded-2xl p-2.5 flex flex-col items-center gap-2">
               <canvas
                 ref={objCanvasRef}
                 width={260}
                 height={56}
-                className="w-full max-w-[290px] h-14 rounded-xl border border-zinc-800 image-render-pixel"
+                className="w-full max-w-[290px] h-14 rounded-xl border border-stone-400 image-render-pixel bg-zinc-900"
               />
-              <div className="flex flex-wrap items-center justify-center gap-1 text-[9px] font-mono text-zinc-300">
-                <span className="px-1.5 py-0.5 rounded bg-zinc-900 border border-zinc-700">1. R.M.</span>
+              <div className="flex flex-wrap items-center justify-center gap-1 text-[10px] font-mono text-stone-700 font-bold">
+                <span>1. R.M.</span>
                 <span>→</span>
-                <span className="px-1.5 py-0.5 rounded bg-zinc-900 border border-zinc-700">2. Biobío</span>
+                <span>2. Biobío</span>
                 <span>→</span>
-                <span className="px-1.5 py-0.5 rounded bg-zinc-900 border border-zinc-700">3. Araucanía</span>
+                <span>3. Araucanía</span>
                 <span>→</span>
-                <span className="px-1.5 py-0.5 rounded bg-zinc-900 border border-zinc-700">4. Los Ríos</span>
+                <span>4. Los Ríos</span>
                 <span>→</span>
-                <span className="px-1.5 py-0.5 rounded bg-zinc-900 border border-zinc-700">5. Los Lagos</span>
+                <span>5. Los Lagos</span>
               </div>
             </div>
 
-            {/* Main Objective */}
-            <div className="p-2.5 bg-zinc-100 text-zinc-950 rounded-2xl border border-zinc-300 shadow">
-              <div className="flex items-center justify-between font-silkscreen text-[10px] uppercase font-bold mb-1 text-zinc-800">
-                <span className="flex items-center gap-1.5">
+            {/* Main Objective — Visually prominent amber/white banner */}
+            <div className="p-3 bg-amber-50 text-[#1E2022] rounded-2xl border-2 border-amber-400 shadow-sm">
+              <div className="flex items-center justify-between font-silkscreen text-[10px] uppercase font-bold mb-1">
+                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-[#1E2022] text-amber-300">
                   <Award className="w-3.5 h-3.5" />
                   Objetivo Principal
                 </span>
-                <span className="flex items-center gap-1 text-[11px]">🧿 ×5 Amuletos</span>
+                <span className="flex items-center gap-1 text-[11px] font-black text-amber-900">🧿 ×5 Amuletos</span>
               </div>
-              <p className="text-[11px] font-mono font-bold leading-snug">
-                Recorre las 5 Regiones de Chile, inspecciona el Cerro o Volcán zonal para quitar la sombra del mapa, vincula Criaturas Espirituales salvajes y consigue los 5 Amuletos Espirituales.
+              <p className="text-[11px] font-mono font-bold leading-snug text-[#1E2022]">
+                Recorre las 5 Regiones, educa y limpia el sur frente a faenas extractivas sin resguardo ambiental, inspecciona cada Cerro o Volcán y consigue los 5 Amuletos Espirituales.
               </p>
             </div>
 
-            {/* Secondary Objectives with Visuals */}
-            <div className="p-2.5 bg-zinc-950 border border-zinc-700 rounded-2xl space-y-1.5">
-              <div className="flex items-center gap-1.5 font-silkscreen text-[10px] uppercase text-zinc-200">
-                <BookMarked className="w-3.5 h-3.5" />
-                <span>Objetivos Secundarios</span>
+            {/* Secondary Objectives */}
+            <div className="p-3 bg-[#E7E7E2] border border-stone-300 rounded-2xl space-y-2">
+              <div className="flex items-center justify-between gap-1.5 font-silkscreen text-[9px] uppercase text-stone-600">
+                <span className="flex items-center gap-1.5 font-bold">
+                  <BookMarked className="w-3.5 h-3.5 text-[#1E2022]" />
+                  <span>Objetivos Secundarios (Opcional)</span>
+                </span>
+                <span className="text-[9px] font-mono text-stone-500">COLECCIÓN</span>
               </div>
 
-              <div className="p-2 bg-zinc-900 border border-zinc-800 rounded-xl flex items-center justify-between gap-2">
+              <div className="p-2.5 bg-[#F4F4F2] border border-stone-300 rounded-xl flex items-center justify-between gap-2">
                 <div>
-                  <div className="font-silkscreen text-[10px] text-zinc-100">
+                  <div className="font-silkscreen text-[10px] text-[#1E2022] font-bold">
                     1. Bestiario Base ({totalBaseSpecies} especies)
                   </div>
-                  <p className="text-[10px] font-mono text-zinc-400 mt-0.5 leading-snug">
+                  <p className="text-[10px] font-mono text-stone-600 mt-0.5 leading-snug">
                     Avista y vincula a las {totalBaseSpecies} Criaturas Espirituales nativas, fósiles y míticas.
                   </p>
                 </div>
-                <span className="px-2 py-1 rounded-lg bg-zinc-950 border border-zinc-700 font-mono text-[10px] text-zinc-200 shrink-0">
+                <span className="px-2 py-1 rounded-lg bg-[#E7E7E2] border border-stone-300 font-mono text-[10px] text-[#1E2022] font-bold shrink-0 tabular-nums">
                   0/{totalBaseSpecies}
                 </span>
               </div>
 
-              <div className="p-2 bg-zinc-900 border border-zinc-800 rounded-xl flex items-center justify-between gap-2">
+              <div className="p-2.5 bg-[#F4F4F2] border border-stone-300 rounded-xl flex items-center justify-between gap-2">
                 <div className="min-w-0">
-                  <div className="font-silkscreen text-[10px] text-zinc-100">
+                  <div className="font-silkscreen text-[10px] text-[#1E2022] font-bold">
                     2. Bestiario Maestro ({totalEvolutionForms} formas)
                   </div>
-                  <p className="text-[10px] font-mono text-zinc-400 mt-0.5 leading-snug">
-                    Evoluciona en los <strong className="text-zinc-200">Santuarios (Stages 2 y 4)</strong> todas sus etapas.
+                  <p className="text-[10px] font-mono text-stone-600 mt-0.5 leading-snug">
+                    Evoluciona en los <strong className="text-[#1E2022]">Santuarios (Stages 2 y 4)</strong> todas sus etapas.
                   </p>
                 </div>
                 <canvas
                   ref={evoCanvasRef}
                   width={128}
                   height={36}
-                  className="w-24 h-7 shrink-0 rounded bg-zinc-950 border border-zinc-800 image-render-pixel"
+                  className="w-24 h-7 shrink-0 rounded bg-zinc-900 border border-stone-400 image-render-pixel"
                 />
               </div>
             </div>
           </div>
         ) : (
-          <div className="space-y-2 text-[11px] font-mono">
+          <div className="space-y-2.5 text-[11px] font-mono">
             {/* Practical Interactive Mini-Demo Selector */}
-            <div className="grid grid-cols-3 gap-1">
+            <div className="grid grid-cols-3 gap-1.5">
               <button
                 onClick={() => {
                   sound.playSelect();
                   setDemoMode('walk');
                 }}
-                className={`py-1.5 px-2 rounded-xl border text-[9px] font-silkscreen flex items-center justify-center gap-1 cursor-pointer ${
+                className={`min-h-[40px] py-1.5 px-2 rounded-xl border text-[10px] font-silkscreen flex items-center justify-center gap-1 cursor-pointer ${
                   demoMode === 'walk'
-                    ? 'bg-zinc-100 text-zinc-950 border-white font-bold'
-                    : 'bg-zinc-950 text-zinc-300 border-zinc-700'
+                    ? 'bg-[#1E2022] text-[#F4F4F2] border-[#1E2022] font-bold'
+                    : 'bg-[#E7E7E2] text-stone-700 border-stone-300'
                 }`}
               >
-                <Footprints className="w-3 h-3" />
+                <Footprints className="w-3.5 h-3.5" />
                 <span>Caminar</span>
               </button>
               <button
@@ -355,13 +359,13 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
                   sound.playSelect();
                   setDemoMode('landmark');
                 }}
-                className={`py-1.5 px-2 rounded-xl border text-[9px] font-silkscreen flex items-center justify-center gap-1 cursor-pointer ${
+                className={`min-h-[40px] py-1.5 px-2 rounded-xl border text-[10px] font-silkscreen flex items-center justify-center gap-1 cursor-pointer ${
                   demoMode === 'landmark'
-                    ? 'bg-zinc-100 text-zinc-950 border-white font-bold'
-                    : 'bg-zinc-950 text-zinc-300 border-zinc-700'
+                    ? 'bg-[#1E2022] text-[#F4F4F2] border-[#1E2022] font-bold'
+                    : 'bg-[#E7E7E2] text-stone-700 border-stone-300'
                 }`}
               >
-                <Mountain className="w-3 h-3" />
+                <Mountain className="w-3.5 h-3.5" />
                 <span>Volcán</span>
               </button>
               <button
@@ -369,35 +373,35 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
                   sound.playSelect();
                   setDemoMode('skill');
                 }}
-                className={`py-1.5 px-2 rounded-xl border text-[9px] font-silkscreen flex items-center justify-center gap-1 cursor-pointer ${
+                className={`min-h-[40px] py-1.5 px-2 rounded-xl border text-[10px] font-silkscreen flex items-center justify-center gap-1 cursor-pointer ${
                   demoMode === 'skill'
-                    ? 'bg-zinc-100 text-zinc-950 border-white font-bold'
-                    : 'bg-zinc-950 text-zinc-300 border-zinc-700'
+                    ? 'bg-[#1E2022] text-[#F4F4F2] border-[#1E2022] font-bold'
+                    : 'bg-[#E7E7E2] text-stone-700 border-stone-300'
                 }`}
               >
-                <Flame className="w-3 h-3" />
+                <Flame className="w-3.5 h-3.5" />
                 <span>Barrera</span>
               </button>
             </div>
 
             {/* Interactive Canvas Playground */}
-            <div className="bg-zinc-950 border border-zinc-700 rounded-2xl p-2 flex flex-col items-center gap-1.5">
+            <div className="bg-[#E7E7E2] border border-stone-300 rounded-2xl p-2.5 flex flex-col items-center gap-2">
               <canvas
                 ref={demoCanvasRef}
                 width={266}
                 height={114}
                 onPointerDown={handleDemoCanvasClick}
-                className="w-full max-w-[290px] h-28 rounded-xl border border-zinc-800 image-render-pixel cursor-pointer"
+                className="w-full max-w-[290px] h-28 rounded-xl border border-stone-400 image-render-pixel cursor-pointer bg-zinc-900"
               />
-              <div className="text-[10px] text-zinc-200 text-center font-bold">
-                {demoMode === 'walk' && '👆 ¡Toca cualquier cuadro arriba para moverte! (Caminos 0% / Pasto 1%-3%)'}
+              <div className="text-[10px] text-[#1E2022] text-center font-bold">
+                {demoMode === 'walk' && '👆 ¡Toca cualquier cuadro arriba para moverte! (Caminos 0% / Pasto 6%-16%)'}
                 {demoMode === 'landmark' && (
                   <button
                     onClick={() => {
                       sound.playConfirm();
                       setLandmarkRevealed(r => !r);
                     }}
-                    className="px-2.5 py-0.5 rounded-lg bg-zinc-100 text-zinc-950 font-silkscreen text-[9px] cursor-pointer"
+                    className="min-h-[36px] px-3 py-1 rounded-lg bg-[#1E2022] text-[#F4F4F2] font-silkscreen text-[10px] cursor-pointer"
                   >
                     {landmarkRevealed ? '↻ Reiniciar Sombra' : '✨ Toca para Inspeccionar Volcán y Quitar Sombra'}
                   </button>
@@ -408,9 +412,9 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
                       sound.playFireSpell();
                       setSkillBurstTick(performance.now());
                     }}
-                    className="px-2.5 py-0.5 rounded-lg bg-zinc-100 text-zinc-950 font-silkscreen text-[9px] cursor-pointer"
+                    className="min-h-[36px] px-3 py-1 rounded-lg bg-[#1E2022] text-[#F4F4F2] font-silkscreen text-[10px] cursor-pointer"
                   >
-                    ⚡ Toca aquí para probar Técnica del Líder Activo
+                    ⚡ Toca aquí para probar Técnica del Compañero Espiritual
                   </button>
                 )}
               </div>
@@ -418,25 +422,25 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
 
             {/* Concise Practical Key Takeaways */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-[10px]">
-              <div className="p-2 bg-zinc-950 border border-zinc-800 rounded-xl flex items-start gap-2">
-                <Hand className="w-3.5 h-3.5 text-zinc-100 shrink-0 mt-0.5" />
+              <div className="p-2.5 bg-[#E7E7E2] border border-stone-300 rounded-xl flex items-start gap-2">
+                <Hand className="w-3.5 h-3.5 text-[#1E2022] shrink-0 mt-0.5" />
                 <div>
-                  <strong className="text-zinc-100 block">Tocar o Botón ACCIÓN</strong>
-                  <span className="text-zinc-400">Habla, inspecciona cumbres o recoge orbes de Vida/Maná tocándolos directo.</span>
+                  <strong className="text-[#1E2022] block">Tocar para Interactuar</strong>
+                  <span className="text-stone-600">Toca directo personajes, cofres, portales o cumbres (4 cuadros) para interactuar.</span>
                 </div>
               </div>
-              <div className="p-2 bg-zinc-950 border border-zinc-800 rounded-xl flex items-start gap-2">
-                <Sparkles className="w-3.5 h-3.5 text-zinc-100 shrink-0 mt-0.5" />
+              <div className="p-2.5 bg-[#E7E7E2] border border-stone-300 rounded-xl flex items-start gap-2">
+                <Sparkles className="w-3.5 h-3.5 text-emerald-700 shrink-0 mt-0.5" />
                 <div>
-                  <strong className="text-zinc-100 block">Líder Activo &amp; Santuario</strong>
-                  <span className="text-zinc-400">Asigna tu Líder Activo en Equipo según el elemento de cada barrera.</span>
+                  <strong className="text-[#1E2022] block">Compañero y Amuletos</strong>
+                  <span className="text-stone-600">Asigna tu Compañero en Equipo o usa habilidades desbloqueadas con cada Amuleto.</span>
                 </div>
               </div>
-              <div className="p-2 bg-zinc-950 border border-zinc-800 rounded-xl flex items-start gap-2 sm:col-span-2">
-                <HeartPulse className="w-3.5 h-3.5 text-rose-400 shrink-0 mt-0.5" />
+              <div className="p-2.5 bg-[#E7E7E2] border border-stone-300 rounded-xl flex items-start gap-2 sm:col-span-2">
+                <HeartPulse className="w-3.5 h-3.5 text-emerald-700 shrink-0 mt-0.5" />
                 <div>
-                  <strong className="text-zinc-100">Servicios: </strong>
-                  <span className="text-zinc-300">Tiendas en Stages 1, 3 y 5 · Hospitales y Santuarios de Evolución en Stages 2 y 4.</span>
+                  <strong className="text-[#1E2022]">Servicios: </strong>
+                  <span className="text-stone-700">Tiendas en Stages 1, 3 y 5 · Hospitales y Santuarios de Evolución en Stages 2 y 4. Podrás abrir esta guía en cualquier momento con el botón <strong>?</strong>.</span>
                 </div>
               </div>
             </div>
@@ -451,7 +455,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
                 sound.playSelect();
                 setStep(0);
               }}
-              className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 border border-zinc-600 rounded-xl font-silkscreen text-[11px] text-zinc-200 cursor-pointer"
+              className="min-h-[42px] px-4 py-2 bg-[#E7E7E2] hover:bg-stone-300 border border-stone-300 rounded-xl font-silkscreen text-[11px] text-[#1E2022] font-bold cursor-pointer"
             >
               &larr; Atrás
             </button>
@@ -462,7 +466,7 @@ export const OnboardingModal: React.FC<OnboardingModalProps> = ({
               if (step === 0) setStep(1);
               else onComplete();
             }}
-            className="flex-1 py-2.5 bg-zinc-100 hover:bg-white border border-zinc-300 text-zinc-950 rounded-xl font-silkscreen text-xs font-bold cursor-pointer active:scale-95 transition-all"
+            className="flex-1 min-h-[44px] py-2.5 bg-emerald-700 hover:bg-emerald-800 border border-emerald-800 text-white rounded-xl font-silkscreen text-xs font-bold cursor-pointer active:scale-95 transition-all"
           >
             {step === 0 ? 'VER CÓMO JUGAR →' : '¡COMENZAR AVENTURA!'}
           </button>

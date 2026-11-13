@@ -8,7 +8,7 @@
  */
 
 import React, { useState } from 'react';
-import { MAIN_REGION_IDS, RegionId } from '../types/game';
+import { getEntityFootprintTiles, MAIN_REGION_IDS, RegionId } from '../types/game';
 import { REGIONS_DATA } from '../data/regionsData';
 import { sound } from '../services/audioService';
 import {
@@ -32,6 +32,7 @@ interface WorldMapModalProps {
   unlockedRegions: RegionId[];
   playerPos?: { x: number; y: number };
   revealedTiles?: Record<string, string[]>;
+  hasCompletedStory?: boolean;
   onFastTravel: (targetRegionId: RegionId) => void;
   onClose: () => void;
 }
@@ -41,6 +42,7 @@ export const WorldMapModal: React.FC<WorldMapModalProps> = ({
   unlockedRegions,
   playerPos,
   revealedTiles,
+  hasCompletedStory = false,
   onFastTravel,
   onClose,
 }) => {
@@ -195,13 +197,24 @@ export const WorldMapModal: React.FC<WorldMapModalProps> = ({
 
     reg.entities.forEach(ent => {
       if (ent.cleared && ent.type !== 'npc') return;
-      const isEntRevealed = isInterior || (revealedList !== undefined && revealedSet.size > 0 && revealedSet.has(`${ent.x},${ent.y}`));
+      if (ent.requiresStoryCleared && !hasCompletedStory) return;
+      const footprintTiles = getEntityFootprintTiles(ent);
+      const isEntRevealed =
+        isInterior ||
+        (revealedList !== undefined &&
+          revealedSet.size > 0 &&
+          footprintTiles.some(t => revealedSet.has(`${t.x},${t.y}`)));
       if (!isEntRevealed) return;
 
       const ex = ent.x * cellW + cellW / 2;
       const ey = ent.y * cellH + cellH / 2;
 
-      if (ent.type === 'boss') {
+      if (ent.revealsRegionMap) {
+        ctx.fillStyle = '#fbbf24';
+        footprintTiles.forEach(t => {
+          ctx.fillRect(t.x * cellW + 1, t.y * cellH + 1, Math.max(4, cellW - 2), Math.max(4, cellH - 2));
+        });
+      } else if (ent.type === 'boss') {
         ctx.fillStyle = '#ef4444';
         ctx.beginPath();
         ctx.arc(ex, ey, Math.max(7, cellW * 0.72), 0, Math.PI * 2);
@@ -245,33 +258,33 @@ export const WorldMapModal: React.FC<WorldMapModalProps> = ({
       ctx.lineWidth = 2.5;
       ctx.stroke();
     }
-  }, [viewMode, selectedRegionId, selectedRegion, isSelectedCurrent, playerPos, revealedTiles]);
+  }, [viewMode, selectedRegionId, selectedRegion, isSelectedCurrent, playerPos, revealedTiles, hasCompletedStory]);
 
   const northHubRegions: RegionId[] = ['casa', 'santiago'];
   const southRegions: RegionId[] = ['biobio', 'araucania', 'losrios', 'loslagos'];
 
   return (
-    <div className="fixed inset-0 z-50 bg-zinc-950/95 backdrop-blur-md flex flex-col justify-between overflow-y-auto select-none p-2.5 sm:p-4 text-zinc-100 font-ui">
+    <div className="fixed inset-0 z-50 bg-[#E7E7E2]/98 backdrop-blur-md flex flex-col justify-between overflow-y-auto select-none p-2.5 sm:p-4 text-[#1E2022] font-ui">
       {/* Top Header */}
-      <div className="max-w-6xl w-full mx-auto flex flex-wrap justify-between items-center gap-2 pb-2.5 border-b border-zinc-800">
+      <div className="max-w-6xl w-full mx-auto flex flex-wrap justify-between items-center gap-2 pb-2.5 border-b border-stone-300">
         <div className="flex items-center gap-2 min-w-0">
           <button
             onClick={() => {
               sound.playCancel();
               onClose();
             }}
-            className="px-2.5 py-1.5 bg-zinc-800 hover:bg-zinc-700 border border-zinc-600 rounded-xl text-zinc-100 transition-colors cursor-pointer flex items-center gap-1 text-xs font-silkscreen active:scale-95 shrink-0"
+            className="min-h-[40px] px-3 py-1.5 bg-[#F4F4F2] hover:bg-white border border-stone-300 rounded-xl text-[#1E2022] transition-colors cursor-pointer flex items-center gap-1 text-xs font-silkscreen font-bold active:scale-95 shrink-0 shadow-sm"
           >
             <ChevronLeft className="w-4 h-4" />
             <span>VOLVER</span>
           </button>
           <div className="min-w-0">
-            <h2 className="font-silkscreen text-xs sm:text-sm text-zinc-100 flex items-center gap-1.5 truncate">
-              <Compass className="w-4 h-4 text-zinc-200 shrink-0" />
+            <h2 className="font-silkscreen text-xs sm:text-sm text-[#1E2022] flex items-center gap-1.5 truncate">
+              <Compass className="w-4 h-4 text-emerald-700 shrink-0" />
               <span className="truncate">MAPA DE EXPEDICIÓN</span>
             </h2>
-            <p className="text-[10px] text-zinc-400 font-mono-stat hidden sm:block">
-              Camino/Tren 0% · Fuera 1%-3% · Interior 0% · Se revela al avanzar
+            <p className="text-[10px] text-stone-600 font-mono-stat hidden sm:block">
+              Camino/Tren 0% · Fuera 6%-16% según región · Interior 0% · Se revela al avanzar
             </p>
           </div>
         </div>
@@ -281,7 +294,7 @@ export const WorldMapModal: React.FC<WorldMapModalProps> = ({
             sound.playSelect();
             setViewMode(v => (v === 'cartography' ? 'stage_terrain' : 'cartography'));
           }}
-          className="px-3 py-1.5 bg-zinc-100 hover:bg-white border border-zinc-300 rounded-xl text-[10px] sm:text-xs font-silkscreen font-bold text-zinc-950 flex items-center gap-1.5 cursor-pointer shadow-md active:scale-95"
+          className="min-h-[40px] px-3.5 py-1.5 bg-[#1E2022] hover:bg-zinc-800 border border-[#1E2022] rounded-xl text-[10px] sm:text-xs font-silkscreen font-bold text-[#F4F4F2] flex items-center gap-1.5 cursor-pointer shadow-md active:scale-95"
         >
           <Layers className="w-3.5 h-3.5" />
           <span>{viewMode === 'cartography' ? 'VER TOPOGRAFÍA' : 'VER RUTA DE CHILE'}</span>
@@ -290,44 +303,43 @@ export const WorldMapModal: React.FC<WorldMapModalProps> = ({
 
       {/* Main Map Visual & Regions */}
       <div className="max-w-6xl w-full mx-auto my-2.5 flex-1 grid grid-cols-1 lg:grid-cols-12 gap-3 sm:gap-4 items-stretch">
-        <div className="lg:col-span-7 bg-zinc-900 border border-zinc-700 rounded-2xl p-2.5 sm:p-4 flex flex-col items-center justify-between min-h-[290px] sm:min-h-[400px] relative overflow-hidden shadow-2xl">
+        <div className="lg:col-span-7 bg-[#F4F4F2] border border-stone-300 rounded-2xl p-3 sm:p-4 flex flex-col items-center justify-between min-h-[290px] sm:min-h-[400px] relative overflow-hidden shadow-md">
           {viewMode === 'stage_terrain' ? (
             <div className="relative w-full h-full flex flex-col items-center justify-between z-10 gap-2">
-              <div className="w-full flex justify-between items-center pb-1.5 border-b border-zinc-800 text-[10px] sm:text-xs font-silkscreen text-zinc-100">
-                <span className="truncate pr-2">{selectedRegion.name.toUpperCase()}</span>
-                <span className="text-[10px] text-zinc-400 font-mono-stat shrink-0">
+              <div className="w-full flex justify-between items-center pb-1.5 border-b border-stone-300 text-[10px] sm:text-xs font-silkscreen text-[#1E2022]">
+                <span className="truncate pr-2 font-bold">{selectedRegion.name.toUpperCase()}</span>
+                <span className="text-[10px] text-stone-600 font-mono-stat shrink-0 tabular-nums">
                   {selectedRegion.width}&times;{selectedRegion.height}
                 </span>
               </div>
 
-              <div className="relative my-auto p-1.5 bg-zinc-950 border border-zinc-700 rounded-xl shadow-inner flex items-center justify-center w-full">
+              <div className="relative my-auto p-1.5 bg-zinc-900 border border-stone-400 rounded-xl shadow-inner flex items-center justify-center w-full">
                 <canvas
                   ref={stageCanvasRef}
                   width={624}
                   height={480}
-                  className="w-full h-auto max-h-[340px] rounded-lg object-contain image-render-pixel border border-zinc-800"
+                  className="w-full h-auto max-h-[340px] rounded-lg object-contain image-render-pixel"
                 />
               </div>
 
-              <div className="w-full grid grid-cols-3 sm:grid-cols-4 gap-1 text-[9px] font-mono-stat text-zinc-300 pt-1.5 border-t border-zinc-800">
+              <div className="w-full grid grid-cols-3 sm:grid-cols-4 gap-1 text-[9px] font-mono-stat text-stone-700 pt-1.5 border-t border-stone-300">
                 {isSelectedCurrent && playerPos && (
-                  <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-white border border-zinc-900" /> Tú</span>
+                  <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-white border border-zinc-900" /> Tú</span>
                 )}
-                <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500 border border-white" /> Guardián</span>
-                <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-sky-400" /> Criatura</span>
-                <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-yellow-400" /> Tienda</span>
-                <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-rose-500" /> Hospital</span>
-                <span className="flex items-center gap-1"><span className="w-2 h-2 bg-amber-500 rounded-xs" /> Cofre/Orbe</span>
-                <span className="flex items-center gap-1"><span className="w-2 h-2 bg-pink-500 rounded-xs" /> Misión</span>
+                <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-red-500 border border-zinc-900" /> Guardián</span>
+                <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-sky-400" /> Criatura</span>
+                <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-yellow-400 border border-stone-500" /> Tienda</span>
+                <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-rose-500" /> Hospital</span>
+                <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 bg-amber-400 rounded-xs border border-stone-500" /> Cumbre/Cofre</span>
+                <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 bg-pink-500 rounded-xs" /> Misión</span>
               </div>
             </div>
           ) : (
-            <div className="relative w-full h-full min-h-[290px]">
+            <div className="relative w-full h-full min-h-[290px] bg-zinc-900 rounded-xl overflow-hidden border border-stone-400">
               <div className="absolute inset-0 bg-gradient-to-b from-zinc-900 via-zinc-950 to-zinc-900 pointer-events-none" />
-              {/* Vertical spine connecting North Hub (0+1) down to South Cluster (2..5) */}
               <div className="absolute top-[14%] bottom-[11%] left-1/2 -translate-x-1/2 w-0.5 border-l-2 border-dashed border-zinc-600 pointer-events-none" />
 
-              {/* North Hub: Stage 0 (Casa) & Stage 1 (R. Metropolitana) sharing the exact same geographical coordinate */}
+              {/* North Hub: Stage 0 (Casa) & Stage 1 (R. Metropolitana) */}
               <div
                 style={{ top: '14%', left: '50%' }}
                 className="absolute -translate-x-1/2 -translate-y-1/2 z-20 flex items-center gap-1.5 bg-zinc-950/90 border-2 border-zinc-500 p-1.5 rounded-2xl shadow-2xl"
@@ -346,7 +358,7 @@ export const WorldMapModal: React.FC<WorldMapModalProps> = ({
                         isSelected ? 'ring-2 ring-white scale-105' : 'hover:scale-105'
                       } ${
                         isCurrent
-                          ? 'bg-zinc-100 text-zinc-950 font-bold'
+                          ? 'bg-emerald-500 text-zinc-950 font-bold'
                           : 'bg-zinc-800 text-zinc-100 border border-zinc-600'
                       }`}
                     >
@@ -359,15 +371,13 @@ export const WorldMapModal: React.FC<WorldMapModalProps> = ({
                 })}
               </div>
 
-              {/* Long Distance Label between Center & South */}
               <div
                 style={{ top: '34%', left: '50%' }}
-                className="absolute -translate-x-1/2 -translate-y-1/2 z-10 px-2 py-0.5 rounded-full bg-zinc-900 border border-zinc-700 text-[9px] font-mono text-zinc-400 whitespace-nowrap"
+                className="absolute -translate-x-1/2 -translate-y-1/2 z-10 px-2 py-0.5 rounded bg-zinc-900 border border-zinc-700 text-[9px] font-mono text-zinc-300 whitespace-nowrap"
               >
                 Ruta hacia el Sur
               </div>
 
-              {/* South Cluster: Stages 2 (Biobío), 3 (Araucanía), 4 (Los Ríos), 5 (Los Lagos) grouped southward */}
               {southRegions.map((id, sIdx) => {
                 const idx = sIdx + 2;
                 const reg = REGIONS_DATA[id];
@@ -388,10 +398,10 @@ export const WorldMapModal: React.FC<WorldMapModalProps> = ({
                   >
                     <div
                       className={`relative flex items-center justify-center rounded-2xl p-2 transition-all ${
-                        isSelected ? 'scale-110 shadow-2xl ring-2 ring-zinc-100' : 'hover:scale-105'
+                        isSelected ? 'scale-110 shadow-2xl ring-2 ring-white' : 'hover:scale-105'
                       } ${
                         isCurrent
-                          ? 'bg-zinc-100 border-2 border-zinc-950 text-zinc-950'
+                          ? 'bg-emerald-500 border-2 border-white text-zinc-950'
                           : isUnlocked
                           ? 'bg-zinc-800 border-2 border-zinc-400 text-zinc-100'
                           : 'bg-zinc-950 border-2 border-zinc-800 text-zinc-600'
@@ -407,7 +417,7 @@ export const WorldMapModal: React.FC<WorldMapModalProps> = ({
 
                       <span
                         className={`absolute -top-2 -right-2 w-4 h-4 rounded-full flex items-center justify-center font-silkscreen text-[8px] font-bold ${
-                          isCurrent ? 'bg-zinc-950 text-zinc-100 border border-zinc-300' : 'bg-zinc-900 border border-zinc-600 text-zinc-200'
+                          isCurrent ? 'bg-zinc-950 text-white border border-white' : 'bg-zinc-900 border border-zinc-600 text-zinc-200'
                         }`}
                       >
                         {idx}
@@ -417,7 +427,7 @@ export const WorldMapModal: React.FC<WorldMapModalProps> = ({
                     <div
                       className={`absolute left-full ml-2.5 top-1/2 -translate-y-1/2 px-2 py-0.5 rounded-lg whitespace-nowrap text-left border ${
                         isSelected
-                          ? 'bg-zinc-100 border-zinc-300 text-zinc-950 shadow-lg'
+                          ? 'bg-[#F4F4F2] border-stone-300 text-[#1E2022] shadow-lg'
                           : 'bg-zinc-900/95 border-zinc-700 text-zinc-200'
                       }`}
                     >
@@ -432,56 +442,60 @@ export const WorldMapModal: React.FC<WorldMapModalProps> = ({
 
         {/* Right: Selected Region Info & Fast Travel */}
         <div className="lg:col-span-5 flex flex-col justify-between gap-2.5">
-          <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-3 sm:p-4 flex flex-col gap-2.5 shadow-xl flex-1">
-            <div className="flex items-start justify-between border-b border-zinc-800 pb-2.5 gap-2">
+          <div className="bg-[#F4F4F2] border border-stone-300 rounded-2xl p-3.5 sm:p-4 flex flex-col gap-3 shadow-md flex-1">
+            <div className="flex items-start justify-between border-b border-stone-300 pb-2.5 gap-2">
               <div className="flex items-center gap-2.5 min-w-0">
-                <span className="p-2 bg-zinc-950 border border-zinc-700 rounded-xl shrink-0">
+                <span className="p-2 bg-[#1E2022] text-white rounded-xl shrink-0">
                   {getRegionIcon(selectedRegionId)}
                 </span>
                 <div className="min-w-0">
-                  <h3 className="font-silkscreen text-xs sm:text-sm text-zinc-100 truncate">{selectedRegion.name}</h3>
-                  <p className="text-[11px] text-zinc-400 font-mono-stat truncate">{selectedRegion.subtitle}</p>
+                  <h3 className="font-silkscreen text-xs sm:text-sm text-[#1E2022] truncate font-bold">{selectedRegion.name}</h3>
+                  <p className="text-[11px] text-stone-600 font-mono-stat truncate">{selectedRegion.subtitle}</p>
                 </div>
               </div>
 
               {isSelectedCurrent ? (
-                <span className="px-2 py-0.5 bg-zinc-100 rounded-lg text-[9px] font-silkscreen text-zinc-950 font-bold shrink-0">
+                <span className="px-2 py-0.5 bg-emerald-700 rounded-lg text-[9px] font-silkscreen text-white font-bold shrink-0">
                   AQUÍ
                 </span>
               ) : isSelectedUnlocked ? (
-                <span className="px-2 py-0.5 bg-zinc-800 border border-zinc-500 rounded-lg text-[9px] font-silkscreen text-zinc-100 flex items-center gap-1 shrink-0">
+                <span className="px-2 py-0.5 bg-emerald-100 border border-emerald-400 rounded-lg text-[9px] font-silkscreen text-emerald-800 flex items-center gap-1 shrink-0 font-bold">
                   <CheckCircle2 className="w-3 h-3" /> LIBRE
                 </span>
               ) : (
-                <span className="px-2 py-0.5 bg-zinc-950 border border-zinc-800 rounded-lg text-[9px] font-silkscreen text-zinc-500 flex items-center gap-1 shrink-0">
+                <span className="px-2 py-0.5 bg-[#E7E7E2] border border-stone-300 rounded-lg text-[9px] font-silkscreen text-stone-500 flex items-center gap-1 shrink-0">
                   <Lock className="w-3 h-3" /> CERRADO
                 </span>
               )}
             </div>
 
             <div className="grid grid-cols-2 gap-2 text-[10px] font-mono-stat">
-              <div className="p-2 bg-zinc-950 rounded-xl border border-zinc-800">
-                <span className="text-zinc-400 block text-[9px]">Hito:</span>
-                <span className="text-zinc-100 font-semibold">{mapNodes[selectedRegionId]?.landmark}</span>
+              <div className="p-2.5 bg-[#E7E7E2] rounded-xl border border-stone-300">
+                <span className="text-stone-500 block text-[9px]">Hito:</span>
+                <span className="text-[#1E2022] font-semibold">{mapNodes[selectedRegionId]?.landmark}</span>
               </div>
-              <div className="p-2 bg-zinc-950 rounded-xl border border-zinc-800">
-                <span className="text-zinc-400 block text-[9px]">Encuentros:</span>
-                <span className="text-zinc-100 font-semibold">
-                  {selectedRegion.wildEncounterTable.length === 0 ? '0% (Hogar)' : 'Camino/Tren 0% · Fuera 1%-3%'}
+              <div className="p-2.5 bg-[#E7E7E2] rounded-xl border border-stone-300">
+                <span className="text-stone-500 block text-[9px]">Encuentros:</span>
+                <span className="text-[#1E2022] font-semibold">
+                  {selectedRegion.wildEncounterTable.length === 0
+                    ? '0% (Hogar)'
+                    : selectedRegionId === 'losrios' || selectedRegionId === 'loslagos'
+                    ? 'Camino/Tren 0% · Fuera 8%-16%'
+                    : 'Camino/Tren 0% · Fuera 6%-12%'}
                 </span>
               </div>
             </div>
 
-            <div className="bg-zinc-950 border border-zinc-800 rounded-xl p-2.5">
-              <div className="text-[9px] font-silkscreen text-zinc-400 mb-1.5 uppercase">
+            <div className="bg-[#E7E7E2] border border-stone-300 rounded-xl p-2.5">
+              <div className="text-[9px] font-silkscreen text-stone-600 mb-1.5 uppercase font-bold">
                 Lugares y Servicios de la Región:
               </div>
               <div className="grid grid-cols-3 gap-1.5 text-[10px] font-mono-stat">
                 <div
                   className={`px-2 py-1.5 rounded-lg border text-center ${
                     hasHospital
-                      ? 'bg-zinc-900 border-rose-500/70 text-zinc-100 font-bold'
-                      : 'bg-zinc-950 border-zinc-800 text-zinc-600'
+                      ? 'bg-emerald-50 border-emerald-500 text-emerald-900 font-bold'
+                      : 'bg-[#F4F4F2] border-stone-300 text-stone-400'
                   }`}
                 >
                   <div>🏥 Hospital</div>
@@ -490,8 +504,8 @@ export const WorldMapModal: React.FC<WorldMapModalProps> = ({
                 <div
                   className={`px-2 py-1.5 rounded-lg border text-center ${
                     hasTienda
-                      ? 'bg-zinc-900 border-amber-400/70 text-zinc-100 font-bold'
-                      : 'bg-zinc-950 border-zinc-800 text-zinc-600'
+                      ? 'bg-emerald-50 border-emerald-500 text-emerald-900 font-bold'
+                      : 'bg-[#F4F4F2] border-stone-300 text-stone-400'
                   }`}
                 >
                   <div>🛒 Tienda</div>
@@ -500,8 +514,8 @@ export const WorldMapModal: React.FC<WorldMapModalProps> = ({
                 <div
                   className={`px-2 py-1.5 rounded-lg border text-center ${
                     hasSantuario
-                      ? 'bg-zinc-900 border-emerald-400/70 text-zinc-100 font-bold'
-                      : 'bg-zinc-950 border-zinc-800 text-zinc-600'
+                      ? 'bg-emerald-50 border-emerald-500 text-emerald-900 font-bold'
+                      : 'bg-[#F4F4F2] border-stone-300 text-stone-400'
                   }`}
                 >
                   <div>✨ Santuario</div>
@@ -510,17 +524,26 @@ export const WorldMapModal: React.FC<WorldMapModalProps> = ({
               </div>
             </div>
 
-            <div className="bg-zinc-950 border border-zinc-800 rounded-xl p-2.5">
-              <div className="text-[9px] font-silkscreen text-zinc-400 mb-1.5 uppercase">
+            <div className="bg-[#E7E7E2] border border-stone-300 rounded-xl p-2.5">
+              <div className="text-[9px] font-silkscreen text-stone-600 mb-1.5 uppercase font-bold">
                 Criaturas Espirituales de la Zona:
               </div>
               {selectedRegion.wildEncounterTable.length === 0 ? (
-                <div className="text-[10px] font-mono text-zinc-400">Zona pacífica sin combates.</div>
+                <div className="text-[10px] font-mono text-stone-600">Zona pacífica sin combates.</div>
               ) : (
-                <div className="flex flex-wrap gap-1">
+                <div className="flex flex-wrap gap-1.5 text-[10px] font-mono-stat capitalize">
                   {selectedRegion.wildEncounterTable.map(enc => (
-                    <span key={enc.spiritId} className="px-1.5 py-0.5 bg-zinc-800 border border-zinc-600 rounded text-[9px] font-mono-stat text-zinc-200 capitalize">
+                    <span
+                      key={`${enc.spiritId}_${enc.stage || 1}`}
+                      className={`px-1.5 py-0.5 border rounded ${
+                        enc.stage && enc.stage > 1
+                          ? 'bg-amber-100 border-amber-400 text-amber-900 font-bold'
+                          : 'bg-[#F4F4F2] border-stone-300 text-[#1E2022]'
+                      }`}
+                    >
+                      {enc.stage && enc.stage > 1 ? '✨ ' : ''}
                       {enc.spiritId.replace('_', ' ')} Nv.{enc.minLevel === enc.maxLevel ? enc.minLevel : `${enc.minLevel}-${enc.maxLevel}`}
+                      {enc.stage && enc.stage > 1 ? ' (Evo)' : ''}
                     </span>
                   ))}
                 </div>
@@ -529,7 +552,7 @@ export const WorldMapModal: React.FC<WorldMapModalProps> = ({
 
             <div className="mt-auto">
               {isSelectedCurrent ? (
-                <div className="w-full py-2.5 bg-zinc-800 border border-zinc-600 rounded-xl text-center text-[11px] font-silkscreen text-zinc-200">
+                <div className="w-full min-h-[42px] py-2.5 bg-[#E7E7E2] border border-stone-300 rounded-xl text-center text-[11px] font-silkscreen text-stone-700 font-bold flex items-center justify-center">
                   Explorando esta región
                 </div>
               ) : isSelectedUnlocked ? (
@@ -538,13 +561,13 @@ export const WorldMapModal: React.FC<WorldMapModalProps> = ({
                     sound.playConfirm();
                     onFastTravel(selectedRegionId);
                   }}
-                  className="w-full py-2.5 bg-zinc-100 hover:bg-white text-zinc-950 font-silkscreen font-bold text-[11px] rounded-xl cursor-pointer transition-all shadow-xl flex items-center justify-center gap-1.5 border border-zinc-300"
+                  className="w-full min-h-[44px] py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white font-silkscreen font-bold text-[11px] rounded-xl cursor-pointer transition-all shadow-md flex items-center justify-center gap-1.5 border border-emerald-800"
                 >
-                  <Navigation className="w-3.5 h-3.5 text-zinc-900" />
+                  <Navigation className="w-3.5 h-3.5" />
                   <span>VIAJAR A {selectedRegion.name.toUpperCase()}</span>
                 </button>
               ) : (
-                <div className="w-full py-2.5 bg-zinc-950 border border-zinc-800 rounded-xl text-center text-[11px] font-silkscreen text-zinc-500 flex items-center justify-center gap-1.5">
+                <div className="w-full min-h-[42px] py-2.5 bg-[#E7E7E2] border border-stone-300 rounded-xl text-center text-[11px] font-silkscreen text-stone-500 flex items-center justify-center gap-1.5">
                   <Lock className="w-3.5 h-3.5" />
                   <span>COMPLETA LA ETAPA ANTERIOR</span>
                 </div>
@@ -564,12 +587,12 @@ export const WorldMapModal: React.FC<WorldMapModalProps> = ({
                     sound.playSelect();
                     setSelectedRegionId(id);
                   }}
-                  className={`p-1.5 rounded-xl border text-center transition-all cursor-pointer ${
+                  className={`min-h-[40px] p-1.5 rounded-xl border text-center transition-all cursor-pointer ${
                     isSelected
-                      ? 'bg-zinc-100 border-white text-zinc-950 font-bold shadow-md'
+                      ? 'bg-[#1E2022] border-[#1E2022] text-[#F4F4F2] font-bold shadow-md'
                       : isUnlocked
-                      ? 'bg-zinc-900 border-zinc-700 hover:border-zinc-500 text-zinc-300'
-                      : 'bg-zinc-950/60 border-zinc-900 opacity-50 text-zinc-600'
+                      ? 'bg-[#F4F4F2] border-stone-300 hover:border-stone-400 text-[#1E2022]'
+                      : 'bg-[#E7E7E2] border-stone-300 opacity-60 text-stone-500'
                   }`}
                 >
                   <div className="font-silkscreen text-[9px] truncate">

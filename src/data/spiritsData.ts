@@ -820,14 +820,14 @@ export const SKILLS_DB: Record<string, ElementalSkill> = {
   grito_sagrado_andes: {
     id: 'grito_sagrado_andes',
     name: 'Majestad Andina',
-    element: 'sagrado',
+    element: 'viento',
     power: 98,
     mpCost: 20,
     accuracy: 94,
     category: 'elemental',
     target: 'all_enemies',
-    description: 'Destello sagrado del rey de los cielos chilenos que purifica la batalla.',
-    animationColor: '#facc15',
+    description: 'Ráfaga imponente del rey de los cielos chilenos que barre toda la batalla.',
+    animationColor: '#2dd4bf',
   },
 
   // Velociraptor Austral (Fuego / Tierra) skills
@@ -908,6 +908,56 @@ export const SKILLS_DB: Record<string, ElementalSkill> = {
     target: 'single_enemy',
     description: 'Arremetida imparable con colmillos endurecidos en los ríos del sur.',
     animationColor: '#92400e',
+  },
+
+  // Copihue Carmesí (Planta) skills
+  latigo_copihue: {
+    id: 'latigo_copihue',
+    name: 'Látigo Enredadera',
+    element: 'planta',
+    power: 44,
+    mpCost: 5,
+    accuracy: 98,
+    category: 'physical',
+    target: 'single_enemy',
+    description: 'Azota al rival con tallos flexibles cubiertos de flores rojas.',
+    animationColor: '#10b981',
+  },
+  campana_escarlata: {
+    id: 'campana_escarlata',
+    name: 'Campana Escarlata',
+    element: 'planta',
+    power: 80,
+    mpCost: 14,
+    accuracy: 94,
+    category: 'elemental',
+    target: 'all_enemies',
+    description: 'Libera polen carmesí que envuelve y debilita a los adversarios.',
+    animationColor: '#ef4444',
+  },
+  aleta_fiordo: {
+    id: 'aleta_fiordo',
+    name: 'Aleta del Fiordo',
+    element: 'agua',
+    power: 44,
+    mpCost: 5,
+    accuracy: 98,
+    category: 'physical',
+    target: 'single_enemy',
+    description: 'Embestida ágil del pez puye que salpica agua cristalina de los canales australes.',
+    animationColor: '#38bdf8',
+  },
+  ola_reloncavi: {
+    id: 'ola_reloncavi',
+    name: 'Corriente de Reloncaví',
+    element: 'agua',
+    power: 84,
+    mpCost: 15,
+    accuracy: 94,
+    category: 'elemental',
+    target: 'all_enemies',
+    description: 'Cardumen veloz de pejerreyes australes que desata una corriente marina limpia.',
+    animationColor: '#0284c7',
   }
 };
 
@@ -1391,13 +1441,12 @@ export const SPIRITS_REGISTRY: Record<string, SpiritTemplate> = {
     ]
   },
 
-  // 08. Cóndor Andino (V/S) Místico — 2 etapas — Stage 1
+  // 08. Cóndor Andino (V) Místico — 2 etapas — Stage 1
   condor: {
     baseId: 'condor',
     defaultName: 'Cóndor Andino',
     scientificName: 'Vultur gryphus andinus',
     primaryElement: 'viento',
-    secondaryElement: 'sagrado',
     habitatRegion: 'santiago',
     habitatLabel: 'Stage 1 · R. Metropolitana (Cumbres)',
     rarity: 'místico',
@@ -2293,6 +2342,105 @@ export const SPIRITS_REGISTRY: Record<string, SpiritTemplate> = {
         signatureSkill: SKILLS_DB.cumbre_viluvilu,
       }
     ]
+  },
+
+  // 26. Copihue Carmesí (Pl) Común — 2 etapas — Stage 2 y Stage 4
+  copihue: {
+    baseId: 'copihue',
+    defaultName: 'Copihue Carmesí',
+    scientificName: 'Lapageria rosea spiritus',
+    primaryElement: 'planta',
+    habitatRegion: 'biobio',
+    habitatLabel: 'Stage 2 · Biobío y Stage 4 · Los Ríos',
+    rarity: 'común',
+    lore: 'Espíritu vegetal nacido de la flor nacional chilena. Trepa por quilas y robles iluminando la espesura con campanas rojas.',
+    naturalHistory: 'El copihue es la flor nacional de Chile, una enredadera endémica de los bosques templados entre el Biobío y Los Ríos.',
+    evolutionLine: [
+      {
+        stage: 1,
+        name: 'Brote de Copihue',
+        title: 'Campana del Bosque',
+        description: 'Pequeño espíritu floral de pétalos carmesí que se aferra a los troncos húmedos.',
+        spriteKey: 'copihue_1',
+        icon: '🌺',
+        baseHp: 58,
+        baseMp: 54,
+        baseAttack: 42,
+        baseDefense: 48,
+        baseSpAttack: 58,
+        baseSpDefense: 56,
+        baseSpeed: 54,
+        requiredLevel: 1,
+        signatureSkill: SKILLS_DB.latigo_copihue,
+      },
+      {
+        stage: 2,
+        name: 'Enredadera Real',
+        title: 'Flor Nacional Viva',
+        description: 'Corona de campanas escarlata y lianas vivientes que purifican la selva del sur.',
+        spriteKey: 'copihue_2',
+        icon: '🌹',
+        baseHp: 134,
+        baseMp: 108,
+        baseAttack: 86,
+        baseDefense: 96,
+        baseSpAttack: 118,
+        baseSpDefense: 110,
+        baseSpeed: 98,
+        requiredLevel: 12,
+        requiredItem: 'Resina de Pewén',
+        signatureSkill: SKILLS_DB.campana_escarlata,
+      }
+    ]
+  },
+
+  // 27. Puye Cristal (Ag) Común — 2 etapas — Stage 5 Los Lagos
+  puye: {
+    baseId: 'puye',
+    defaultName: 'Puye Cristal',
+    scientificName: 'Galaxias maculatus spiritus',
+    primaryElement: 'agua',
+    habitatRegion: 'loslagos',
+    habitatLabel: 'Stage 5 · R. de Los Lagos (Orillas y Fiordos)',
+    rarity: 'común',
+    lore: 'Pez nativo de cuerpo casi transparente que habita las orillas puras de lagos y estuarios australes. Defiende los canales de la contaminación.',
+    naturalHistory: 'Inspirado en el puye (Galaxias maculatus) y el pejerrey chileno, peces emblemáticos de los lagos, ríos y fiordos de Los Lagos.',
+    evolutionLine: [
+      {
+        stage: 1,
+        name: 'Puye Cristal',
+        title: 'Alevín de los Fiordos',
+        description: 'Pequeño pez traslúcido de reflejos celestes que nada en cardúmenes junto a las orillas limpias.',
+        spriteKey: 'puye_1',
+        icon: '🐟',
+        baseHp: 56,
+        baseMp: 46,
+        baseAttack: 46,
+        baseDefense: 44,
+        baseSpAttack: 58,
+        baseSpDefense: 50,
+        baseSpeed: 72,
+        requiredLevel: 1,
+        signatureSkill: SKILLS_DB.aleta_fiordo,
+      },
+      {
+        stage: 2,
+        name: 'Pejerrey Austral',
+        title: 'Flecha Plateada del Seno',
+        description: 'Veloz nadador de escamas plateadas y lomo turquesa que purifica las corrientes del sur.',
+        spriteKey: 'puye_2',
+        icon: '🐠',
+        baseHp: 118,
+        baseMp: 94,
+        baseAttack: 88,
+        baseDefense: 84,
+        baseSpAttack: 110,
+        baseSpDefense: 96,
+        baseSpeed: 118,
+        requiredLevel: 8,
+        signatureSkill: SKILLS_DB.ola_reloncavi,
+      }
+    ]
   }
 };
 
@@ -2367,16 +2515,67 @@ export function createSpiritInstance(
   };
 }
 
-// Elemental Icon & Label helpers
-export const ELEMENT_META: Record<ElementType, { icon: string; label: string; colorClass: string }> = {
-  fuego: { icon: '🔥', label: 'Fuego', colorClass: 'text-orange-400' },
-  agua: { icon: '💧', label: 'Agua', colorClass: 'text-sky-400' },
-  planta: { icon: '🌿', label: 'Planta', colorClass: 'text-emerald-400' },
-  viento: { icon: '🌪️', label: 'Viento', colorClass: 'text-teal-400' },
-  tierra: { icon: '⛰️', label: 'Tierra', colorClass: 'text-amber-400' },
-  hielo: { icon: '❄️', label: 'Hielo', colorClass: 'text-cyan-300' },
-  sagrado: { icon: '✨', label: 'Sagrado', colorClass: 'text-yellow-300' },
-  normal: { icon: '⚔️', label: 'Normal', colorClass: 'text-slate-300' },
+// Elemental Icon & Label helpers (high-contrast on Blanco Humo #F4F4F2 / #E7E7E2)
+export const ELEMENT_META: Record<
+  ElementType,
+  { icon: string; label: string; colorClass: string; badgeClass: string; borderClass: string }
+> = {
+  fuego: {
+    icon: '🔥',
+    label: 'Fuego',
+    colorClass: 'text-orange-700',
+    badgeClass: 'bg-orange-100 text-orange-900 border border-orange-400',
+    borderClass: 'border-orange-500',
+  },
+  agua: {
+    icon: '💧',
+    label: 'Agua',
+    colorClass: 'text-sky-700',
+    badgeClass: 'bg-sky-100 text-sky-900 border border-sky-400',
+    borderClass: 'border-sky-500',
+  },
+  planta: {
+    icon: '🌿',
+    label: 'Planta',
+    colorClass: 'text-emerald-700',
+    badgeClass: 'bg-emerald-100 text-emerald-900 border border-emerald-400',
+    borderClass: 'border-emerald-500',
+  },
+  viento: {
+    icon: '🌪️',
+    label: 'Viento',
+    colorClass: 'text-teal-700',
+    badgeClass: 'bg-teal-100 text-teal-900 border border-teal-400',
+    borderClass: 'border-teal-500',
+  },
+  tierra: {
+    icon: '⛰️',
+    label: 'Tierra',
+    colorClass: 'text-amber-800',
+    badgeClass: 'bg-amber-100 text-amber-900 border border-amber-400',
+    borderClass: 'border-amber-500',
+  },
+  hielo: {
+    icon: '❄️',
+    label: 'Hielo',
+    colorClass: 'text-cyan-800',
+    badgeClass: 'bg-cyan-100 text-cyan-900 border border-cyan-400',
+    borderClass: 'border-cyan-500',
+  },
+  sagrado: {
+    icon: '✨',
+    label: 'Sagrado',
+    colorClass: 'text-yellow-800',
+    badgeClass: 'bg-yellow-100 text-yellow-900 border border-yellow-500',
+    borderClass: 'border-yellow-500',
+  },
+  normal: {
+    icon: '⚔️',
+    label: 'Normal',
+    colorClass: 'text-stone-700',
+    badgeClass: 'bg-stone-200 text-[#1E2022] border border-stone-400',
+    borderClass: 'border-stone-400',
+  },
 };
 
 export interface ElementalMultiplierResult {
@@ -2624,6 +2823,18 @@ export const SPIRIT_LEARNSETS: Record<string, { level: number; skill: ElementalS
   viluvilu: [
     { level: 2, skill: SKILLS_DB.terremoto_andino },
     { level: 4, skill: SKILLS_DB.cumbre_viluvilu },
+  ],
+  copihue: [
+    { level: 2, skill: SKILLS_DB.latigo_copihue },
+    { level: 3, skill: SKILLS_DB.bendicion_forestal },
+    { level: 4, skill: SKILLS_DB.hoja_pewen },
+    { level: 5, skill: SKILLS_DB.campana_escarlata },
+  ],
+  puye: [
+    { level: 2, skill: SKILLS_DB.aleta_fiordo },
+    { level: 3, skill: SKILLS_DB.chorro_lago },
+    { level: 4, skill: SKILLS_DB.neblina_sanadora },
+    { level: 5, skill: SKILLS_DB.ola_reloncavi },
   ],
 };
 

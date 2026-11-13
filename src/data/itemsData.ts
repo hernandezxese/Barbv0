@@ -92,5 +92,27 @@ export const INITIAL_ITEMS: Record<string, InventoryItem> = {
     effectType: 'evolution',
     effectValue: 1,
     price: 180,
+  },
+  fruto_alerce: {
+    id: 'fruto_alerce',
+    name: 'Fruto de Maqui Dorado',
+    category: 'clave',
+    description: 'Fruto sagrado de gran valor. Sube inmediatamente +1 Nivel a la criatura espiritual elegida.',
+    count: 0,
+    icon: '🍇',
+    effectType: 'level_up',
+    effectValue: 1,
+    price: 550,
+  },
+  esencia_milenaria: {
+    id: 'esencia_milenaria',
+    name: 'Corazón de Alerce Milenario',
+    category: 'clave',
+    description: 'Reliquia legendaria de los Maestros de Los Lagos. Eleva +10 Niveles al instante a un espíritu.',
+    count: 0,
+    icon: '🌟',
+    effectType: 'level_up',
+    effectValue: 10,
+    price: 0,
   }
 };

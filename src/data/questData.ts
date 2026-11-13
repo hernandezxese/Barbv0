@@ -2,7 +2,7 @@
  * Quest & Objective Guide System for Crónicas Elementales del Sur (5 Chilean Regions + Interiors)
  */
 
-import { RegionId, MapRegion, ElementType, SpiritCreature } from '../types/game';
+import { RegionId, MapRegion, ElementType, SpiritCreature, getHeroUnlockedElements } from '../types/game';
 
 export interface QuestStep {
   id: string;
@@ -21,7 +21,12 @@ export interface PendingRegionMission {
   isBossMission?: boolean;
 }
 
-function hasElementalSpirit(partySpirits: SpiritCreature[] | undefined, reqEl: ElementType): boolean {
+function hasElementalSpirit(
+  partySpirits: SpiritCreature[] | undefined,
+  reqEl: ElementType,
+  medals?: string[]
+): boolean {
+  if (medals && getHeroUnlockedElements(medals).includes(reqEl)) return true;
   if (!partySpirits || partySpirits.length === 0) return false;
   return partySpirits.some(
     s => s.currentHp > 0 && (s.primaryElement === reqEl || s.secondaryElement === reqEl)
@@ -30,7 +35,8 @@ function hasElementalSpirit(partySpirits: SpiritCreature[] | undefined, reqEl: E
 
 export function getRegionPendingMissions(
   region: MapRegion,
-  partySpirits?: SpiritCreature[]
+  partySpirits?: SpiritCreature[],
+  medals?: string[]
 ): PendingRegionMission[] {
   const entities = region.entities;
   const missions: PendingRegionMission[] = [];
@@ -45,13 +51,7 @@ export function getRegionPendingMissions(
     ];
   }
   if (region.id === 'santuario') {
-    return [
-      {
-        id: 'sanc_evo',
-        title: 'Altar de Evolución',
-        detail: 'Único lugar donde tus Criaturas Espirituales pueden evolucionar usando nivel y esencias.',
-      },
-    ];
+    return [];
   }
   if (region.id === 'tienda') {
     return [
@@ -67,8 +67,8 @@ export function getRegionPendingMissions(
     if (!mama?.cleared) {
       missions.push({
         id: 'casa_mama',
-        title: 'Despedirse de Mamá Elena',
-        detail: 'Conversa con Mamá Elena antes de salir a R. Metropolitana.',
+        title: 'Despedirse de Abuela Mary',
+        detail: 'Conversa con Abuela Mary antes de salir a R. Metropolitana.',
       });
     }
     missions.push({
@@ -85,7 +85,7 @@ export function getRegionPendingMissions(
     const wildEl = entities.find(e => e.id === 'wild_santiago_quiltro');
     const obs = entities.find(e => e.id === 'obstacle_santiago_ruta');
     const boss = entities.find(e => e.id === 'boss_santiago');
-    const hasTierra = hasElementalSpirit(partySpirits, 'tierra') || Boolean(wildEl?.cleared);
+    const hasTierra = hasElementalSpirit(partySpirits, 'tierra', medals) || Boolean(wildEl?.cleared);
 
     if (!npc?.cleared) {
       missions.push({
@@ -113,7 +113,7 @@ export function getRegionPendingMissions(
       missions.push({
         id: obs.id,
         title: 'Despejar Barrera Sísmica Sur',
-        detail: 'Equipa como Líder Activo una Criatura Espiritual de TIERRA (ej. Quiltro) y toca la barrera.',
+        detail: 'Equipa como Compañero Espiritual una Criatura Espiritual de TIERRA (ej. Quiltro) y toca la barrera.',
         requiredElement: obs.elementRequired || 'tierra',
       });
     }
@@ -132,7 +132,7 @@ export function getRegionPendingMissions(
     const obsOpt = entities.find(e => e.id === 'obstacle_biobio');
     const obs = entities.find(e => e.id === 'obstacle_biobio_ruta');
     const boss = entities.find(e => e.id === 'boss_biobio');
-    const hasFuego = hasElementalSpirit(partySpirits, 'fuego') || Boolean(wildEl?.cleared);
+    const hasFuego = hasElementalSpirit(partySpirits, 'fuego', medals) || Boolean(wildEl?.cleared);
 
     if (!npc?.cleared) {
       missions.push({
@@ -160,7 +160,7 @@ export function getRegionPendingMissions(
       missions.push({
         id: obs.id,
         title: 'Quemar Maleza Jurásica',
-        detail: 'Equipa como Líder Activo una Criatura Espiritual de FUEGO (ej. Velociraptor).',
+        detail: 'Equipa como Compañero Espiritual una Criatura Espiritual de FUEGO (ej. Velociraptor).',
         requiredElement: obs.elementRequired || 'fuego',
       });
     }
@@ -168,7 +168,7 @@ export function getRegionPendingMissions(
       missions.push({
         id: obsOpt.id,
         title: 'Opcional: Grieta Torrencial',
-        detail: 'Usa un Líder Activo de AGUA para despejar el cofre fósil secreto.',
+        detail: 'Usa un Compañero Espiritual de AGUA para despejar el cofre fósil secreto.',
         requiredElement: obsOpt.elementRequired || 'agua',
       });
     }
@@ -187,7 +187,7 @@ export function getRegionPendingMissions(
     const obsOpt = entities.find(e => e.id === 'obstacle_araucania');
     const obs = entities.find(e => e.id === 'obstacle_araucania_ruta');
     const boss = entities.find(e => e.id === 'boss_araucania');
-    const hasAgua = hasElementalSpirit(partySpirits, 'agua') || Boolean(wildEl?.cleared);
+    const hasAgua = hasElementalSpirit(partySpirits, 'agua', medals) || Boolean(wildEl?.cleared);
 
     if (!npc?.cleared) {
       missions.push({
@@ -200,7 +200,7 @@ export function getRegionPendingMissions(
       missions.push({
         id: landmark.id,
         title: 'Explorar Volcán Villarrica',
-        detail: 'Visita el Volcán Villarrica rodeado de cerros (NE) para revelar el mapa entero.',
+        detail: 'Visita el Volcán Villarrica rodeado de cerros (Norte-Centro) para revelar el mapa entero.',
       });
     }
     if (!hasAgua && (!obs || !obs.cleared)) {
@@ -215,7 +215,7 @@ export function getRegionPendingMissions(
       missions.push({
         id: obs.id,
         title: 'Enfriar Barrera Magmática',
-        detail: 'Equipa como Líder Activo una Criatura Espiritual de AGUA (ej. Ranita de Darwin).',
+        detail: 'Equipa como Compañero Espiritual una Criatura Espiritual de AGUA (ej. Ranita de Darwin).',
         requiredElement: obs.elementRequired || 'agua',
       });
     }
@@ -223,7 +223,7 @@ export function getRegionPendingMissions(
       missions.push({
         id: obsOpt.id,
         title: 'Opcional: Roca Magmática Este',
-        detail: 'Usa un Líder Activo de AGUA para liberar el cofre volcánico.',
+        detail: 'Usa un Compañero Espiritual de AGUA para liberar el cofre volcánico.',
         requiredElement: obsOpt.elementRequired || 'agua',
       });
     }
@@ -242,7 +242,7 @@ export function getRegionPendingMissions(
     const obsOpt = entities.find(e => e.id === 'obstacle_losrios');
     const obs = entities.find(e => e.id === 'obstacle_losrios_ruta');
     const boss = entities.find(e => e.id === 'boss_losrios');
-    const hasPlanta = hasElementalSpirit(partySpirits, 'planta') || Boolean(wildEl?.cleared);
+    const hasPlanta = hasElementalSpirit(partySpirits, 'planta', medals) || Boolean(wildEl?.cleared);
 
     if (!npc?.cleared) {
       missions.push({
@@ -255,7 +255,7 @@ export function getRegionPendingMissions(
       missions.push({
         id: landmark.id,
         title: 'Explorar Volcán Mocho-Choshuenco',
-        detail: 'Visita su cumbre al noreste para despejar por completo la sombra del mapa.',
+        detail: 'Visita su cumbre rodeada de cerros al suroeste para despejar por completo la sombra del mapa.',
       });
     }
     if (!hasPlanta && (!obs || !obs.cleared)) {
@@ -270,7 +270,7 @@ export function getRegionPendingMissions(
       missions.push({
         id: obs.id,
         title: 'Drenar Desborde del Torreón',
-        detail: 'Equipa como Líder Activo una Criatura Espiritual de PLANTA (ej. Hongo Lumínico).',
+        detail: 'Equipa como Compañero Espiritual una Criatura Espiritual de PLANTA (ej. Hongo Lumínico).',
         requiredElement: obs.elementRequired || 'planta',
       });
     }
@@ -278,7 +278,7 @@ export function getRegionPendingMissions(
       missions.push({
         id: obsOpt.id,
         title: 'Opcional: Caudal Ribereño Oeste',
-        detail: 'Usa un Líder Activo de AGUA para acceder al cofre secreto.',
+        detail: 'Usa un Compañero Espiritual de AGUA para acceder al cofre secreto.',
         requiredElement: obsOpt.elementRequired || 'agua',
       });
     }
@@ -298,7 +298,7 @@ export function getRegionPendingMissions(
     const obs = entities.find(e => e.id === 'obstacle_loslagos_ruta');
     const cai = entities.find(e => e.id === 'boss_loslagos_caicai');
     const vilu = entities.find(e => e.id === 'boss_loslagos_viluvilu');
-    const hasHielo = hasElementalSpirit(partySpirits, 'hielo') || Boolean(wildEl?.cleared);
+    const hasHielo = hasElementalSpirit(partySpirits, 'hielo', medals) || Boolean(wildEl?.cleared);
 
     if (!npc?.cleared) {
       missions.push({
@@ -311,7 +311,7 @@ export function getRegionPendingMissions(
       missions.push({
         id: landmark.id,
         title: 'Explorar Volcán Osorno',
-        detail: 'Alcanza el Volcán Osorno al noreste nevado para despejar la sombra del mapa.',
+        detail: 'Alcanza el Volcán Osorno al este nevado para despejar la sombra del mapa.',
       });
     }
     if (!hasHielo && (!obs || !obs.cleared)) {
@@ -326,7 +326,7 @@ export function getRegionPendingMissions(
       missions.push({
         id: obs.id,
         title: 'Congelar el Fiordo Helado',
-        detail: 'Equipa como Líder Activo una Criatura Espiritual de HIELO (ej. Ventisquero o Pingüino).',
+        detail: 'Equipa como Compañero Espiritual una Criatura Espiritual de HIELO (ej. Ventisquero o Pingüino).',
         requiredElement: obs.elementRequired || 'hielo',
       });
     }
@@ -334,7 +334,7 @@ export function getRegionPendingMissions(
       missions.push({
         id: obsOpt.id,
         title: 'Opcional: Derretir Bloque Glacial',
-        detail: 'Usa un Líder Activo de FUEGO para abrir el cofre austral.',
+        detail: 'Usa un Compañero Espiritual de FUEGO para abrir el cofre austral.',
         requiredElement: obsOpt.elementRequired || 'fuego',
       });
     }
@@ -362,7 +362,8 @@ export function getRegionPendingMissions(
 export function getCurrentQuest(
   region: MapRegion,
   _unlockedRegions: RegionId[],
-  partySpirits?: SpiritCreature[]
+  partySpirits?: SpiritCreature[],
+  medals?: string[]
 ): {
   stepNumber: number;
   totalSteps: number;
@@ -370,6 +371,7 @@ export function getCurrentQuest(
   shortText: string;
   instruction: string;
   hint: string;
+  requiredElement?: ElementType;
   targetCoords?: { x: number; y: number };
 } {
   const entities = region.entities;
@@ -390,11 +392,11 @@ export function getCurrentQuest(
   if (region.id === 'santuario') {
     const altar = entities.find(e => e.id === 'shrine_altar_evolucion');
     return {
-      stepNumber: 1,
-      totalSteps: 1,
+      stepNumber: 0,
+      totalSteps: 0,
       title: 'Santuario de Evolución (Interior)',
-      shortText: 'Usa el Altar de Evolución o sal al sur',
-      instruction: 'Pasa sobre el Altar de Evolución central para despertar la siguiente etapa de tus Criaturas Espirituales.',
+      shortText: 'Altar opcional de evolución o sal al sur',
+      instruction: 'Pasa sobre el Altar de Evolución central si deseas despertar la siguiente etapa de tus Criaturas Espirituales.',
       hint: 'Camina hacia la puerta inferior para regresar al mapa regional.',
       targetCoords: { x: altar?.x ?? 5, y: altar?.y ?? 4 },
     };
@@ -421,8 +423,8 @@ export function getCurrentQuest(
         stepNumber: 1,
         totalSteps: 2,
         title: 'Tu Hogar (Escenario 0)',
-        shortText: 'Habla con Mamá Elena o sal al sur',
-        instruction: 'Despídete de Mamá Elena en la sala o revisa tu Diario antes de cruzar la puerta sur.',
+        shortText: 'Habla con Abuela Mary o sal al sur',
+        instruction: 'Despídete de Abuela Mary en la sala o revisa tu Diario antes de cruzar la puerta sur.',
         hint: 'Puedes tocar cualquier punto del mapa para caminar automáticamente.',
         targetCoords: { x: npcMama?.x ?? 5, y: npcMama?.y ?? 3 },
       };
@@ -433,7 +435,7 @@ export function getCurrentQuest(
       title: 'Inicio de la Travesía',
       shortText: 'Sal por la puerta sur a R. Metropolitana',
       instruction: 'Cruza la puerta principal al sur de tu casa para comenzar tu expedición por Chile.',
-      hint: 'Toca la puerta sur o acércate y presiona ACCIÓN.',
+      hint: 'Toca la puerta sur para caminar e interactuar automáticamente.',
       targetCoords: { x: portalRM?.x ?? 5, y: portalRM?.y ?? 8 },
     };
   }
@@ -444,7 +446,7 @@ export function getCurrentQuest(
     const wildQuiltro = entities.find(e => e.id === 'wild_santiago_quiltro');
     const obstacle = entities.find(e => e.id === 'obstacle_santiago_ruta');
     const boss = entities.find(e => e.id === 'boss_santiago');
-    const hasTierra = hasElementalSpirit(partySpirits, 'tierra') || Boolean(wildQuiltro?.cleared);
+    const hasTierra = hasElementalSpirit(partySpirits, 'tierra', medals) || Boolean(wildQuiltro?.cleared);
 
     if (!npcIgnacio?.cleared) {
       return {
@@ -478,6 +480,7 @@ export function getCurrentQuest(
         shortText: 'Vincula al Quiltro salvaje (sur del río)',
         instruction: 'Cruza el Río Mapocho y enfréntate al Quiltro salvaje para obtener una Criatura Espiritual de TIERRA.',
         hint: 'Usa Amuletos de Vínculo cuando el Quiltro tenga poca vida.',
+        requiredElement: 'tierra',
         targetCoords: wildQuiltro ? { x: wildQuiltro.x, y: wildQuiltro.y } : undefined,
       };
     }
@@ -487,9 +490,10 @@ export function getCurrentQuest(
         stepNumber: 4,
         totalSteps: 6,
         title: 'Despejar Barrera Sísmica',
-        shortText: 'Abre barrera sur con líder TIERRA',
-        instruction: 'Equipa a tu Criatura Espiritual de TIERRA (ej. Quiltro) como Líder Activo en Equipo y toca la barrera sur.',
-        hint: 'Tu líder activo ejecutará su técnica sísmica animada para liberar el paso.',
+        shortText: 'Abre barrera sur con compañero espiritual TIERRA',
+        instruction: 'Equipa a tu Criatura Espiritual de TIERRA (ej. Quiltro) como Compañero Espiritual en Equipo y toca la barrera sur.',
+        hint: 'Tu compañero espiritual activo ejecutará su técnica sísmica animada para liberar el paso.',
+        requiredElement: obstacle.elementRequired || 'tierra',
         targetCoords: { x: obstacle.x, y: obstacle.y },
       };
     }
@@ -500,9 +504,9 @@ export function getCurrentQuest(
         totalSteps: 6,
         title: 'El Coloso del Valle Central',
         shortText: 'Derrota al Costanera Center (Nv.5)',
-        instruction: 'El Coloso Costanera Center (Nv.5) ha despertado al sur. ¡Derrótalo para abrir la ruta al Biobío!',
+        instruction: 'El Coloso Costanera Center (Nv.5) ha despertado al sureste. ¡Derrótalo para abrir la ruta al Biobío!',
         hint: 'Al derrotarlo recibirás el Amuleto Espiritual Valle Central.',
-        targetCoords: { x: boss?.x ?? 14, y: boss?.y ?? 21 },
+        targetCoords: { x: boss?.x ?? 21, y: boss?.y ?? 21 },
       };
     }
 
@@ -511,10 +515,10 @@ export function getCurrentQuest(
       stepNumber: 6,
       totalSteps: 6,
       title: 'Hacia R. del Biobío',
-      shortText: 'Cruza el portal sur al Biobío',
-      instruction: '¡El camino a R. del Biobío está despejado! Cruza el portal sur o usa el Mapa.',
-      hint: 'Dirígete al letrero central del corredor sur.',
-      targetCoords: { x: portalBiobio?.x ?? 14, y: portalBiobio?.y ?? 24 },
+      shortText: 'Cruza el portal sureste al Biobío',
+      instruction: '¡El camino a R. del Biobío está despejado! Cruza el portal sureste o usa el Mapa.',
+      hint: 'Dirígete al letrero del corredor sureste.',
+      targetCoords: { x: portalBiobio?.x ?? 21, y: portalBiobio?.y ?? 24 },
     };
   }
 
@@ -524,17 +528,21 @@ export function getCurrentQuest(
     const wildFuego = entities.find(e => e.id === 'wild_biobio_velociraptor');
     const obstacle = entities.find(e => e.id === 'obstacle_biobio_ruta');
     const boss = entities.find(e => e.id === 'boss_biobio');
-    const hasFuego = hasElementalSpirit(partySpirits, 'fuego') || Boolean(wildFuego?.cleared);
+    const hasFuego = hasElementalSpirit(partySpirits, 'fuego', medals) || Boolean(wildElOrNull(wildFuego));
+
+    function wildElOrNull(ent: typeof wildFuego) {
+      return ent?.cleared;
+    }
 
     if (!npcLautaro?.cleared) {
       return {
         stepNumber: 1,
         totalSteps: 6,
         title: 'El Guía del Biobío',
-        shortText: 'Habla con Lautaro al norte del Biobío',
-        instruction: 'Habla con Lautaro al norte para recibir Gotas Termales y ubicarte entre el Hospital y el Santuario.',
+        shortText: 'Habla con Lautaro al noreste del Biobío',
+        instruction: 'Habla con Lautaro junto a la entrada norte para recibir Gotas Termales y conocer la región.',
         hint: 'Acércate a Lautaro junto al camino de piedra.',
-        targetCoords: { x: npcLautaro?.x ?? 10, y: npcLautaro?.y ?? 2 },
+        targetCoords: { x: npcLautaro?.x ?? 17, y: npcLautaro?.y ?? 2 },
       };
     }
 
@@ -543,9 +551,9 @@ export function getCurrentQuest(
         stepNumber: 2,
         totalSteps: 6,
         title: 'Cumbre del Biobío',
-        shortText: 'Visita el Volcán Antuco (NE)',
-        instruction: 'Dirígete al Volcán Antuco rodeado de montañas al noreste para disipar la sombra de todo el mapa.',
-        hint: 'Sigue el camino superior hacia el este.',
+        shortText: 'Visita el Volcán Antuco (SE)',
+        instruction: 'Dirígete al Volcán Antuco rodeado de montañas al sureste para disipar la sombra de todo el mapa.',
+        hint: 'Cruza la vía férrea hasta la esquina sureste.',
         targetCoords: { x: landmark.x, y: landmark.y },
       };
     }
@@ -557,7 +565,8 @@ export function getCurrentQuest(
         title: 'Criatura Salvaje: Fuego',
         shortText: 'Vincula al Velociraptor Ígneo',
         instruction: 'Cruza el río y la vía férrea para vincular al Velociraptor Ígneo (FUEGO) salvaje.',
-        hint: 'Lo necesitas como Líder Activo para quemar la maleza jurásica del sur.',
+        hint: 'Lo necesitas como Compañero Espiritual para quemar la maleza jurásica del sur.',
+        requiredElement: 'fuego',
         targetCoords: wildFuego ? { x: wildFuego.x, y: wildFuego.y } : undefined,
       };
     }
@@ -567,9 +576,10 @@ export function getCurrentQuest(
         stepNumber: 4,
         totalSteps: 6,
         title: 'Misión Elemental: Fuego',
-        shortText: 'Quema maleza sur con líder FUEGO',
-        instruction: 'Equipa una Criatura Espiritual de FUEGO (ej. Velociraptor) como Líder Activo y quema la Maleza Jurásica.',
-        hint: 'Puedes curar en el Hospital o evolucionar en el Santuario al norte.',
+        shortText: 'Quema maleza suroeste con compañero espiritual FUEGO',
+        instruction: 'Equipa una Criatura Espiritual de FUEGO (ej. Velociraptor) como Compañero Espiritual y quema la Maleza Jurásica.',
+        hint: 'Puedes curar en el Hospital Regional junto al sendero.',
+        requiredElement: obstacle.elementRequired || 'fuego',
         targetCoords: { x: obstacle.x, y: obstacle.y },
       };
     }
@@ -580,9 +590,9 @@ export function getCurrentQuest(
         totalSteps: 6,
         title: 'El Rey Prehistórico del Biobío',
         shortText: 'Derrota al T-Rex del Biobío (Nv.7)',
-        instruction: 'El T-Rex Tirano del Biobío (Nv.7) aguarda en la arena sur. ¡Derrótalo para ganar su Amuleto Espiritual!',
+        instruction: 'El T-Rex Tirano del Biobío (Nv.7) aguarda en la arena suroeste. ¡Derrótalo para ganar su Amuleto Espiritual!',
         hint: 'Usa ataques de Agua o Tierra contra el T-Rex.',
-        targetCoords: { x: boss?.x ?? 12, y: boss?.y ?? 17 },
+        targetCoords: { x: boss?.x ?? 6, y: boss?.y ?? 17 },
       };
     }
 
@@ -591,10 +601,10 @@ export function getCurrentQuest(
       stepNumber: 6,
       totalSteps: 6,
       title: 'Rumbo a R. de La Araucanía',
-      shortText: 'Cruza el portal sur a La Araucanía',
-      instruction: '¡Has armonizado el Biobío! Avanza por el corredor sur hacia La Araucanía.',
-      hint: 'Cruza el letrero inferior central.',
-      targetCoords: { x: portalAraucania?.x ?? 12, y: portalAraucania?.y ?? 20 },
+      shortText: 'Cruza el portal suroeste a La Araucanía',
+      instruction: '¡Has armonizado el Biobío! Avanza por el corredor suroeste hacia La Araucanía.',
+      hint: 'Cruza el letrero del corredor suroeste.',
+      targetCoords: { x: portalAraucania?.x ?? 6, y: portalAraucania?.y ?? 20 },
     };
   }
 
@@ -604,17 +614,17 @@ export function getCurrentQuest(
     const wildAgua = entities.find(e => e.id === 'wild_araucania_ranita');
     const obstacle = entities.find(e => e.id === 'obstacle_araucania_ruta');
     const boss = entities.find(e => e.id === 'boss_araucania');
-    const hasAgua = hasElementalSpirit(partySpirits, 'agua') || Boolean(wildAgua?.cleared);
+    const hasAgua = hasElementalSpirit(partySpirits, 'agua', medals) || Boolean(wildAgua?.cleared);
 
     if (!npcNahuel?.cleared) {
       return {
         stepNumber: 1,
         totalSteps: 6,
         title: 'Sendero de Araucarias',
-        shortText: 'Habla con Nahuel al norte',
-        instruction: 'Habla con Nahuel en la entrada norte de La Araucanía para recibir un Corazón de Basalto.',
-        hint: 'Nahuel te espera al norte entre los prados y araucarias.',
-        targetCoords: { x: npcNahuel?.x ?? 11, y: npcNahuel?.y ?? 2 },
+        shortText: 'Habla con Nahuel al noroeste',
+        instruction: 'Habla con Nahuel en la entrada noroeste de La Araucanía para recibir un Corazón de Basalto.',
+        hint: 'Nahuel te espera al noroeste entre los prados y araucarias.',
+        targetCoords: { x: npcNahuel?.x ?? 8, y: npcNahuel?.y ?? 2 },
       };
     }
 
@@ -623,9 +633,9 @@ export function getCurrentQuest(
         stepNumber: 2,
         totalSteps: 6,
         title: 'Cumbre de Ruka Pillán',
-        shortText: 'Visita el Volcán Villarrica (NE)',
-        instruction: 'Explora hasta el Volcán Villarrica rodeado de cerros al noreste para disipar la sombra de todo el mapa.',
-        hint: 'Sigue los senderos al noreste bordeando la ciudad.',
+        shortText: 'Visita el Volcán Villarrica (Norte)',
+        instruction: 'Explora hasta el Volcán Villarrica rodeado de cerros al norte-centro para disipar la sombra de todo el mapa.',
+        hint: 'Sigue el sendero norte-centro frente a la tienda y ciudad.',
         targetCoords: { x: landmark.x, y: landmark.y },
       };
     }
@@ -637,7 +647,8 @@ export function getCurrentQuest(
         title: 'Criatura Salvaje: Agua',
         shortText: 'Vincula la Ranita de Darwin junto al lago',
         instruction: 'Visita el lago al centro de La Araucanía para vincular una Ranita de Darwin (AGUA).',
-        hint: 'La necesitas para enfriar la Barrera Magmática del sur.',
+        hint: 'La necesitas para enfriar la Barrera Magmática del sureste.',
+        requiredElement: 'agua',
         targetCoords: wildAgua ? { x: wildAgua.x, y: wildAgua.y } : undefined,
       };
     }
@@ -647,9 +658,10 @@ export function getCurrentQuest(
         stepNumber: 4,
         totalSteps: 6,
         title: 'Misión Elemental: Agua',
-        shortText: 'Enfría magma sur con líder AGUA',
-        instruction: 'Equipa una Criatura Espiritual de AGUA (ej. Ranita de Darwin) como Líder Activo y enfría la Barrera Magmática.',
+        shortText: 'Enfría magma sureste con compañero espiritual AGUA',
+        instruction: 'Equipa una Criatura Espiritual de AGUA (ej. Ranita de Darwin) como Compañero Espiritual y enfría la Barrera Magmática.',
         hint: 'Visita también las Rucas Mapuches al suroeste del lago.',
+        requiredElement: obstacle.elementRequired || 'agua',
         targetCoords: { x: obstacle.x, y: obstacle.y },
       };
     }
@@ -660,9 +672,9 @@ export function getCurrentQuest(
         totalSteps: 6,
         title: 'La Araucaria Madre Milenaria',
         shortText: 'Desafía a la Araucaria Madre (Nv.9)',
-        instruction: 'La Araucaria Madre (Nv.9) aguarda en la plaza sur. ¡Derrótala para abrir la ruta a Los Ríos!',
+        instruction: 'La Araucaria Madre (Nv.9) aguarda en la plaza sureste. ¡Derrótala para abrir la ruta a Los Ríos!',
         hint: 'Los ataques de Fuego multiplican el daño contra Planta.',
-        targetCoords: { x: boss?.x ?? 13, y: boss?.y ?? 19 },
+        targetCoords: { x: boss?.x ?? 18, y: boss?.y ?? 19 },
       };
     }
 
@@ -671,10 +683,10 @@ export function getCurrentQuest(
       stepNumber: 6,
       totalSteps: 6,
       title: 'Descenso a R. de Los Ríos',
-      shortText: 'Cruza el portal sur a Los Ríos',
-      instruction: '¡La Araucaria Madre bendice tu camino! Avanza por el portal sur hacia Los Ríos.',
-      hint: 'El letrero central inferior conecta con R. de Los Ríos.',
-      targetCoords: { x: portalLosRios?.x ?? 13, y: portalLosRios?.y ?? 22 },
+      shortText: 'Cruza el portal sureste a Los Ríos',
+      instruction: '¡La Araucaria Madre bendice tu camino! Avanza por el portal sureste hacia Los Ríos.',
+      hint: 'El letrero sureste conecta con R. de Los Ríos.',
+      targetCoords: { x: portalLosRios?.x ?? 18, y: portalLosRios?.y ?? 22 },
     };
   }
 
@@ -684,17 +696,17 @@ export function getCurrentQuest(
     const wildPlanta = entities.find(e => e.id === 'wild_losrios_hongo');
     const obstacle = entities.find(e => e.id === 'obstacle_losrios_ruta');
     const boss = entities.find(e => e.id === 'boss_losrios');
-    const hasPlanta = hasElementalSpirit(partySpirits, 'planta') || Boolean(wildPlanta?.cleared);
+    const hasPlanta = hasElementalSpirit(partySpirits, 'planta', medals) || Boolean(wildPlanta?.cleared);
 
     if (!npcJaviera?.cleared) {
       return {
         stepNumber: 1,
         totalSteps: 6,
         title: 'Navegante de la Selva',
-        shortText: 'Habla con Javiera al norte de Los Ríos',
-        instruction: 'Habla con Javiera en el sendero norte para recibir Resina de Pewén.',
-        hint: 'Se encuentra en el camino norte bajo la lluvia con viento.',
-        targetCoords: { x: npcJaviera?.x ?? 12, y: npcJaviera?.y ?? 2 },
+        shortText: 'Habla con Javiera al noreste de Los Ríos',
+        instruction: 'Habla con Javiera en el sendero noreste para recibir Resina de Pewén.',
+        hint: 'Se encuentra cerca de la entrada norte bajo la lluvia con viento.',
+        targetCoords: { x: npcJaviera?.x ?? 20, y: npcJaviera?.y ?? 2 },
       };
     }
 
@@ -703,9 +715,9 @@ export function getCurrentQuest(
         stepNumber: 2,
         totalSteps: 6,
         title: 'Glaciares del Mocho-Choshuenco',
-        shortText: 'Visita el Volcán Mocho-Choshuenco (NE)',
-        instruction: 'Sube al Volcán Mocho-Choshuenco al noreste para eliminar toda sombra del mapa valdiviano.',
-        hint: 'Rodea el Santuario de Evolución hacia el noreste.',
+        shortText: 'Visita el Volcán Mocho-Choshuenco (SO)',
+        instruction: 'Sube al Volcán Mocho-Choshuenco rodeado de cerros al suroeste para eliminar toda sombra del mapa valdiviano.',
+        hint: 'Cruza los dos ríos hacia el corredor suroeste.',
         targetCoords: { x: landmark.x, y: landmark.y },
       };
     }
@@ -718,6 +730,7 @@ export function getCurrentQuest(
         shortText: 'Vincula al Hongo Lumínico salvaje',
         instruction: 'Enfréntate al Hongo Lumínico salvaje de la selva valdiviana para contar con tipo PLANTA.',
         hint: 'Su habilidad de PLANTA absorberá el desborde de aguas del Torreón.',
+        requiredElement: 'planta',
         targetCoords: wildPlanta ? { x: wildPlanta.x, y: wildPlanta.y } : undefined,
       };
     }
@@ -727,9 +740,10 @@ export function getCurrentQuest(
         stepNumber: 4,
         totalSteps: 6,
         title: 'Misión Elemental: Planta',
-        shortText: 'Drena el río sur con líder PLANTA',
-        instruction: 'Equipa una Criatura Espiritual de PLANTA (ej. Hongo Lumínico o Brotín) como Líder Activo y toca la barrera.',
-        hint: 'Cruza los dos ríos valdivianos hasta el corredor sur.',
+        shortText: 'Drena río suroeste con compañero espiritual PLANTA',
+        instruction: 'Equipa una Criatura Espiritual de PLANTA (ej. Hongo Lumínico o Brotín) como Compañero Espiritual y toca la barrera.',
+        hint: 'Cruza los dos ríos valdivianos hasta el corredor suroeste.',
+        requiredElement: obstacle.elementRequired || 'planta',
         targetCoords: { x: obstacle.x, y: obstacle.y },
       };
     }
@@ -739,10 +753,10 @@ export function getCurrentQuest(
         stepNumber: 5,
         totalSteps: 6,
         title: 'El Torreón del Calle-Calle',
-        shortText: 'Purifica al Torreón (Nv.11) al sur',
-        instruction: 'El Guardián del Torreón (Nv.11) aguarda al sur. ¡Derrótalo para ganar su Amuleto Espiritual!',
+        shortText: 'Purifica al Torreón (Nv.11) al suroeste',
+        instruction: 'El Guardián del Torreón (Nv.11) aguarda al suroeste. ¡Derrótalo para ganar su Amuleto Espiritual!',
         hint: 'Usa técnicas de Planta para lograr máxima ventaja.',
-        targetCoords: { x: boss?.x ?? 14, y: boss?.y ?? 21 },
+        targetCoords: { x: boss?.x ?? 9, y: boss?.y ?? 21 },
       };
     }
 
@@ -751,10 +765,10 @@ export function getCurrentQuest(
       stepNumber: 6,
       totalSteps: 6,
       title: 'Travesía a R. de Los Lagos',
-      shortText: 'Cruza el portal sur a Los Lagos',
-      instruction: '¡Los ríos fluyen en armonía! Zarpa por el portal sur hacia R. de Los Lagos.',
-      hint: 'Dirígete al portal central inferior del mapa.',
-      targetCoords: { x: portalLosLagos?.x ?? 14, y: portalLosLagos?.y ?? 24 },
+      shortText: 'Cruza el portal suroeste a Los Lagos',
+      instruction: '¡Los ríos fluyen en armonía! Zarpa por el portal suroeste hacia R. de Los Lagos.',
+      hint: 'Dirígete al portal suroeste del mapa.',
+      targetCoords: { x: portalLosLagos?.x ?? 9, y: portalLosLagos?.y ?? 24 },
     };
   }
 
@@ -765,17 +779,17 @@ export function getCurrentQuest(
   const obstacle = entities.find(e => e.id === 'obstacle_loslagos_ruta');
   const bossCaiCai = entities.find(e => e.id === 'boss_loslagos_caicai');
   const bossViluVilu = entities.find(e => e.id === 'boss_loslagos_viluvilu');
-  const hasHielo = hasElementalSpirit(partySpirits, 'hielo') || Boolean(wildHielo?.cleared);
+  const hasHielo = hasElementalSpirit(partySpirits, 'hielo', medals) || Boolean(wildHielo?.cleared);
 
   if (!npcChecho?.cleared) {
     return {
       stepNumber: 1,
       totalSteps: 6,
       title: 'Guardián del Alerce Milenario',
-      shortText: 'Habla con Don Checho al norte',
+      shortText: 'Habla con Don Checho al noroeste',
       instruction: 'Habla con Don Checho en la entrada de Los Lagos para recibir Infusión de Calafate.',
-      hint: 'Está junto al sendero norte bajo la tormenta austral.',
-      targetCoords: { x: npcChecho?.x ?? 16, y: npcChecho?.y ?? 2 },
+      hint: 'Está junto al sendero noroeste bajo la tormenta austral.',
+      targetCoords: { x: npcChecho?.x ?? 12, y: npcChecho?.y ?? 2 },
     };
   }
 
@@ -784,8 +798,8 @@ export function getCurrentQuest(
       stepNumber: 2,
       totalSteps: 6,
       title: 'Cumbre del Volcán Osorno',
-      shortText: 'Visita el Volcán Osorno (NE nevado)',
-      instruction: 'Avanza hacia las nieves cordilleranas del noreste para inspeccionar el Volcán Osorno y revelar todo el mapa austral.',
+      shortText: 'Visita el Volcán Osorno (Este nevado)',
+      instruction: 'Avanza hacia las nieves cordilleranas del sector este para inspeccionar el Volcán Osorno y revelar todo el mapa austral.',
       hint: 'Desde el continente también puedes cruzar por el puente hacia la Isla de Chiloé al suroeste.',
       targetCoords: { x: landmark.x, y: landmark.y },
     };
@@ -798,7 +812,8 @@ export function getCurrentQuest(
       title: 'Criatura Salvaje: Hielo',
       shortText: 'Vincula al Ventisquero Polar (nieve)',
       instruction: 'Enfréntate a un Ventisquero Polar en la zona nevada del este para obtener tipo HIELO.',
-      hint: 'Lo usarás como Líder Activo para congelar el Fiordo Helado del sur.',
+      hint: 'Lo usarás como Compañero Espiritual para congelar el Fiordo Helado del sur.',
+      requiredElement: 'hielo',
       targetCoords: wildHielo ? { x: wildHielo.x, y: wildHielo.y } : undefined,
     };
   }
@@ -808,9 +823,10 @@ export function getCurrentQuest(
       stepNumber: 4,
       totalSteps: 6,
       title: 'Misión Elemental: Hielo',
-      shortText: 'Cruza fiordo sur con líder HIELO',
-      instruction: 'Equipa una Criatura Espiritual de HIELO (ej. Ventisquero o Pingüino) como Líder Activo para cruzar el Fiordo.',
-      hint: 'El fiordo está al extremo sur de la franja cordillerana este.',
+      shortText: 'Cruza puente sur con compañero espiritual HIELO',
+      instruction: 'Equipa una Criatura Espiritual de HIELO (ej. Ventisquero o Pingüino) como Compañero Espiritual para abrir el puente a la Isla.',
+      hint: 'El puente único está al sur de la franja cordillerana este.',
+      requiredElement: obstacle.elementRequired || 'hielo',
       targetCoords: { x: obstacle.x, y: obstacle.y },
     };
   }

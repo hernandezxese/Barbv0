@@ -1,5 +1,5 @@
 /**
- * Retro RPG Dialogue Box for Bárbara: Crónicas Elementales del Sur
+ * Retro RPG Dialogue Box for Crónicas Elementales del Sur
  * Inspired by Pokémon FireRed and classic JRPG dialogue presentations
  */
 
@@ -53,15 +53,34 @@ export const DialogueBox: React.FC<DialogueBoxProps> = ({
 
   // Animated Pixel Sprite Portrait (shows Don Manuel vendedor, NPCs, & Bosses)
   useEffect(() => {
+    const lowerSpeaker = speakerName.toLowerCase();
     const resolvedSprite =
       portraitSprite ||
-      (speakerName.toLowerCase().includes('manuel') ||
-      speakerName.toLowerCase().includes('millaray') ||
-      speakerName.toLowerCase().includes('fresia') ||
-      speakerName.toLowerCase().includes('boticario')
+      (lowerSpeaker.includes('manuel') ||
+      lowerSpeaker.includes('millaray') ||
+      lowerSpeaker.includes('fresia') ||
+      lowerSpeaker.includes('boticario')
         ? 'npc_shopkeeper'
-        : speakerName.toLowerCase().includes('maestro')
+        : lowerSpeaker.includes('maestro')
         ? 'npc_maestro_vinculo'
+        : lowerSpeaker.includes('abuela') || lowerSpeaker.includes('mary')
+        ? 'npc_abuela'
+        : lowerSpeaker.includes('doctora')
+        ? 'npc_doctora'
+        : lowerSpeaker.includes('doctor')
+        ? 'npc_doctor'
+        : lowerSpeaker.includes('enfermo')
+        ? 'npc_enfermo'
+        : lowerSpeaker.includes('enfermera')
+        ? 'npc_enfermera'
+        : lowerSpeaker.includes('niño')
+        ? 'npc_nino'
+        : lowerSpeaker.includes('niña')
+        ? 'npc_nina'
+        : lowerSpeaker.includes('dueña')
+        ? 'npc_duena_casa'
+        : lowerSpeaker.includes('agricultora')
+        ? 'npc_agricultora'
         : undefined);
 
     if (!resolvedSprite) return;
@@ -108,26 +127,34 @@ export const DialogueBox: React.FC<DialogueBoxProps> = ({
     }
   };
 
+  const lowerName = speakerName.toLowerCase();
   const hasSpritePortrait = Boolean(
     portraitSprite ||
-      speakerName.toLowerCase().includes('manuel') ||
-      speakerName.toLowerCase().includes('millaray') ||
-      speakerName.toLowerCase().includes('fresia') ||
-      speakerName.toLowerCase().includes('maestro') ||
-      speakerName.toLowerCase().includes('boticario') ||
+      lowerName.includes('manuel') ||
+      lowerName.includes('millaray') ||
+      lowerName.includes('fresia') ||
+      lowerName.includes('maestro') ||
+      lowerName.includes('boticario') ||
+      lowerName.includes('abuela') ||
+      lowerName.includes('mary') ||
+      lowerName.includes('doctor') ||
+      lowerName.includes('enferm') ||
+      lowerName.includes('niñ') ||
+      lowerName.includes('dueña') ||
+      lowerName.includes('agricultora') ||
       portraitType === 'shopkeeper'
   );
 
   const getPortrait = () => {
-    if (speakerName.toLowerCase().includes('bárbara') || speakerName.toLowerCase().includes('barbara')) return '🎒';
-    if (speakerName.toLowerCase().includes('costanera')) return '🏙️';
-    if (speakerName.toLowerCase().includes('araucaria')) return '🌲';
-    if (speakerName.toLowerCase().includes('torreón')) return '🏰';
-    if (speakerName.toLowerCase().includes('t-rex')) return '🦖';
-    if (speakerName.toLowerCase().includes('cai cai') || speakerName.toLowerCase().includes('vilu')) return '🐉';
-    if (speakerName.toLowerCase().includes('ignacio')) return '📜';
-    if (speakerName.toLowerCase().includes('checho')) return '🪵';
-    if (speakerName.toLowerCase().includes('mamá') || speakerName.toLowerCase().includes('elena')) return '🏡';
+    if (lowerName.includes('elegid') || lowerName.includes('bárbara') || lowerName.includes('barbara')) return '🎒';
+    if (lowerName.includes('costanera')) return '🏙️';
+    if (lowerName.includes('araucaria')) return '🌲';
+    if (lowerName.includes('torreón')) return '🏰';
+    if (lowerName.includes('t-rex')) return '🦖';
+    if (lowerName.includes('cai cai') || lowerName.includes('vilu')) return '🐉';
+    if (lowerName.includes('ignacio')) return '📜';
+    if (lowerName.includes('checho')) return '🪵';
+    if (lowerName.includes('abuela') || lowerName.includes('mary')) return '🏡';
     return '💬';
   };
 
@@ -138,7 +165,7 @@ export const DialogueBox: React.FC<DialogueBoxProps> = ({
           sound.init();
           handleAdvance();
         }}
-        className="bg-zinc-900/95 border-4 border-zinc-300/80 rounded-xl p-3.5 sm:p-4 md:p-5 shadow-2xl shadow-black/90 flex items-start gap-3 sm:gap-4 cursor-pointer relative active:scale-[0.99] transition-transform"
+        className="bg-[#F4F4F2]/98 border-4 border-[#1E2022] rounded-xl p-3.5 sm:p-4 md:p-5 shadow-2xl flex items-start gap-3 sm:gap-4 cursor-pointer relative active:scale-[0.99] transition-transform text-[#1E2022]"
       >
         {/* Close Button */}
         <button
@@ -148,7 +175,7 @@ export const DialogueBox: React.FC<DialogueBoxProps> = ({
             sound.playCancel();
             onComplete();
           }}
-          className="absolute top-2 right-2 p-1.5 bg-zinc-800 hover:bg-zinc-700 border border-zinc-600 rounded-lg text-zinc-300 hover:text-white transition-colors cursor-pointer text-xs font-mono flex items-center gap-1 z-10"
+          className="absolute top-2 right-2 min-h-[36px] px-2.5 py-1.5 bg-[#E7E7E2] hover:bg-stone-300 border border-stone-400 rounded-lg text-[#1E2022] transition-colors cursor-pointer text-xs font-mono font-bold flex items-center gap-1 z-10"
           title="Cerrar Diálogo"
         >
           <span>Cerrar</span>
@@ -156,7 +183,7 @@ export const DialogueBox: React.FC<DialogueBoxProps> = ({
         </button>
 
         {/* Speaker Pixel Portrait Box */}
-        <div className="w-14 h-14 sm:w-16 sm:h-16 md:w-20 md:h-20 rounded-xl bg-zinc-950 border-2 border-zinc-500 flex-shrink-0 flex items-center justify-center text-2xl sm:text-3xl shadow-inner overflow-hidden">
+        <div className="w-14 h-14 sm:w-16 sm:h-16 md:w-20 md:h-20 rounded-xl bg-zinc-900 border-2 border-stone-400 flex-shrink-0 flex items-center justify-center text-2xl sm:text-3xl shadow-inner overflow-hidden text-white">
           {hasSpritePortrait ? (
             <canvas
               ref={portraitCanvasRef}
@@ -170,18 +197,20 @@ export const DialogueBox: React.FC<DialogueBoxProps> = ({
         </div>
 
         {/* Text Area */}
-        <div className="flex-1 min-w-0 pr-14 sm:pr-16">
-          <div className="inline-block px-2.5 py-0.5 bg-zinc-100 text-zinc-950 rounded font-silkscreen text-[10px] sm:text-[11px] font-bold mb-1.5 tracking-wide">
+        <div className="flex-1 min-w-0 pr-16 sm:pr-20">
+          <div className="inline-block px-2.5 py-0.5 bg-[#1E2022] text-[#F4F4F2] rounded font-silkscreen text-[10px] sm:text-[11px] font-bold mb-1.5 tracking-wide">
             {speakerName}
           </div>
 
-          <p className="text-zinc-100 font-retro text-base sm:text-lg md:text-xl leading-snug tracking-wide min-h-[44px]">
-            {displayedText}
-          </p>
+          <div className="h-[60px] sm:h-[68px] overflow-hidden flex items-start">
+            <p className="text-[#1E2022] font-retro text-base sm:text-lg md:text-xl leading-snug tracking-wide line-clamp-3">
+              {displayedText}
+            </p>
+          </div>
 
-          <div className="flex justify-between items-center mt-2 text-[10px] font-mono text-zinc-400">
+          <div className="flex justify-between items-center mt-2 text-[10px] font-mono text-stone-600 tabular-nums">
             <span>Línea {currentLineIndex + 1} de {lines.length}</span>
-            <span className="text-zinc-200 animate-bounce font-silkscreen text-[9px] sm:text-[10px]">
+            <span className="text-[#1E2022] font-bold animate-bounce font-silkscreen text-[9px] sm:text-[10px]">
               {isTyping ? '···' : '▼ Toca para continuar'}
             </span>
           </div>
