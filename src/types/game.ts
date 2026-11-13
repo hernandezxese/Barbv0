@@ -1,26 +1,26 @@
 /**
  * Core Game Types for Crónicas Elementales del Sur
- * Inspired by Pokémon FireRed & Final Fantasy III
  */
 
 export type ElementType = 'fuego' | 'agua' | 'planta' | 'viento' | 'tierra' | 'hielo' | 'sagrado' | 'normal';
 
-export type RegionId = 'casa' | 'santiago' | 'biobio' | 'araucania' | 'losrios' | 'loslagos';
+export type RegionId = 'casa' | 'santiago' | 'biobio' | 'araucania' | 'losrios' | 'loslagos' | 'hospital' | 'santuario' | 'tienda';
 
-export type JobClass = 'naturalista' | 'chaman' | 'guardaparque' | 'mistica';
+export const MAIN_REGION_IDS: RegionId[] = ['casa', 'santiago', 'biobio', 'araucania', 'losrios', 'loslagos'];
 
-export type GameState = 
-  | 'title' 
-  | 'intro' 
-  | 'exploration' 
-  | 'battle' 
-  | 'evolution' 
-  | 'party' 
-  | 'inventory' 
+export type GameState =
+  | 'title'
+  | 'intro'
+  | 'exploration'
+  | 'battle'
+  | 'evolution'
+  | 'party'
+  | 'inventory'
   | 'shop'
   | 'bestiary'
-  | 'map' 
-  | 'victory' 
+  | 'map'
+  | 'profile'
+  | 'victory'
   | 'gameover';
 
 export interface ElementalSkill {
@@ -85,47 +85,93 @@ export interface SpiritCreature {
   rarity: 'común' | 'raro' | 'místico' | 'legendario';
 }
 
-export type HeroGender = 'female' | 'male';
+export type HeroGender = 'female' | 'male' | 'isabella';
 
-export interface HeroPassive {
+export interface RegionMedalInfo {
   id: string;
+  regionId: Exclude<RegionId, 'casa' | 'hospital' | 'santuario' | 'tienda'>;
   name: string;
-  title: string;
-  description: string;
+  regionLabel: string;
+  guardianName: string;
+  bossName: string;
   icon: string;
 }
 
-export const HERO_PASSIVES: Record<HeroGender, HeroPassive> = {
-  female: {
-    id: 'vinculo_vital',
-    name: 'Vínculo Vital',
-    title: 'Pasiva Femenina · Gracia del Bosque',
-    description: 'Tus curaciones rinden +15%, regenera 5% PS al espíritu activo cada turno y otorga +10% probabilidad de Vínculo.',
-    icon: '🌿',
+export interface MedalRecord {
+  medalId: string;
+  bossName: string;
+  regionLabel: string;
+  order: number;
+  earnedAt: string;
+}
+
+export const REGION_MEDALS: RegionMedalInfo[] = [
+  {
+    id: 'medalla_rm',
+    regionId: 'santiago',
+    name: 'Medalla Valle Central',
+    regionLabel: 'R. Metropolitana',
+    guardianName: 'Maestro Vínculo Rodrigo',
+    bossName: 'Espíritu Gran Torre Costanera',
+    icon: '🏅',
   },
-  male: {
-    id: 'templanza_austral',
-    name: 'Templanza Austral',
-    title: 'Pasiva Masculina · Espíritu Indómito',
-    description: 'Potencia en +15% el daño de tu espíritu activo, reduce 10% el daño recibido y carga +25% más rápido la Invocación.',
-    icon: '⛰️',
+  {
+    id: 'medalla_biobio',
+    regionId: 'biobio',
+    name: 'Medalla Jurásica Biobío',
+    regionLabel: 'R. del Biobío',
+    guardianName: 'Maestro Vínculo Lautaro',
+    bossName: 'Rex Fósil del Biobío',
+    icon: '🦖',
   },
-};
+  {
+    id: 'medalla_araucania',
+    regionId: 'araucania',
+    name: 'Medalla Pewén Araucanía',
+    regionLabel: 'R. de La Araucanía',
+    guardianName: 'Maestro Vínculo Kallfü',
+    bossName: 'Araucaria Madre',
+    icon: '🌲',
+  },
+  {
+    id: 'medalla_losrios',
+    regionId: 'losrios',
+    name: 'Medalla Selva Valdiviana',
+    regionLabel: 'R. de Los Ríos',
+    guardianName: 'Maestra Vínculo Antonia',
+    bossName: 'Guardián del Torreón',
+    icon: '🏰',
+  },
+  {
+    id: 'medalla_loslagos',
+    regionId: 'loslagos',
+    name: 'Medalla Serpientes Australes',
+    regionLabel: 'R. de Los Lagos',
+    guardianName: 'Maestros Kalfú y Llankal',
+    bossName: 'Cai Cai y Vilu Vilu',
+    icon: '🐍',
+  },
+];
 
 export interface BarbaraHero {
   name: string;
-  gender?: HeroGender;
+  gender: HeroGender;
   level: number;
   exp: number;
   maxExp: number;
   currentHp: number;
   maxHp: number;
-  job: JobClass;
-  jobMastery: Record<JobClass, number>; // level 1..5 for each job
-  limitGauge: number; // 0..100% (Invocación de la Naturaleza)
+  limitGauge: number; // 0..100% (Invocación Primigenia)
   resonanceOrbs: number; // Amuletos de Vínculo
   gold: number;
   activeSpiritUids: string[];
+  medals: string[];
+  medalRecords?: MedalRecord[];
+  bestiaryCompleted?: boolean;
+  seenSpeciesIds?: string[];
+  registeredEvolutionKeys?: string[];
+  battlesWon: number;
+  spiritsCaptured: number;
 }
 
 export interface InventoryItem {
@@ -163,7 +209,11 @@ export interface OverworldEntity {
   destinationRegion?: RegionId;
   destinationX?: number;
   destinationY?: number;
+  shopVendorName?: string;
+  shopSubtitle?: string;
   isShop?: boolean;
+  isHospital?: boolean;
+  isEvolutionSanctuary?: boolean;
 }
 
 export interface MapRegion {
@@ -173,10 +223,12 @@ export interface MapRegion {
   lore: string;
   width: number;
   height: number;
-  tiles: number[][]; // 0: grass, 1: path, 2: water, 3: mountain/rock, 4: forest/tree, 5: lava, 6: snow/ice, 7: flowers/crops, 8: house/refuge
+  // 0: grass, 1: path/bridge (0%), 2: water, 3: mountain/rock, 4: forest/tree, 5: lava/wall, 6: snow/ice, 7: flowers/crops, 8: house/wall/furniture, 9: prehistoric amber, 10: indoor safe floor (0%), 11: railway tracks (0%)
+  tiles: number[][];
   ambientColor: string;
   themeColor: string;
-  weather: 'soleado' | 'otonal' | 'lluvia_suave' | 'ceniza_volcanica' | 'ventisca_austral';
+  weather: 'soleado' | 'otonal' | 'lluvia_intermitente' | 'lluvia_suave' | 'lluvia_viento' | 'ceniza_volcanica' | 'ventisca_austral' | 'interior';
+  weatherLabel?: string;
   bgmId: RegionId;
   entities: OverworldEntity[];
   wildEncounterTable: { spiritId: string; minLevel: number; maxLevel: number; weight: number }[];

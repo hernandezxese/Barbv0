@@ -18,11 +18,14 @@ interface SaveLoadModalProps {
 
 const REGION_NAMES: Record<RegionId, string> = {
   casa: 'Casa del Guardián (Escenario 0)',
-  santiago: 'Región Metropolitana (Etapa 1)',
-  biobio: 'Región del Biobío (Etapa 2)',
-  araucania: 'Región de La Araucanía (Etapa 3)',
-  losrios: 'Región de Los Ríos (Etapa 4)',
-  loslagos: 'Región de Los Lagos (Etapa 5)',
+  santiago: 'R. Metropolitana (Etapa 1)',
+  biobio: 'R. del Biobío (Etapa 2)',
+  araucania: 'R. de La Araucanía (Etapa 3)',
+  losrios: 'R. de Los Ríos (Etapa 4)',
+  loslagos: 'R. de Los Lagos (Etapa 5)',
+  hospital: 'Hospital Regional (Interior)',
+  santuario: 'Santuario de Evolución (Interior)',
+  tienda: 'Tienda Regional (Interior)',
 };
 
 export const SaveLoadModal: React.FC<SaveLoadModalProps> = ({

@@ -148,10 +148,10 @@ export const AdventureGuideModal: React.FC<AdventureGuideModalProps> = ({ onClos
                 <div className="min-w-0">
                   <div className="flex items-center gap-1.5 font-pixel text-[10px] text-zinc-100">
                     <Footprints className="w-3.5 h-3.5 text-zinc-200 shrink-0" />
-                    <span>CAMINOS: 0.5% - 1%</span>
+                    <span>CAMINOS Y VÍA FÉRREA: 0%</span>
                   </div>
                   <p className="text-[10px] text-zinc-300 font-mono leading-snug mt-0.5">
-                    Caminar sobre senderos mantiene la tasa salvaje muy baja (<strong className="text-white">0.5% a 1%</strong>).
+                    Caminar por senderos, puentes o vías férreas tiene <strong className="text-white">0% de encuentros</strong>.
                   </p>
                 </div>
               </div>
@@ -184,7 +184,7 @@ export const AdventureGuideModal: React.FC<AdventureGuideModalProps> = ({ onClos
                   <div className="font-silkscreen text-[10px] text-zinc-100 flex items-center gap-1">
                     <Store className="w-3 h-3" /> SALAS &amp; TIENDAS
                   </div>
-                  <p className="text-[10px] text-zinc-400 font-mono">Tiendas en Stages 1, 3 y 5. Hospitales en 1 y 3.</p>
+                  <p className="text-[10px] text-zinc-400 font-mono">Tiendas en Stages 1, 3 y 5. Hospitales en 2 y 4.</p>
                 </div>
               </div>
               <div className="p-2.5 bg-zinc-900 border border-zinc-700 rounded-xl flex items-center gap-2.5">
@@ -200,16 +200,16 @@ export const AdventureGuideModal: React.FC<AdventureGuideModalProps> = ({ onClos
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 font-mono text-[10px]">
               <div className="p-2.5 bg-zinc-900 border border-zinc-700 rounded-xl">
-                <span className="text-zinc-100 font-bold block">0. Casa &amp; 1. Metropolitana</span>
-                <span className="text-zinc-400">Hogar seguro (0%), Hospital, Tienda de Don Manuel y Torre Costanera (Nv.5).</span>
+                <span className="text-zinc-100 font-bold block">0. Casa &amp; 1. R. Metropolitana</span>
+                <span className="text-zinc-400">Hogar seguro, Río Mapocho, Cerros, Tienda (Interior) y Torre Costanera (Nv.5).</span>
               </div>
               <div className="p-2.5 bg-zinc-900 border border-zinc-700 rounded-xl">
-                <span className="text-zinc-100 font-bold block">2. Biobío &amp; 3. Araucanía</span>
-                <span className="text-zinc-400">Biobío fósil (Santuario + T-Rex Nv.7) y Araucanía verde con Hospital/Tienda (Nv.9).</span>
+                <span className="text-zinc-100 font-bold block">2. R. del Biobío &amp; 3. R. Araucanía</span>
+                <span className="text-zinc-400">Biobío con vía férrea, Hospital y Santuario (T-Rex Nv.7); Araucanía con Tienda (Nv.9).</span>
               </div>
               <div className="p-2.5 bg-zinc-900 border border-zinc-700 rounded-xl sm:col-span-2">
-                <span className="text-zinc-100 font-bold block">4. Los Ríos &amp; 5. Los Lagos</span>
-                <span className="text-zinc-400">Selva valdiviana con Santuario y Torreón (Nv.11), más fiordos con Cai Cai (Nv.13) y Vilu Vilu (Nv.14).</span>
+                <span className="text-zinc-100 font-bold block">4. R. de Los Ríos &amp; 5. R. de Los Lagos</span>
+                <span className="text-zinc-400">Los Ríos con Hospital/Santuario y Torreón (Nv.11); Los Lagos con Tienda, Cai Cai (Nv.13) y Vilu Vilu (Nv.14).</span>
               </div>
             </div>
           </div>
@@ -268,14 +268,14 @@ export const AdventureGuideModal: React.FC<AdventureGuideModalProps> = ({ onClos
               <PixelPreviewCanvas kind="companion" />
               <div>
                 <h3 className="font-pixel text-[11px] text-zinc-100 flex items-center gap-1">
-                  <Sparkles className="w-3.5 h-3.5" /> SANTUARIOS (STAGES 2 Y 4)
+                  <Sparkles className="w-3.5 h-3.5" /> TEMPLOS DE EVOLUCIÓN (STAGES 2 Y 4)
                 </h3>
-                <p className="text-zinc-400 text-[10px]">Cada espíritu tiene 3 etapas y aprende técnicas nuevas al subir de nivel.</p>
+                <p className="text-zinc-400 text-[10px]">Las especies tienen entre 1 y 3 etapas evolutivas y aprenden técnicas al subir de nivel.</p>
               </div>
             </div>
             <div className="p-2.5 bg-zinc-950 border border-zinc-700 rounded-lg">
-              <span className="text-zinc-100 font-bold block">Etapa 1 ➔ 2 (Nv.10) y Etapa 2 ➔ 3 (Nv.22):</span>
-              <span className="text-zinc-400 text-[10px]">Visita los Santuarios físicos en Biobío / Los Ríos o abre Evolución desde el Menú.</span>
+              <span className="text-zinc-100 font-bold block">Solo dentro de los Santuarios físicos:</span>
+              <span className="text-zinc-400 text-[10px]">La evolución no está disponible desde el menú. Entra a los Templos de Evolución en R. del Biobío (Stage 2) y R. de Los Ríos (Stage 4).</span>
             </div>
           </div>
         )}
@@ -287,20 +287,20 @@ export const AdventureGuideModal: React.FC<AdventureGuideModalProps> = ({ onClos
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <div className="p-2.5 bg-zinc-950 rounded-xl border border-zinc-700">
-                <span className="text-zinc-100 font-bold block">Cruceta D-Pad</span>
-                <span className="text-zinc-400">Desplázate manteniendo presionadas las flechas táctiles.</span>
+                <span className="text-zinc-100 font-bold block">Tocar Mapa (Tap-to-Move)</span>
+                <span className="text-zinc-400">Toca cualquier zona visible para caminar automáticamente entre el Pacífico (O) y los Andes (E).</span>
               </div>
               <div className="p-2.5 bg-zinc-950 rounded-xl border border-zinc-700">
-                <span className="text-zinc-100 font-bold block">Botón ACCIÓN</span>
-                <span className="text-zinc-400">Habla con NPCs, entra a salas de tienda/hospital/santuario o combate.</span>
+                <span className="text-zinc-100 font-bold block">Habilidades del Líder Activo</span>
+                <span className="text-zinc-400">Equipa al espíritu del elemento necesario como Líder Activo en Equipo para liberar pasos bloqueados.</span>
               </div>
               <div className="p-2.5 bg-zinc-950 rounded-xl border border-zinc-700">
-                <span className="text-zinc-100 font-bold block">Perfil y Medallas</span>
-                <span className="text-zinc-400">Toca tu nombre arriba o en Menú para ver estadísticas y tus 5 Medallas.</span>
+                <span className="text-zinc-100 font-bold block">Niebla de Exploración</span>
+                <span className="text-zinc-400">El mapa y topografía se revelan progresivamente a medida que avanzas.</span>
               </div>
               <div className="p-2.5 bg-zinc-950 rounded-xl border border-zinc-700">
-                <span className="text-zinc-100 font-bold block">3 Ranuras de Guardado</span>
-                <span className="text-zinc-400">Guarda en cualquier momento desde Menú ⚙️.</span>
+                <span className="text-zinc-100 font-bold block">Mensajes y ACCIÓN</span>
+                <span className="text-zinc-400">Todos los avisos e interacciones importantes aparecen junto al botón ACCIÓN abajo a la derecha.</span>
               </div>
             </div>
           </div>
@@ -308,7 +308,7 @@ export const AdventureGuideModal: React.FC<AdventureGuideModalProps> = ({ onClos
       </div>
 
       <div className="max-w-4xl w-full mx-auto pt-2 border-t border-zinc-800 text-center text-[10px] font-mono text-zinc-500">
-        Caminos: 0.5%-1% · Fuera de camino: 1%-3% · Interior/Hogar: 0%
+        Caminos / Vías / Interiores: 0% · Fuera de camino: 1%-3% · Toca el mapa para explorar
       </div>
     </div>
   );

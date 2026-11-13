@@ -226,7 +226,10 @@ export const BattleView: React.FC<BattleViewProps> = ({
     defeatedEnemy: SpiritCreature,
     wasCaptured: boolean
   ): { updatedSpirit: SpiritCreature; updatedBarbara: BarbaraHero } => {
-    const expGained = Math.round(defeatedEnemy.level * 48 * (isBossBattle ? 2.5 : 1) * (wasCaptured ? 1.15 : 1));
+    const TEST_EXP_MULTIPLIER = 3; // +200% EXP test boost
+    const expGained = Math.round(
+      defeatedEnemy.level * 48 * (isBossBattle ? 2.5 : 1) * (wasCaptured ? 1.15 : 1) * TEST_EXP_MULTIPLIER
+    );
     let nextExp = victorSpirit.exp + expGained;
     let nextLevel = victorSpirit.level;
     let maxExp = victorSpirit.maxExp;

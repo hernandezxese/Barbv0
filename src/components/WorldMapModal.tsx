@@ -1,12 +1,14 @@
 /**
  * Chilean World Map & Fast Travel Modal
- * 0: Hogar (Casa) -> 1: Región Metropolitana -> 2: Región del Biobío -> 3: Región de La Araucanía -> 4: Región de Los Ríos -> 5: Región de Los Lagos
- * Features Topographical view as default, green Araucanía base, tile 10 indoor rooms,
- * and updated 0.5%-1% path / 1%-3% off-path encounter probabilities.
+ * Layout:
+ * - Stages 0 (Casa) & 1 (R. Metropolitana) grouped together at north hub
+ * - Far south gap before Stage 2 (R. del Biobío)
+ * - Stages 2..5 (Biobío, Araucanía, Los Ríos, Los Lagos) clustered close southward
+ * - Topographical canvas mirrors Progressive Fog of War (revealedTiles) and Railway tracks (tile 11)
  */
 
 import React, { useState } from 'react';
-import { RegionId } from '../types/game';
+import { MAIN_REGION_IDS, RegionId } from '../types/game';
 import { REGIONS_DATA } from '../data/regionsData';
 import { sound } from '../services/audioService';
 import {
@@ -29,6 +31,7 @@ interface WorldMapModalProps {
   currentRegionId: RegionId;
   unlockedRegions: RegionId[];
   playerPos?: { x: number; y: number };
+  revealedTiles?: Record<string, string[]>;
   onFastTravel: (targetRegionId: RegionId) => void;
   onClose: () => void;
 }
@@ -37,11 +40,13 @@ export const WorldMapModal: React.FC<WorldMapModalProps> = ({
   currentRegionId,
   unlockedRegions,
   playerPos,
+  revealedTiles,
   onFastTravel,
   onClose,
 }) => {
-  const [selectedRegionId, setSelectedRegionId] = useState<RegionId>(currentRegionId);
-  const regionsList: RegionId[] = ['casa', 'santiago', 'biobio', 'araucania', 'losrios', 'loslagos'];
+  const initialSelected: RegionId = MAIN_REGION_IDS.includes(currentRegionId) ? currentRegionId : 'santiago';
+  const [selectedRegionId, setSelectedRegionId] = useState<RegionId>(initialSelected);
+  const regionsList: RegionId[] = MAIN_REGION_IDS;
 
   const getRegionIcon = (id: RegionId) => {
     if (id === 'casa') return <Home className="w-4 h-4 text-zinc-200" />;
@@ -57,12 +62,15 @@ export const WorldMapModal: React.FC<WorldMapModalProps> = ({
   const isSelectedCurrent = selectedRegionId === currentRegionId;
 
   const mapNodes: Record<RegionId, { top: string; left: string; landmark: string; climate: string; shortLabel: string }> = {
-    casa: { top: '8%', left: '34%', landmark: 'Hogar Familiar (Escenario 0)', climate: 'Refugio (0%)', shortLabel: 'Casa' },
-    santiago: { top: '19%', left: '49%', landmark: 'Santiago, Tienda y Hospital', climate: 'Despejado', shortLabel: 'Metrop.' },
-    biobio: { top: '35%', left: '49%', landmark: 'Niebla, Santuario y Fósiles', climate: 'Nuboso', shortLabel: 'Biobío' },
-    araucania: { top: '52%', left: '51%', landmark: 'Bosques Verdes y Magma', climate: 'Lluvia', shortLabel: 'Araucanía' },
-    losrios: { top: '70%', left: '48%', landmark: 'Selva Valdiviana y Santuario', climate: 'Ventoso', shortLabel: 'Los Ríos' },
-    loslagos: { top: '88%', left: '47%', landmark: 'Hornopirén y Tormenta', climate: 'Tormenta', shortLabel: 'Los Lagos' },
+    casa: { top: '13%', left: '50%', landmark: 'Hogar Familiar (Escenario 0)', climate: 'Interior (0%)', shortLabel: 'Casa' },
+    santiago: { top: '13%', left: '50%', landmark: 'Río Mapocho, Cerros y Tienda', climate: 'Soleado', shortLabel: 'R.M.' },
+    biobio: { top: '53%', left: '50%', landmark: 'Vía Férrea, Hospital y Santuario', climate: 'Niebla/Lluvia', shortLabel: 'Biobío' },
+    araucania: { top: '65%', left: '51%', landmark: 'Araucarias, Volcán y Tienda', climate: 'Lluvia Fija', shortLabel: 'Araucanía' },
+    losrios: { top: '77%', left: '49%', landmark: 'Hospital, Santuario y Torreón', climate: 'Lluvia+Viento', shortLabel: 'Los Ríos' },
+    loslagos: { top: '89%', left: '48%', landmark: 'Palafitos, Tienda y Serpientes', climate: 'Tormenta', shortLabel: 'Los Lagos' },
+    hospital: { top: '53%', left: '72%', landmark: 'Hospital Regional (Interior)', climate: 'Seguro (0%)', shortLabel: 'Hospital' },
+    santuario: { top: '77%', left: '72%', landmark: 'Santuario de Evolución', climate: 'Seguro (0%)', shortLabel: 'Santuario' },
+    tienda: { top: '13%', left: '72%', landmark: 'Tienda Regional (Interior)', climate: 'Seguro (0%)', shortLabel: 'Tienda' },
   };
 
   const [viewMode, setViewMode] = useState<'cartography' | 'stage_terrain'>('stage_terrain');
@@ -79,14 +87,27 @@ export const WorldMapModal: React.FC<WorldMapModalProps> = ({
     const rows = reg.height;
     const cellW = canvas.width / cols;
     const cellH = canvas.height / rows;
+    const isInterior = reg.id === 'casa' || reg.id === 'hospital' || reg.id === 'santuario' || reg.id === 'tienda';
+    const revealedList = revealedTiles?.[reg.id];
+    const revealedSet = new Set(revealedList || []);
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     for (let y = 0; y < rows; y++) {
       for (let x = 0; x < cols; x++) {
-        const tile = reg.tiles[y]?.[x] ?? 0;
         const px = x * cellW;
         const py = y * cellH;
+        const isRevealed = isInterior || (revealedList !== undefined && revealedSet.size > 0 ? revealedSet.has(`${x},${y}`) : false);
+
+        if (!isRevealed) {
+          ctx.fillStyle = '#09090b';
+          ctx.fillRect(px, py, cellW, cellH);
+          ctx.strokeStyle = 'rgba(39, 39, 42, 0.35)';
+          ctx.strokeRect(px, py, cellW, cellH);
+          continue;
+        }
+
+        const tile = reg.tiles[y]?.[x] ?? 0;
 
         if (tile === 0) {
           ctx.fillStyle =
@@ -99,54 +120,61 @@ export const WorldMapModal: React.FC<WorldMapModalProps> = ({
           ctx.fillStyle =
             reg.id === 'casa' ? '#d4d4d8' :
             reg.id === 'santiago' ? '#cbd5e1' :
-            reg.id === 'biobio' ? '#64748b' :
+            reg.id === 'biobio' ? '#d6d3d1' :
             reg.id === 'araucania' ? '#78716c' :
-            reg.id === 'losrios' ? '#1e293b' : '#64748b';
+            reg.id === 'losrios' ? '#451a03' : '#64748b';
+        } else if (tile === 11) {
+          ctx.fillStyle = '#44403c';
         } else if (tile === 2) {
           ctx.fillStyle =
-            reg.id === 'santiago' ? '#38bdf8' :
-            reg.id === 'biobio' ? '#475569' :
+            reg.id === 'santiago' ? '#0ea5e9' :
+            reg.id === 'biobio' ? '#0284c7' :
             reg.id === 'losrios' ? '#1e3a8a' : '#0c4a6e';
         } else if (tile === 3) {
           ctx.fillStyle =
             reg.id === 'casa' ? '#27272a' :
-            reg.id === 'santiago' ? '#94a3b8' :
-            reg.id === 'biobio' ? '#451a03' :
+            reg.id === 'santiago' ? (y <= 1 ? '#e2e8f0' : '#94a3b8') :
+            reg.id === 'biobio' ? '#475569' :
             reg.id === 'araucania' ? '#292524' :
-            reg.id === 'losrios' ? '#0f172a' : '#334155';
+            reg.id === 'losrios' ? '#0f172a' : (y <= 2 ? '#bae6fd' : '#334155');
         } else if (tile === 4) {
           ctx.fillStyle =
             reg.id === 'santiago' ? '#15803d' :
             reg.id === 'biobio' ? '#365314' :
-            reg.id === 'araucania' ? '#166534' :
-            reg.id === 'losrios' ? '#022c22' : '#14532d';
+            reg.id === 'araucania' ? '#14532d' :
+            reg.id === 'losrios' ? '#9a3412' : '#14532d';
         } else if (tile === 5) {
-          ctx.fillStyle = '#dc2626';
+          ctx.fillStyle = '#ea580c';
         } else if (tile === 6) {
           ctx.fillStyle = '#f8fafc';
         } else if (tile === 7) {
           ctx.fillStyle =
             reg.id === 'santiago' ? '#facc15' :
             reg.id === 'biobio' ? '#84cc16' :
-            reg.id === 'araucania' ? '#f97316' :
+            reg.id === 'araucania' ? '#e11d48' :
             reg.id === 'losrios' ? '#a3e635' : '#bae6fd';
         } else if (tile === 8) {
+          const chiloePalette = ['#dc2626', '#eab308', '#0284c7', '#16a34a'];
           ctx.fillStyle =
             reg.id === 'casa' ? '#57534e' :
             reg.id === 'santiago' ? '#c2410c' :
             reg.id === 'biobio' ? '#991b1b' :
             reg.id === 'araucania' ? '#9a3412' :
-            reg.id === 'losrios' ? '#1e293b' : '#475569';
+            reg.id === 'losrios' ? '#1e293b' : chiloePalette[x % 4];
         } else if (tile === 9) {
-          ctx.fillStyle = '#854d0e';
+          ctx.fillStyle = '#a16207';
         } else if (tile === 10) {
-          ctx.fillStyle = '#e7e5e4'; // Indoor safe room
+          ctx.fillStyle = '#e7e5e4';
         } else {
           ctx.fillStyle = '#18181b';
         }
 
         ctx.fillRect(px, py, cellW, cellH);
-        if (tile === 8 && reg.id !== 'casa') {
+        if (tile === 11) {
+          ctx.fillStyle = '#cbd5e1';
+          ctx.fillRect(px, py + cellH * 0.28, cellW, cellH * 0.14);
+          ctx.fillRect(px, py + cellH * 0.6, cellW, cellH * 0.14);
+        } else if (tile === 8 && reg.id !== 'casa') {
           ctx.fillStyle = reg.id === 'loslagos' ? '#fbbf24' : reg.id === 'losrios' ? '#fde047' : '#fef3c7';
           ctx.fillRect(px + cellW * 0.3, py + cellH * 0.45, cellW * 0.4, cellH * 0.35);
         }
@@ -157,6 +185,9 @@ export const WorldMapModal: React.FC<WorldMapModalProps> = ({
 
     reg.entities.forEach(ent => {
       if (ent.cleared && ent.type !== 'npc') return;
+      const isEntRevealed = isInterior || (revealedList !== undefined && revealedSet.size > 0 && revealedSet.has(`${ent.x},${ent.y}`));
+      if (!isEntRevealed) return;
+
       const ex = ent.x * cellW + cellW / 2;
       const ey = ent.y * cellH + cellH / 2;
 
@@ -188,7 +219,7 @@ export const WorldMapModal: React.FC<WorldMapModalProps> = ({
         ctx.fillStyle = '#ec4899';
         ctx.fillRect(ex - cellW * 0.38, ey - cellH * 0.38, cellW * 0.76, cellH * 0.76);
       } else if (ent.type === 'portal' || ent.type === 'shrine') {
-        ctx.fillStyle = '#a1a1aa';
+        ctx.fillStyle = ent.id.includes('tienda') ? '#facc15' : ent.id.includes('hospital') ? '#f43f5e' : '#a1a1aa';
         ctx.fillRect(ex - cellW * 0.45, ey - cellH * 0.45, cellW * 0.9, cellH * 0.9);
       }
     });
@@ -204,7 +235,10 @@ export const WorldMapModal: React.FC<WorldMapModalProps> = ({
       ctx.lineWidth = 2.5;
       ctx.stroke();
     }
-  }, [viewMode, selectedRegionId, selectedRegion, isSelectedCurrent, playerPos]);
+  }, [viewMode, selectedRegionId, selectedRegion, isSelectedCurrent, playerPos, revealedTiles]);
+
+  const northHubRegions: RegionId[] = ['casa', 'santiago'];
+  const southRegions: RegionId[] = ['biobio', 'araucania', 'losrios', 'loslagos'];
 
   return (
     <div className="fixed inset-0 z-50 bg-zinc-950/95 backdrop-blur-md flex flex-col justify-between overflow-y-auto select-none p-2.5 sm:p-4 text-zinc-100 font-ui">
@@ -227,7 +261,7 @@ export const WorldMapModal: React.FC<WorldMapModalProps> = ({
               <span className="truncate">MAPA DE EXPEDICIÓN</span>
             </h2>
             <p className="text-[10px] text-zinc-400 font-mono-stat hidden sm:block">
-              Camino 0.5%-1% · Fuera de camino 1%-3% · Interior 0%
+              Camino/Tren 0% · Fuera 1%-3% · Interior 0% · Se revela al avanzar
             </p>
           </div>
         </div>
@@ -246,7 +280,7 @@ export const WorldMapModal: React.FC<WorldMapModalProps> = ({
 
       {/* Main Map Visual & Regions */}
       <div className="max-w-6xl w-full mx-auto my-2.5 flex-1 grid grid-cols-1 lg:grid-cols-12 gap-3 sm:gap-4 items-stretch">
-        <div className="lg:col-span-7 bg-zinc-900 border border-zinc-700 rounded-2xl p-2.5 sm:p-4 flex flex-col items-center justify-between min-h-[260px] sm:min-h-[400px] relative overflow-hidden shadow-2xl">
+        <div className="lg:col-span-7 bg-zinc-900 border border-zinc-700 rounded-2xl p-2.5 sm:p-4 flex flex-col items-center justify-between min-h-[290px] sm:min-h-[400px] relative overflow-hidden shadow-2xl">
           {viewMode === 'stage_terrain' ? (
             <div className="relative w-full h-full flex flex-col items-center justify-between z-10 gap-2">
               <div className="w-full flex justify-between items-center pb-1.5 border-b border-zinc-800 text-[10px] sm:text-xs font-silkscreen text-zinc-100">
@@ -274,15 +308,58 @@ export const WorldMapModal: React.FC<WorldMapModalProps> = ({
                 <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-yellow-400" /> Tienda</span>
                 <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-rose-500" /> Hospital</span>
                 <span className="flex items-center gap-1"><span className="w-2 h-2 bg-amber-500 rounded-xs" /> Cofre</span>
-                <span className="flex items-center gap-1"><span className="w-2 h-2 bg-zinc-400 rounded-xs" /> Portal</span>
+                <span className="flex items-center gap-1"><span className="w-2 h-2 bg-pink-500 rounded-xs" /> Misión</span>
               </div>
             </div>
           ) : (
-            <>
+            <div className="relative w-full h-full min-h-[290px]">
               <div className="absolute inset-0 bg-gradient-to-b from-zinc-900 via-zinc-950 to-zinc-900 pointer-events-none" />
-              <div className="absolute top-[10%] bottom-[12%] left-1/2 -translate-x-1/2 w-0.5 border-l-2 border-dashed border-zinc-600 pointer-events-none" />
+              {/* Vertical spine connecting North Hub (0+1) down to South Cluster (2..5) */}
+              <div className="absolute top-[14%] bottom-[11%] left-1/2 -translate-x-1/2 w-0.5 border-l-2 border-dashed border-zinc-600 pointer-events-none" />
 
-              {regionsList.map((id, idx) => {
+              {/* North Hub: Stage 0 (Casa) & Stage 1 (R. Metropolitana) sharing the exact same geographical coordinate */}
+              <div
+                style={{ top: '14%', left: '50%' }}
+                className="absolute -translate-x-1/2 -translate-y-1/2 z-20 flex items-center gap-1.5 bg-zinc-950/90 border-2 border-zinc-500 p-1.5 rounded-2xl shadow-2xl"
+              >
+                {northHubRegions.map((id, idx) => {
+                  const isCurrent = id === currentRegionId;
+                  const isSelected = id === selectedRegionId;
+                  return (
+                    <button
+                      key={id}
+                      onClick={() => {
+                        sound.playSelect();
+                        setSelectedRegionId(id);
+                      }}
+                      className={`relative flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl cursor-pointer transition-all ${
+                        isSelected ? 'ring-2 ring-white scale-105' : 'hover:scale-105'
+                      } ${
+                        isCurrent
+                          ? 'bg-zinc-100 text-zinc-950 font-bold'
+                          : 'bg-zinc-800 text-zinc-100 border border-zinc-600'
+                      }`}
+                    >
+                      {isCurrent ? <MapPin className="w-3.5 h-3.5 animate-bounce text-zinc-950" /> : getRegionIcon(id)}
+                      <span className="font-silkscreen text-[9px] whitespace-nowrap">
+                        {idx}.{mapNodes[id].shortLabel}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Long Distance Label between Center & South */}
+              <div
+                style={{ top: '34%', left: '50%' }}
+                className="absolute -translate-x-1/2 -translate-y-1/2 z-10 px-2 py-0.5 rounded-full bg-zinc-900 border border-zinc-700 text-[9px] font-mono text-zinc-400 whitespace-nowrap"
+              >
+                Ruta hacia el Sur
+              </div>
+
+              {/* South Cluster: Stages 2 (Biobío), 3 (Araucanía), 4 (Los Ríos), 5 (Los Lagos) grouped southward */}
+              {southRegions.map((id, sIdx) => {
+                const idx = sIdx + 2;
                 const reg = REGIONS_DATA[id];
                 const node = mapNodes[id];
                 const isCurrent = id === currentRegionId;
@@ -328,7 +405,7 @@ export const WorldMapModal: React.FC<WorldMapModalProps> = ({
                     </div>
 
                     <div
-                      className={`hidden sm:block absolute left-full ml-3 top-1/2 -translate-y-1/2 px-2 py-0.5 rounded-lg whitespace-nowrap text-left border ${
+                      className={`absolute left-full ml-2.5 top-1/2 -translate-y-1/2 px-2 py-0.5 rounded-lg whitespace-nowrap text-left border ${
                         isSelected
                           ? 'bg-zinc-100 border-zinc-300 text-zinc-950 shadow-lg'
                           : 'bg-zinc-900/95 border-zinc-700 text-zinc-200'
@@ -339,7 +416,7 @@ export const WorldMapModal: React.FC<WorldMapModalProps> = ({
                   </div>
                 );
               })}
-            </>
+            </div>
           )}
         </div>
 
@@ -375,12 +452,12 @@ export const WorldMapModal: React.FC<WorldMapModalProps> = ({
             <div className="grid grid-cols-2 gap-2 text-[10px] font-mono-stat">
               <div className="p-2 bg-zinc-950 rounded-xl border border-zinc-800">
                 <span className="text-zinc-400 block text-[9px]">Hito:</span>
-                <span className="text-zinc-100 font-semibold">{mapNodes[selectedRegionId].landmark}</span>
+                <span className="text-zinc-100 font-semibold">{mapNodes[selectedRegionId]?.landmark}</span>
               </div>
               <div className="p-2 bg-zinc-950 rounded-xl border border-zinc-800">
                 <span className="text-zinc-400 block text-[9px]">Encuentros:</span>
                 <span className="text-zinc-100 font-semibold">
-                  {selectedRegion.wildEncounterTable.length === 0 ? '0% (Hogar)' : 'Camino 0.5%-1% · Fuera 1%-3%'}
+                  {selectedRegion.wildEncounterTable.length === 0 ? '0% (Hogar)' : 'Camino/Tren 0% · Fuera 1%-3%'}
                 </span>
               </div>
             </div>
@@ -395,7 +472,7 @@ export const WorldMapModal: React.FC<WorldMapModalProps> = ({
                 <div className="flex flex-wrap gap-1">
                   {selectedRegion.wildEncounterTable.map(enc => (
                     <span key={enc.spiritId} className="px-1.5 py-0.5 bg-zinc-800 border border-zinc-600 rounded text-[9px] font-mono-stat text-zinc-200 capitalize">
-                      {enc.spiritId} Nv.{enc.minLevel === enc.maxLevel ? enc.minLevel : `${enc.minLevel}-${enc.maxLevel}`}
+                      {enc.spiritId.replace('_', ' ')} Nv.{enc.minLevel === enc.maxLevel ? enc.minLevel : `${enc.minLevel}-${enc.maxLevel}`}
                     </span>
                   ))}
                 </div>

@@ -13,12 +13,17 @@ import {
   InventoryItem,
   HeroGender,
   REGION_MEDALS,
+  OverworldEntity,
 } from './types/game';
 import { REGIONS_DATA } from './data/regionsData';
-import { createSpiritInstance, checkNewMovesToLearn } from './data/spiritsData';
+import { createSpiritInstance, checkNewMovesToLearn, SPIRITS_REGISTRY } from './data/spiritsData';
 import { INITIAL_ITEMS } from './data/itemsData';
 import { sound } from './services/audioService';
 import { storageService } from './services/storageService';
+
+import endingAmanecerImg from './assets/images/ending_amanecer_chile_1794579897966.jpg';
+import endingGuardianesImg from './assets/images/ending_guardianes_unidos_1794579900820.jpg';
+import endingTravesiaImg from './assets/images/ending_nueva_travesia_1794579899406.jpg';
 
 import { TitleScreen } from './components/TitleScreen';
 import { ExplorationView, PostDialogueAction } from './components/ExplorationView';
@@ -37,15 +42,27 @@ import { SystemMenuModal } from './components/SystemMenuModal';
 import { SaveLoadModal } from './components/SaveLoadModal';
 import { AdventureGuideModal } from './components/AdventureGuideModal';
 import { ProfileModal } from './components/ProfileModal';
-import { Trophy, RotateCcw, CheckCircle2, AlertTriangle, Compass } from 'lucide-react';
+import { OnboardingModal } from './components/OnboardingModal';
+import { Trophy, RotateCcw, CheckCircle2, AlertTriangle, Compass, Sparkles, BookMarked } from 'lucide-react';
 
 const SAFE_SPAWN_BY_REGION: Record<RegionId, { x: number; y: number }> = {
-  casa: { x: 7, y: 6 },
-  santiago: { x: 10, y: 6 },
-  biobio: { x: 11, y: 7 },
-  araucania: { x: 11, y: 7 },
-  losrios: { x: 12, y: 6 },
-  loslagos: { x: 11, y: 7 },
+  casa: { x: 5, y: 6 },
+  santiago: { x: 13, y: 3 },
+  biobio: { x: 9, y: 2 },
+  araucania: { x: 11, y: 2 },
+  losrios: { x: 11, y: 2 },
+  loslagos: { x: 16, y: 2 },
+  hospital: { x: 5, y: 7 },
+  santuario: { x: 5, y: 7 },
+  tienda: { x: 5, y: 7 },
+};
+
+const INTERIOR_DOORSTEP_EXIT: Partial<Record<RegionId, { x: number; y: number }>> = {
+  santiago: { x: 3, y: 7 },
+  biobio: { x: 3, y: 6 },
+  araucania: { x: 3, y: 6 },
+  losrios: { x: 3, y: 6 },
+  loslagos: { x: 28, y: 7 },
 };
 
 export default function App() {
@@ -57,20 +74,39 @@ export default function App() {
   const [hasSave, setHasSave] = useState<boolean>(storageService.hasSavedGame());
   const [hasCompletedStory, setHasCompletedStory] = useState<boolean>(false);
 
-  // Position state preserved across battles, menus, and dialogues
-  const [playerSpawnPos, setPlayerSpawnPos] = useState<{ x: number; y: number }>({ x: 7, y: 6 });
+  // Position & Fog-of-War state preserved across battles, menus, and saves
+  const [playerSpawnPos, setPlayerSpawnPos] = useState<{ x: number; y: number }>({ x: 5, y: 6 });
+  const [interiorReturnLocation, setInteriorReturnLocation] = useState<{
+    regionId: RegionId;
+    x: number;
+    y: number;
+    shopVendorName?: string;
+    shopSubtitle?: string;
+  } | null>(null);
+  const [revealedTiles, setRevealedTiles] = useState<Record<string, string[]>>({});
 
-  // Sub-modals
+  // Sub-modals & celebration overlays
   const [showCharacterCreate, setShowCharacterCreate] = useState(false);
   const [showPrologue, setShowPrologue] = useState(false);
   const [showStarterSelect, setShowStarterSelect] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [chosenStarterName, setChosenStarterName] = useState('Brotín');
   const [showSystemMenu, setShowSystemMenu] = useState(false);
   const [showGuideModal, setShowGuideModal] = useState(false);
   const [saveLoadMode, setSaveLoadMode] = useState<'save' | 'load' | 'manage' | null>(null);
   const [activeShopMeta, setActiveShopMeta] = useState<{ vendorName?: string; regionSubtitle?: string } | null>(null);
+  const [bossVictoryOverlay, setBossVictoryOverlay] = useState<{
+    bossName: string;
+    regionName: string;
+    medalName?: string;
+    pendingDialogue?: { speaker: string; lines: string[]; portraitSprite?: string };
+    triggersEnding?: boolean;
+  } | null>(null);
+  const [bestiaryCompleteOverlay, setBestiaryCompleteOverlay] = useState(false);
 
   // Notification Toast & Reset Confirmation
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const toastTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
 
   // Protagonist State
@@ -87,6 +123,10 @@ export default function App() {
     gold: 200,
     activeSpiritUids: [],
     medals: [],
+    medalRecords: [],
+    seenSpeciesIds: ['brotin', 'chucao'],
+    registeredEvolutionKeys: ['brotin:1', 'chucao:1'],
+    bestiaryCompleted: false,
     battlesWon: 0,
     spiritsCaptured: 0,
   });
@@ -122,10 +162,66 @@ export default function App() {
     }
   }, [gameState, currentRegionId]);
 
-  const showToast = (msg: string) => {
+  const handleDismissBossVictory = React.useCallback(() => {
+    setBossVictoryOverlay(prev => {
+      if (!prev) return null;
+      if (prev.triggersEnding) {
+        setHasCompletedStory(true);
+        setGameState('victory');
+        sound.playBgm('victory');
+      } else if (prev.pendingDialogue) {
+        setActiveDialogue(prev.pendingDialogue);
+      }
+      return null;
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!bossVictoryOverlay) return;
+    const timer = setTimeout(() => {
+      handleDismissBossVictory();
+    }, 3400);
+    return () => clearTimeout(timer);
+  }, [bossVictoryOverlay, handleDismissBossVictory]);
+
+  const handleRevealTiles = React.useCallback((regionId: RegionId, newCoords: string[]) => {
+    if (newCoords.length === 0) return;
+    setRevealedTiles(prev => {
+      const existing = prev[regionId] || [];
+      const set = new Set(existing);
+      let added = false;
+      for (const c of newCoords) {
+        if (!set.has(c)) {
+          set.add(c);
+          added = true;
+        }
+      }
+      if (!added) return prev;
+      return { ...prev, [regionId]: Array.from(set) };
+    });
+  }, []);
+
+  const showToast = React.useCallback((msg: string) => {
     setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 3200);
-  };
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    toastTimerRef.current = setTimeout(() => setToastMessage(null), 3500);
+  }, []);
+
+  const handleSightSpecies = React.useCallback((speciesIds: string[]) => {
+    if (speciesIds.length === 0) return;
+    setBarbara(prev => {
+      const existing = new Set(prev.seenSpeciesIds || []);
+      let added = false;
+      speciesIds.forEach(id => {
+        if (id && !existing.has(id)) {
+          existing.add(id);
+          added = true;
+        }
+      });
+      if (!added) return prev;
+      return { ...prev, seenSpeciesIds: Array.from(existing) };
+    });
+  }, []);
 
   const handleToggleMute = () => {
     sound.init();
@@ -156,20 +252,32 @@ export default function App() {
     setShowStarterSelect(true);
   };
 
-  // Starter Choice -> Exploration in Stage 0 (Casa del Guardián)
+  // Starter Choice -> Post-starter Objectives & Controls Onboarding -> Exploration in Stage 0
   const handleSelectStarter = (chosenSpirit: SpiritCreature) => {
     sound.init();
-    setPartySpirits([
-      chosenSpirit,
-      createSpiritInstance(chosenSpirit.baseId === 'chucao' ? 'brotin' : 'chucao', 2, 1),
-    ]);
+    const buddy = createSpiritInstance(chosenSpirit.baseId === 'chucao' ? 'brotin' : 'chucao', 2, 1);
+    setPartySpirits([chosenSpirit, buddy]);
+    setBarbara(prev => ({
+      ...prev,
+      seenSpeciesIds: Array.from(new Set([...(prev.seenSpeciesIds || []), chosenSpirit.baseId, buddy.baseId])),
+      registeredEvolutionKeys: Array.from(
+        new Set([
+          ...(prev.registeredEvolutionKeys || []),
+          `${chosenSpirit.baseId}:${chosenSpirit.currentStage}`,
+          `${buddy.baseId}:${buddy.currentStage}`,
+        ])
+      ),
+    }));
+    setChosenStarterName(chosenSpirit.name);
     setShowStarterSelect(false);
+    setShowOnboarding(true);
     setCurrentRegionId('casa');
     setUnlockedRegions(['casa', 'santiago']);
     setPlayerSpawnPos(SAFE_SPAWN_BY_REGION.casa);
+    setInteriorReturnLocation(null);
+    setRevealedTiles({});
     setGameState('exploration');
     sound.playBgm('casa');
-    showToast(`✨ ¡${chosenSpirit.name} acompaña a ${barbara.name} desde casa!`);
   };
 
   // Rest at home bed (Stage 0 free full heal)
@@ -206,6 +314,8 @@ export default function App() {
       inventory,
       clearedEntityIds: clearedIds,
       playerSpawnPos,
+      interiorReturnLocation: interiorReturnLocation || undefined,
+      revealedTiles,
       hasCompletedStory,
     });
 
@@ -220,15 +330,26 @@ export default function App() {
     const data = storageService.loadGame(slotId);
     if (!data) return;
 
+    const partySeen = data.partySpirits.map(s => s.baseId);
+    const partyEvoKeys = data.partySpirits.flatMap(s =>
+      Array.from({ length: s.currentStage || 1 }, (_, i) => `${s.baseId}:${i + 1}`)
+    );
+
     setCurrentRegionId(data.currentRegionId);
     setUnlockedRegions(data.unlockedRegions);
     setBarbara({
       ...data.barbara,
       gender: data.barbara.gender || 'female',
+      seenSpeciesIds: Array.from(new Set([...(data.barbara.seenSpeciesIds || []), ...partySeen])),
+      registeredEvolutionKeys: Array.from(
+        new Set([...(data.barbara.registeredEvolutionKeys || []), ...partyEvoKeys])
+      ),
     });
     setPartySpirits(data.partySpirits);
     setInventory(data.inventory);
     setHasCompletedStory(Boolean(data.hasCompletedStory));
+    setInteriorReturnLocation(data.interiorReturnLocation || null);
+    setRevealedTiles(data.revealedTiles || {});
     if (data.playerSpawnPos) setPlayerSpawnPos(data.playerSpawnPos);
 
     // Clear all flags first, then restore saved cleared flags
@@ -240,6 +361,9 @@ export default function App() {
 
     setSaveLoadMode(null);
     setShowSystemMenu(false);
+    setShowOnboarding(false);
+    setBossVictoryOverlay(null);
+    setBestiaryCompleteOverlay(false);
     setGameState('exploration');
     sound.init();
     sound.playBgm(data.currentRegionId);
@@ -253,7 +377,10 @@ export default function App() {
     setHasCompletedStory(false);
     setShowResetConfirm(false);
     setShowSystemMenu(false);
+    setShowOnboarding(false);
     setSaveLoadMode(null);
+    setBossVictoryOverlay(null);
+    setBestiaryCompleteOverlay(false);
 
     setBarbara({
       name: 'Bárbara',
@@ -268,6 +395,10 @@ export default function App() {
       gold: 200,
       activeSpiritUids: [],
       medals: [],
+      medalRecords: [],
+      seenSpeciesIds: ['brotin', 'chucao'],
+      registeredEvolutionKeys: ['brotin:1', 'chucao:1'],
+      bestiaryCompleted: false,
       battlesWon: 0,
       spiritsCaptured: 0,
     });
@@ -276,6 +407,8 @@ export default function App() {
     setCurrentRegionId('casa');
     setUnlockedRegions(['casa', 'santiago']);
     setPlayerSpawnPos(SAFE_SPAWN_BY_REGION.casa);
+    setInteriorReturnLocation(null);
+    setRevealedTiles({});
     setShowPrologue(false);
     setShowStarterSelect(false);
 
@@ -300,6 +433,7 @@ export default function App() {
       setPlayerSpawnPos(atPos);
     }
     setActiveEncounterEntityId(entityId || null);
+    handleSightSpecies([enemySpiritId]);
 
     const matchedEnt = entityId
       ? REGIONS_DATA[currentRegionId]?.entities.find(e => e.id === entityId)
@@ -366,7 +500,7 @@ export default function App() {
         const existingIdx = next.findIndex(s => s.baseId === capturedSpirit.baseId);
         if (existingIdx !== -1) {
           const orig = next[existingIdx];
-          const bonusExp = capturedSpirit.level * 55;
+          const bonusExp = capturedSpirit.level * 55 * 3;
           let expAcc = orig.exp + bonusExp;
           let lvl = orig.level;
           let maxExp = orig.maxExp;
@@ -405,8 +539,8 @@ export default function App() {
 
           duplicateBonusMsg =
             gainedLevels > 0
-              ? `✨ ¡${capturedSpirit.name} repetido dio +${bonusExp} EXP y subió a ${orig.name} a Nv.${lvl}!`
-              : `✨ ¡${capturedSpirit.name} repetido otorgó +${bonusExp} EXP a tu ${orig.name}!`;
+              ? `✨ ¡${capturedSpirit.name} repetido dio +${bonusExp} EXP (+200%) y subió a ${orig.name} a Nv.${lvl}!`
+              : `✨ ¡${capturedSpirit.name} repetido otorgó +${bonusExp} EXP (+200%) a tu ${orig.name}!`;
         } else {
           next.push(capturedSpirit);
         }
@@ -418,13 +552,46 @@ export default function App() {
       showToast(duplicateBonusMsg);
     }
 
-    // Track victory counters & check Boss Guardian Medal eligibility
+    // Check Bestiary 25/25 mastery upon capture + register seen & evolution forms
+    const seenAfter = Array.from(
+      new Set([
+        ...(updatedBarbara.seenSpeciesIds || []),
+        ...partySpirits.map(s => s.baseId),
+        ...(activeEnemySpirit ? [activeEnemySpirit.baseId] : []),
+        ...(capturedSpirit ? [capturedSpirit.baseId] : []),
+      ])
+    );
+    const evoKeysAfterSet = new Set(updatedBarbara.registeredEvolutionKeys || []);
+    partySpirits.forEach(s => {
+      for (let st = 1; st <= (s.currentStage || 1); st++) evoKeysAfterSet.add(`${s.baseId}:${st}`);
+    });
+    if (capturedSpirit) {
+      for (let st = 1; st <= (capturedSpirit.currentStage || 1); st++) {
+        evoKeysAfterSet.add(`${capturedSpirit.baseId}:${st}`);
+      }
+    }
+
+    const uniqueOwnedAfter = new Set([
+      ...partySpirits.map(s => s.baseId),
+      ...(capturedSpirit ? [capturedSpirit.baseId] : []),
+    ]).size;
+    const totalRegistryCount = Object.keys(SPIRITS_REGISTRY).length;
+    const justCompletedBestiary =
+      uniqueOwnedAfter >= totalRegistryCount && !updatedBarbara.bestiaryCompleted;
+
+    // Track victory counters & check Boss Guardian Medal eligibility + chronological record
     const nextHeroState: BarbaraHero = {
       ...updatedBarbara,
       medals: [...(updatedBarbara.medals || [])],
+      medalRecords: [...(updatedBarbara.medalRecords || [])],
+      seenSpeciesIds: seenAfter,
+      registeredEvolutionKeys: Array.from(evoKeysAfterSet),
+      bestiaryCompleted: Boolean(updatedBarbara.bestiaryCompleted) || uniqueOwnedAfter >= totalRegistryCount,
       battlesWon: (updatedBarbara.battlesWon ?? 0) + 1,
       spiritsCaptured: (updatedBarbara.spiritsCaptured ?? 0) + (capturedSpirit ? 1 : 0),
     };
+
+    let awardedMedalName: string | undefined;
 
     if (isBossBattle) {
       let medalToGrant: string | null = null;
@@ -441,77 +608,95 @@ export default function App() {
         }
       }
 
-      if (medalToGrant && !nextHeroState.medals.includes(medalToGrant)) {
-        nextHeroState.medals.push(medalToGrant);
+      if (medalToGrant) {
         const medalMeta = REGION_MEDALS.find(m => m.id === medalToGrant);
-        if (medalMeta) {
-          showToast(`🏅 ¡Obtuviste la ${medalMeta.name}!`);
+        awardedMedalName = medalMeta?.name;
+
+        if (!nextHeroState.medals.includes(medalToGrant)) {
+          nextHeroState.medals.push(medalToGrant);
+          const existingRecords = nextHeroState.medalRecords || [];
+          if (!existingRecords.some(r => r.medalId === medalToGrant)) {
+            existingRecords.push({
+              medalId: medalToGrant,
+              bossName: medalMeta?.bossName || activeEnemySpirit?.name || 'Guardián Regional',
+              regionLabel: medalMeta?.regionLabel || currentRegion.name,
+              order: existingRecords.length + 1,
+              earnedAt: new Date().toISOString(),
+            });
+            nextHeroState.medalRecords = existingRecords;
+          }
+          if (medalMeta) {
+            showToast(`🏅 ¡Obtuviste la ${medalMeta.name}!`);
+          }
         }
       }
     }
 
     setBarbara(nextHeroState);
+    if (justCompletedBestiary) {
+      setBestiaryCompleteOverlay(true);
+    }
 
     if (isBossBattle) {
+      let pendingDialogue: { speaker: string; lines: string[]; portraitSprite?: string } | undefined;
+      let triggersEnding = false;
+
       if (currentRegionId === 'santiago') {
         if (!unlockedRegions.includes('biobio')) {
           setUnlockedRegions(prev => [...prev, 'biobio']);
-          setActiveDialogue({
-            speaker: 'Maestro Vínculo Rodrigo',
-            lines: [
-              `¡Extraordinario combate, ${nextHeroState.name}! Te entrego la Medalla Valle Central de la Región Metropolitana.`,
-              'El sendero nuboso hacia la Región del Biobío y sus zonas prehistóricas ha sido despejado.',
-            ],
-            portraitSprite: 'npc_maestro_vinculo',
-          });
         }
+        pendingDialogue = {
+          speaker: 'Maestro Vínculo Rodrigo',
+          lines: [
+            `¡Extraordinario combate, ${nextHeroState.name}! Te entrego la Medalla Valle Central de la R. Metropolitana.`,
+            'El sendero nuboso hacia la R. del Biobío y su antigua vía férrea han sido despejados.',
+          ],
+          portraitSprite: 'npc_maestro_vinculo',
+        };
       } else if (currentRegionId === 'biobio') {
         if (!unlockedRegions.includes('araucania')) {
           setUnlockedRegions(prev => [...prev, 'araucania']);
-          setActiveDialogue({
-            speaker: 'Maestro Vínculo Lautaro',
-            lines: [
-              '¡El Rex Fósil del Biobío reconoce tu fuerza! Recibes la Medalla Jurásica Biobío.',
-              'Ahora puedes cruzar al sur hacia los bosques verdes y volcanes de La Araucanía.',
-            ],
-            portraitSprite: 'npc_maestro_vinculo',
-          });
         }
+        pendingDialogue = {
+          speaker: 'Maestro Vínculo Lautaro',
+          lines: [
+            '¡El Rex Fósil del Biobío reconoce tu fuerza! Recibes la Medalla Jurásica Biobío.',
+            'Ahora puedes cruzar al sur hacia los bosques de pewén en la R. de La Araucanía.',
+          ],
+          portraitSprite: 'npc_maestro_vinculo',
+        };
       } else if (currentRegionId === 'araucania') {
         if (!unlockedRegions.includes('losrios')) {
           setUnlockedRegions(prev => [...prev, 'losrios']);
-          setActiveDialogue({
-            speaker: 'Maestro Vínculo Kallfü',
-            lines: [
-              '¡La Araucaria Madre ha vuelto a florecer en equilibrio! Aquí tienes la Medalla Pewén Araucanía.',
-              'Tu siguiente destino es la Región de Los Ríos y su selva valdiviana.',
-            ],
-            portraitSprite: 'npc_maestro_vinculo',
-          });
         }
+        pendingDialogue = {
+          speaker: 'Maestro Vínculo Kallfü',
+          lines: [
+            '¡La Araucaria Madre ha vuelto a florecer en equilibrio! Aquí tienes la Medalla Pewén Araucanía.',
+            'Tu siguiente destino es la R. de Los Ríos y su selva valdiviana.',
+          ],
+          portraitSprite: 'npc_maestro_vinculo',
+        };
       } else if (currentRegionId === 'losrios') {
         if (!unlockedRegions.includes('loslagos')) {
           setUnlockedRegions(prev => [...prev, 'loslagos']);
-          setActiveDialogue({
-            speaker: 'Maestra Vínculo Antonia',
-            lines: [
-              '¡Las aguas del Calle-Calle brillan limpias! Recibes la Medalla Selva Valdiviana.',
-              'El desafío final te espera en la Región de Los Lagos frente a Cai Cai y Vilu Vilu.',
-            ],
-            portraitSprite: 'npc_maestro_vinculo',
-          });
         }
+        pendingDialogue = {
+          speaker: 'Maestra Vínculo Antonia',
+          lines: [
+            '¡Las aguas del Calle-Calle brillan limpias! Recibes la Medalla Selva Valdiviana.',
+            'El desafío final te espera en la R. de Los Lagos frente a Cai Cai y Vilu Vilu.',
+          ],
+          portraitSprite: 'npc_maestro_vinculo',
+        };
       } else if (currentRegionId === 'loslagos') {
         const regEntities = REGIONS_DATA.loslagos.entities;
         const caiCai = regEntities.find(e => e.id === 'boss_loslagos_caicai');
         const viluVilu = regEntities.find(e => e.id === 'boss_loslagos_viluvilu');
         if (caiCai?.cleared && viluVilu?.cleared) {
-          setHasCompletedStory(true);
-          setGameState('victory');
-          sound.playBgm('victory');
-          return;
+          triggersEnding = true;
         } else {
-          setActiveDialogue({
+          pendingDialogue = {
             speaker: 'Maestros Kalfú y Llankal',
             lines: [
               !caiCai?.cleared
@@ -519,9 +704,20 @@ export default function App() {
                 : '¡Gran triunfo ante Cai Cai Vilu! Ahora derrota a Vilu Vilu para ganar la Medalla Serpientes Australes.',
             ],
             portraitSprite: 'npc_maestro_vinculo',
-          });
+          };
         }
       }
+
+      sound.playLevelUp();
+      setGameState('exploration');
+      setBossVictoryOverlay({
+        bossName: activeEnemySpirit?.name || 'Guardián Regional',
+        regionName: currentRegion.name,
+        medalName: awardedMedalName,
+        pendingDialogue,
+        triggersEnding,
+      });
+      return;
     }
 
     setGameState('exploration');
@@ -571,8 +767,9 @@ export default function App() {
     showToast('🌿 ¡Espíritus y guardianes han reaparecido en todas las etapas!');
   };
 
-  // Evolution Trigger
+  // Evolution Trigger (Temples only in Stages 2 & 4)
   const handleEvolveSpirit = (spiritUid: string, nextStageNumber: number, usedItemKey?: string) => {
+    const targetSpirit = partySpirits.find(s => s.uid === spiritUid);
     setPartySpirits(prev =>
       prev.map(s => {
         if (s.uid !== spiritUid) return s;
@@ -602,6 +799,20 @@ export default function App() {
         };
       })
     );
+
+    if (targetSpirit) {
+      setBarbara(prev => {
+        const keys = new Set(prev.registeredEvolutionKeys || []);
+        for (let st = 1; st <= nextStageNumber; st++) {
+          keys.add(`${targetSpirit.baseId}:${st}`);
+        }
+        return {
+          ...prev,
+          seenSpeciesIds: Array.from(new Set([...(prev.seenSpeciesIds || []), targetSpirit.baseId])),
+          registeredEvolutionKeys: Array.from(keys),
+        };
+      });
+    }
 
     if (usedItemKey) {
       setInventory(prev => ({
@@ -663,16 +874,13 @@ export default function App() {
     }
   };
 
-  // Clear Obstacle
+  // Clear Obstacle (displays important clearance notice in unified exploration message bar)
   const handleClearObstacle = (entityId: string, message: string) => {
     const reg = REGIONS_DATA[currentRegionId];
     const ent = reg.entities.find(e => e.id === entityId);
     if (ent) ent.cleared = true;
 
-    setActiveDialogue({
-      speaker: 'Poder Elemental de la Naturaleza',
-      lines: [message],
-    });
+    showToast(message);
   };
 
   // Use item from bag on spirit
@@ -704,10 +912,54 @@ export default function App() {
     showToast('🍃 Objeto utilizado con éxito en tu espíritu.');
   };
 
-  // Linear Stage Movement
-  const handleTravelPortal = (destRegion: RegionId, destX?: number, destY?: number) => {
-    const spawnX = destX ?? 11;
-    const spawnY = destY ?? 1;
+  // Linear & Interior Stage Movement (preserves exact outdoor doorstep & vendor metadata when returning from Hospital / Santuario / Tienda)
+  const handleTravelPortal = (
+    destRegion: RegionId,
+    destX?: number,
+    destY?: number,
+    portalEntity?: OverworldEntity
+  ) => {
+    const isEnteringInterior =
+      destRegion === 'hospital' || destRegion === 'santuario' || destRegion === 'tienda';
+    const isExitingInterior =
+      currentRegionId === 'hospital' || currentRegionId === 'santuario' || currentRegionId === 'tienda';
+
+    if (isEnteringInterior) {
+      const originReg = REGIONS_DATA[currentRegionId];
+      const doorstep = portalEntity
+        ? {
+            x: portalEntity.x,
+            y: Math.min((originReg?.height || 14) - 2, portalEntity.y + 1),
+          }
+        : INTERIOR_DOORSTEP_EXIT[currentRegionId] || playerSpawnPos;
+      setInteriorReturnLocation({
+        regionId: currentRegionId,
+        x: doorstep.x,
+        y: doorstep.y,
+        shopVendorName: portalEntity?.shopVendorName,
+        shopSubtitle: portalEntity?.shopSubtitle,
+      });
+      const insideSpawn = SAFE_SPAWN_BY_REGION[destRegion] || { x: destX ?? 5, y: destY ?? 7 };
+      setPlayerSpawnPos(insideSpawn);
+      setCurrentRegionId(destRegion);
+      setGameState('exploration');
+      sound.playBgm(destRegion);
+      return;
+    }
+
+    if (isExitingInterior && interiorReturnLocation) {
+      const targetReturn = interiorReturnLocation;
+      setInteriorReturnLocation(null);
+      setPlayerSpawnPos({ x: targetReturn.x, y: targetReturn.y });
+      setCurrentRegionId(targetReturn.regionId);
+      setGameState('exploration');
+      sound.playBgm(targetReturn.regionId);
+      return;
+    }
+
+    setInteriorReturnLocation(null);
+    const spawnX = destX ?? SAFE_SPAWN_BY_REGION[destRegion]?.x ?? 13;
+    const spawnY = destY ?? SAFE_SPAWN_BY_REGION[destRegion]?.y ?? 2;
     setPlayerSpawnPos({ x: spawnX, y: spawnY });
     setCurrentRegionId(destRegion);
     setGameState('exploration');
@@ -716,13 +968,35 @@ export default function App() {
 
   // Fast travel from World Map
   const handleFastTravel = (targetRegion: RegionId) => {
-    setPlayerSpawnPos(SAFE_SPAWN_BY_REGION[targetRegion] || { x: 11, y: 7 });
+    setInteriorReturnLocation(null);
+    setPlayerSpawnPos(SAFE_SPAWN_BY_REGION[targetRegion] || { x: 13, y: 3 });
     setCurrentRegionId(targetRegion);
     setGameState('exploration');
     sound.playBgm(targetRegion);
   };
 
-  const currentRegion = REGIONS_DATA[currentRegionId];
+  // Dynamic tienda vendor metadata injection when inside Stage 1, 3 or 5 shops
+  const currentRegion = React.useMemo(() => {
+    const base = REGIONS_DATA[currentRegionId];
+    if (currentRegionId !== 'tienda' || !interiorReturnLocation?.shopVendorName) {
+      return base;
+    }
+    return {
+      ...base,
+      subtitle: interiorReturnLocation.shopSubtitle || base.subtitle,
+      entities: base.entities.map(ent =>
+        ent.id === 'npc_vendedor_tienda'
+          ? {
+              ...ent,
+              name: interiorReturnLocation.shopVendorName!,
+              shopVendorName: interiorReturnLocation.shopVendorName,
+              shopSubtitle: interiorReturnLocation.shopSubtitle,
+            }
+          : ent
+      ),
+    };
+  }, [currentRegionId, interiorReturnLocation]);
+
   const activeSpirit = partySpirits[0];
 
   return (
@@ -730,8 +1004,8 @@ export default function App() {
       {/* Subtle CRT scanline overlay */}
       <div className="scanlines absolute inset-0 z-40 pointer-events-none opacity-30" />
 
-      {/* Floating Toast Notification */}
-      {toastMessage && (
+      {/* Floating Toast Notification (shown outside exploration; in exploration messages render beside ACCIÓN) */}
+      {toastMessage && gameState !== 'exploration' && (
         <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-zinc-900/95 border-2 border-zinc-300 text-zinc-100 px-4 py-2 rounded-xl shadow-2xl font-mono text-xs flex items-center gap-2 animate-in fade-in slide-in-from-top-4 duration-200 max-w-[90vw]">
           <CheckCircle2 className="w-4 h-4 text-zinc-100 shrink-0" />
           <span className="truncate">{toastMessage}</span>
@@ -791,6 +1065,23 @@ export default function App() {
         <StarterSelectModal heroName={barbara.name} onSelectStarter={handleSelectStarter} />
       )}
 
+      {/* POST-STARTER ONBOARDING MODAL (Objectives & Touch Controls) */}
+      {showOnboarding && gameState === 'exploration' && (
+        <OnboardingModal
+          heroName={barbara.name}
+          starterName={chosenStarterName}
+          totalBaseSpecies={Object.keys(SPIRITS_REGISTRY).length}
+          totalEvolutionForms={Object.values(SPIRITS_REGISTRY).reduce(
+            (acc, sp) => acc + sp.evolutionLine.length,
+            0
+          )}
+          onComplete={() => {
+            setShowOnboarding(false);
+            showToast(`✨ ¡${chosenStarterName} acompaña a ${barbara.name} desde casa!`);
+          }}
+        />
+      )}
+
       {/* SYSTEM MENU & MISSIONS MODAL */}
       {showSystemMenu && (
         <SystemMenuModal
@@ -801,7 +1092,6 @@ export default function App() {
           onToggleMute={handleToggleMute}
           onOpenProfile={() => setGameState('profile')}
           onOpenSaveLoad={() => setSaveLoadMode('manage')}
-          onOpenEvolution={() => setGameState('evolution')}
           onOpenBestiary={() => setGameState('bestiary')}
           onOpenGuide={() => setShowGuideModal(true)}
           onRequestReset={() => setShowResetConfirm(true)}
@@ -842,10 +1132,15 @@ export default function App() {
           currentRegion={currentRegion}
           unlockedRegions={unlockedRegions}
           playerSpirit={activeSpirit}
+          partySpirits={partySpirits}
           barbara={barbara}
           isMuted={isMuted}
           hasCompletedStory={hasCompletedStory}
           initialSpawnPos={playerSpawnPos}
+          revealedTiles={revealedTiles}
+          importantMessage={toastMessage}
+          onRevealTiles={handleRevealTiles}
+          onSightSpecies={handleSightSpecies}
           onSyncPosition={setPlayerSpawnPos}
           onHealAtHome={handleHealAtHome}
           onToggleMute={handleToggleMute}
@@ -854,6 +1149,7 @@ export default function App() {
           onOpenMap={() => setGameState('map')}
           onOpenSystemMenu={() => setShowSystemMenu(true)}
           onOpenProfile={() => setGameState('profile')}
+          onOpenEvolution={() => setGameState('evolution')}
           onTriggerDialogue={(speaker, lines, afterAction, portraitSprite) =>
             setActiveDialogue({ speaker, lines, afterAction, portraitSprite })
           }
@@ -906,9 +1202,7 @@ export default function App() {
       {gameState === 'party' && (
         <PartyMenu
           partySpirits={partySpirits}
-          barbara={barbara}
           onSetLeaderSpirit={handleSetLeaderSpirit}
-          onOpenProfile={() => setGameState('profile')}
           onClose={() => setGameState('exploration')}
         />
       )}
@@ -973,6 +1267,8 @@ export default function App() {
       {gameState === 'bestiary' && (
         <BestiaryModal
           partySpirits={partySpirits}
+          seenSpeciesIds={barbara.seenSpeciesIds || []}
+          registeredEvolutionKeys={barbara.registeredEvolutionKeys || []}
           onClose={() => setGameState('exploration')}
         />
       )}
@@ -983,61 +1279,175 @@ export default function App() {
           currentRegionId={currentRegionId}
           unlockedRegions={unlockedRegions}
           playerPos={playerSpawnPos}
+          revealedTiles={revealedTiles}
           onFastTravel={handleFastTravel}
           onClose={() => setGameState('exploration')}
         />
       )}
 
-      {/* 10. GRAND VICTORY MODAL (Endgame with Continue + Respawn option) */}
-      {gameState === 'victory' && (
-        <div className="fixed inset-0 z-50 bg-zinc-950/95 flex flex-col items-center justify-center p-4 sm:p-6 text-center select-none overflow-y-auto animate-in fade-in zoom-in-95 duration-500">
-          <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-zinc-100 border-2 border-zinc-300 flex items-center justify-center mb-4 sm:mb-6 shadow-2xl shrink-0">
-            <Trophy className="w-8 h-8 sm:w-10 sm:h-10 text-zinc-950 animate-bounce" />
-          </div>
-
-          <h1 className="font-pixel text-lg sm:text-2xl md:text-3xl text-zinc-100 mb-2 sm:mb-3">
-            ¡LA ARMONÍA DE CHILE HA SIDO RESTAURADA!
-          </h1>
-          <h2 className="font-cinzel text-sm sm:text-lg text-zinc-300 font-bold mb-4">
-            {barbara.name} &middot; Maestría de los Espíritus Elementales del Sur
-          </h2>
-
-          <div className="max-w-xl bg-zinc-900 border border-zinc-700 rounded-2xl p-4 sm:p-6 text-xs sm:text-sm text-zinc-300 font-mono leading-relaxed mb-6 text-left">
-            <p className="mb-3">
-              Gracias a tu valentía y maestría táctica en combate, la Ceniza Umbría ha sido disipada de las cinco regiones sagradas:
+      {/* 10. BOSS VICTORY ANIMATION OVERLAY */}
+      {bossVictoryOverlay && gameState === 'exploration' && (
+        <div
+          onClick={handleDismissBossVictory}
+          className="fixed inset-0 z-50 bg-zinc-950/90 backdrop-blur-md flex items-center justify-center p-4 select-none cursor-pointer"
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            className="max-w-md w-full bg-zinc-900 border-2 border-amber-400/90 rounded-3xl p-5 sm:p-6 text-center shadow-2xl animate-victory-burst"
+          >
+            <div className="w-16 h-16 mx-auto rounded-full bg-amber-300 text-zinc-950 border-2 border-amber-100 flex items-center justify-center mb-3 shadow-lg">
+              <Trophy className="w-8 h-8 animate-bounce" />
+            </div>
+            <span className="inline-block px-2.5 py-0.5 rounded-full bg-amber-400/20 border border-amber-300/60 text-amber-200 font-silkscreen text-[10px] mb-2">
+              ¡VICTORIA ANTE EL GUARDIÁN!
+            </span>
+            <h2 className="font-pixel text-base sm:text-lg text-zinc-100 leading-snug mb-1">
+              {bossVictoryOverlay.bossName}
+            </h2>
+            <p className="text-[11px] font-mono text-zinc-400 mb-3">
+              {bossVictoryOverlay.regionName} ha recuperado su equilibrio elemental.
             </p>
-            <ul className="space-y-1.5 text-zinc-100 mb-4 pl-4 list-disc">
-              <li>La Región Metropolitana y el Cerro San Cristóbal florecen en paz.</li>
-              <li>La Región del Biobío y sus senderos prehistóricos cantan junto al Laja.</li>
-              <li>La Región de La Araucanía equilibra sus pewén y el fuego del Villarrica.</li>
-              <li>La Región de Los Ríos resguarda arrayanes, nalcas y aguas cristalinas.</li>
-              <li>La Región de Los Lagos y los fiordos de Hornopirén custodian el latido eterno del sur.</li>
-            </ul>
-            <p className="text-zinc-400">
-              {barbara.name} sonríe mirando la cordillera nevada. Puedes cerrar este mensaje para seguir explorando Chile con todo tu progreso, reapareciendo los espíritus y guardianes de cada etapa.
-            </p>
-          </div>
-
-          <div className="flex flex-col sm:flex-row items-center gap-3 w-full max-w-xl">
+            {bossVictoryOverlay.medalName && (
+              <div className="p-2.5 bg-zinc-100 text-zinc-950 rounded-xl font-silkscreen text-xs font-bold mb-4 flex items-center justify-center gap-2 border border-amber-300">
+                <span>🏅</span>
+                <span>{bossVictoryOverlay.medalName}</span>
+              </div>
+            )}
             <button
-              onClick={handleContinueAfterVictory}
-              className="w-full sm:flex-1 px-6 py-3.5 bg-zinc-100 hover:bg-white rounded-xl font-pixel text-xs text-zinc-950 font-bold shadow-xl cursor-pointer flex items-center justify-center gap-2 border border-zinc-300 active:scale-95"
+              onClick={handleDismissBossVictory}
+              className="w-full py-2.5 bg-zinc-100 hover:bg-white text-zinc-950 rounded-xl font-silkscreen text-xs font-bold cursor-pointer active:scale-95 transition-all"
             >
-              <Compass className="w-4 h-4" />
-              <span>CERRAR Y SEGUIR EXPLORANDO</span>
+              CONTINUAR &rarr;
             </button>
+          </div>
+        </div>
+      )}
 
+      {/* 11. BESTIARY 25/25 COMPLETION CELEBRATION OVERLAY */}
+      {bestiaryCompleteOverlay && !bossVictoryOverlay && gameState === 'exploration' && (
+        <div className="fixed inset-0 z-50 bg-zinc-950/90 backdrop-blur-md flex items-center justify-center p-4 select-none">
+          <div className="max-w-md w-full bg-zinc-900 border-2 border-amber-400 rounded-3xl p-5 sm:p-6 text-center shadow-2xl bestiary-master-glow animate-victory-burst">
+            <div className="w-16 h-16 mx-auto rounded-2xl bg-zinc-100 text-zinc-950 border-2 border-amber-300 flex items-center justify-center mb-3 shadow-lg">
+              <BookMarked className="w-8 h-8" />
+            </div>
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-300 text-zinc-950 font-silkscreen text-[10px] font-bold mb-2">
+              <Sparkles className="w-3 h-3" /> BESTIARIO 100% COMPLETADO
+            </span>
+            <h2 className="font-pixel text-base sm:text-lg text-zinc-100 mb-1.5">
+              ¡MAESTRO NATURALISTA!
+            </h2>
+            <p className="text-xs font-mono text-zinc-300 leading-relaxed mb-4">
+              ¡Felicidades, {barbara.name}! Has registrado las <strong className="text-white">{Object.keys(SPIRITS_REGISTRY).length} especies</strong> de Chile desde la R. Metropolitana hasta los fiordos de Los Lagos. Tu medalla honorífica ya brilla en tu Perfil.
+            </p>
             <button
               onClick={() => {
-                sound.playSelect();
-                setGameState('title');
-                sound.playBgm('title');
+                sound.playConfirm();
+                setBestiaryCompleteOverlay(false);
               }}
-              className="w-full sm:w-auto px-5 py-3.5 bg-zinc-800 hover:bg-zinc-700 rounded-xl font-pixel text-xs text-zinc-200 border border-zinc-700 cursor-pointer flex items-center justify-center gap-2 active:scale-95"
+              className="w-full py-2.5 bg-zinc-100 hover:bg-white text-zinc-950 rounded-xl font-silkscreen text-xs font-bold cursor-pointer active:scale-95 transition-all"
             >
-              <RotateCcw className="w-4 h-4" />
-              <span>MENÚ INICIO</span>
+              ¡SEGUIR AVENTURA!
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* 12. GRAND VICTORY MODAL (Endgame with 3-panel Visual Story + Continue & Respawn) */}
+      {gameState === 'victory' && (
+        <div className="fixed inset-0 z-50 bg-zinc-950/95 flex flex-col items-center justify-start sm:justify-center p-3 sm:p-6 text-center select-none overflow-y-auto animate-in fade-in zoom-in-95 duration-500">
+          <div className="max-w-3xl w-full flex flex-col items-center my-auto py-2">
+            <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-zinc-100 border-2 border-amber-300 flex items-center justify-center mb-3 shadow-2xl shrink-0">
+              <Trophy className="w-7 h-7 sm:w-8 sm:h-8 text-zinc-950 animate-bounce" />
+            </div>
+
+            <h1 className="font-pixel text-base sm:text-xl md:text-2xl text-zinc-100 mb-1">
+              ¡LA ARMONÍA DE CHILE HA SIDO RESTAURADA!
+            </h1>
+            <h2 className="font-cinzel text-xs sm:text-base text-zinc-300 font-bold mb-3 sm:mb-4">
+              {barbara.name} &middot; Guardiana Suprema de los Espíritus del Sur
+            </h2>
+
+            {/* 3-Panel Generated Visual Story Sequence */}
+            <div className="w-full grid grid-cols-1 sm:grid-cols-3 gap-2.5 mb-4 text-left">
+              <div className="bg-zinc-900 border border-zinc-700 rounded-2xl overflow-hidden flex flex-col shadow-lg">
+                <div className="aspect-video w-full bg-gradient-to-br from-zinc-800 to-zinc-950 overflow-hidden">
+                  <img
+                    src={endingAmanecerImg}
+                    alt="Amanecer de armonía en la cordillera chilena"
+                    referrerPolicy="no-referrer"
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+                <div className="p-2.5">
+                  <div className="font-silkscreen text-[10px] text-amber-200 mb-0.5">1. AMANECER EN CHILE</div>
+                  <p className="text-[10px] font-mono text-zinc-300 leading-snug">
+                    La Ceniza Umbría se disipa desde el Valle Central hasta los fiordos de Los Lagos.
+                  </p>
+                </div>
+              </div>
+
+              <div className="bg-zinc-900 border border-zinc-700 rounded-2xl overflow-hidden flex flex-col shadow-lg">
+                <div className="aspect-video w-full bg-gradient-to-br from-zinc-800 to-zinc-950 overflow-hidden">
+                  <img
+                    src={endingGuardianesImg}
+                    alt="Espíritus y guardianes elementales unidos"
+                    referrerPolicy="no-referrer"
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+                <div className="p-2.5">
+                  <div className="font-silkscreen text-[10px] text-amber-200 mb-0.5">2. GUARDIANES UNIDOS</div>
+                  <p className="text-[10px] font-mono text-zinc-300 leading-snug">
+                    Los Maestros Vínculo y las 5 regiones celebran las Medallas obtenidas en equipo.
+                  </p>
+                </div>
+              </div>
+
+              <div className="bg-zinc-900 border border-zinc-700 rounded-2xl overflow-hidden flex flex-col shadow-lg">
+                <div className="aspect-video w-full bg-gradient-to-br from-zinc-800 to-zinc-950 overflow-hidden">
+                  <img
+                    src={endingTravesiaImg}
+                    alt="Nueva travesía junto a tu compañero elemental"
+                    referrerPolicy="no-referrer"
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+                <div className="p-2.5">
+                  <div className="font-silkscreen text-[10px] text-amber-200 mb-0.5">3. NUEVA TRAVESÍA</div>
+                  <p className="text-[10px] font-mono text-zinc-300 leading-snug">
+                    {barbara.name} y sus espíritus siguen explorando senderos para completar el Bestiario.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="w-full bg-zinc-900/90 border border-zinc-700 rounded-2xl p-3 sm:p-4 text-[11px] sm:text-xs text-zinc-300 font-mono leading-relaxed mb-4 text-left">
+              <p className="text-zinc-200">
+                R. Metropolitana, R. del Biobío, R. de La Araucanía, R. de Los Ríos y R. de Los Lagos brillan libres. Al cerrar esta crónica podrás continuar explorando todas las regiones, con tus medallas intactas y espíritus listos para nuevas batallas.
+              </p>
+            </div>
+
+            <div className="flex flex-col sm:flex-row items-center gap-2.5 w-full">
+              <button
+                onClick={handleContinueAfterVictory}
+                className="w-full sm:flex-1 px-5 py-3 bg-zinc-100 hover:bg-white rounded-xl font-pixel text-xs text-zinc-950 font-bold shadow-xl cursor-pointer flex items-center justify-center gap-2 border border-zinc-300 active:scale-95"
+              >
+                <Compass className="w-4 h-4" />
+                <span>CERRAR Y SEGUIR EXPLORANDO</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  sound.playSelect();
+                  setGameState('title');
+                  sound.playBgm('title');
+                }}
+                className="w-full sm:w-auto px-5 py-3 bg-zinc-800 hover:bg-zinc-700 rounded-xl font-pixel text-xs text-zinc-200 border border-zinc-700 cursor-pointer flex items-center justify-center gap-2 active:scale-95"
+              >
+                <RotateCcw className="w-4 h-4" />
+                <span>MENÚ INICIO</span>
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -1062,7 +1472,7 @@ export default function App() {
             } else if (action?.type === 'battle') {
               handleTriggerBattle(action.spiritId, action.isBoss, action.atPos, action.entityId);
             } else if (action?.type === 'portal') {
-              handleTravelPortal(action.dest, action.x, action.y);
+              handleTravelPortal(action.dest, action.x, action.y, action.portalEntity);
             }
           }}
         />

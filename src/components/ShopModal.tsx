@@ -445,7 +445,7 @@ export const ShopModal: React.FC<ShopModalProps> = ({
 
       {/* Footer */}
       <div className="max-w-5xl w-full mx-auto pt-3 border-t border-zinc-800 text-center text-[11px] font-mono-stat text-zinc-500">
-        Comercios disponibles físicamente en Escenario 1 (RM), Escenario 3 (La Araucanía) y Escenario 5 (Los Lagos).
+        Tiendas interiores disponibles en Escenario 1 (R. Metropolitana), Escenario 3 (R. Araucanía) y Escenario 5 (R. Los Lagos).
       </div>
     </div>
   );

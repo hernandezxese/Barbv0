@@ -12,7 +12,7 @@ export function drawBarbaraSprite(
   direction: 'down' | 'up' | 'left' | 'right' = 'down',
   walkProgress: number = 0,
   isMoving: boolean = false,
-  gender: 'female' | 'male' = 'female'
+  gender: 'female' | 'male' | 'isabella' = 'female'
 ) {
   const pixel = size / 16;
 
@@ -23,6 +23,12 @@ export function drawBarbaraSprite(
   ctx.save();
   ctx.translate(x, y - bob);
 
+  // Youthful slightly shorter scale for Isabella
+  if (gender === 'isabella') {
+    ctx.translate(size * 0.04, size * 0.08);
+    ctx.scale(0.92, 0.92);
+  }
+
   // Soft shadow
   ctx.fillStyle = 'rgba(0, 0, 0, 0.34)';
   ctx.beginPath();
@@ -32,7 +38,7 @@ export function drawBarbaraSprite(
   const legSwing = isMoving ? Math.sin(walkProgress * Math.PI * 2) * (pixel * 2.4) : 0;
 
   // 1. BOOTS
-  ctx.fillStyle = '#451a03';
+  ctx.fillStyle = gender === 'isabella' ? '#581c87' : '#451a03';
   if (direction === 'down' || direction === 'up') {
     ctx.fillRect(size / 2 - pixel * 4, size - pixel * 3 + legSwing, pixel * 3, pixel * 3);
     ctx.fillRect(size / 2 + pixel * 1, size - pixel * 3 - legSwing, pixel * 3, pixel * 3);
@@ -41,13 +47,13 @@ export function drawBarbaraSprite(
     ctx.fillRect(size / 2 - pixel * 2 + legSwing, size - pixel * 3, pixel * 3.5, pixel * 3);
   }
 
-  // 2. PANTS
-  ctx.fillStyle = gender === 'male' ? '#334155' : '#78350f';
+  // 2. PANTS / SKIRT-SHORTS
+  ctx.fillStyle = gender === 'male' ? '#334155' : gender === 'isabella' ? '#4c1d95' : '#78350f';
   ctx.fillRect(size / 2 - pixel * 3.5, size - pixel * 5.5, pixel * 7, pixel * 3);
 
   // 3. BACKPACK
   if (direction === 'up' || direction === 'left' || direction === 'right') {
-    ctx.fillStyle = '#92400e';
+    ctx.fillStyle = gender === 'isabella' ? '#9d174d' : '#92400e';
     const backpackX =
       direction === 'left'
         ? size / 2 + pixel * 1.5
@@ -55,11 +61,11 @@ export function drawBarbaraSprite(
         ? size / 2 - pixel * 5.5
         : size / 2 - pixel * 4;
     ctx.fillRect(backpackX, size - pixel * 11, pixel * 5, pixel * 6);
-    ctx.fillStyle = '#f59e0b';
+    ctx.fillStyle = gender === 'isabella' ? '#fbcfe8' : '#f59e0b';
     ctx.fillRect(backpackX + pixel, size - pixel * 9, pixel * 3, pixel);
   }
 
-  // 4. ESSENCE CHANNELING ARTIFACT (Held at side)
+  // 4. EXPLORER LANTERN / WALKING STAFF
   const armOffset = isMoving ? Math.cos(walkProgress * Math.PI * 2) * pixel * 0.9 : 0;
   const artifactX =
     direction === 'left'
@@ -67,23 +73,21 @@ export function drawBarbaraSprite(
       : direction === 'right'
       ? size / 2 + pixel * 4.8
       : size / 2 + pixel * 4.6;
-  // Wooden / bronze staff shaft
   ctx.fillStyle = gender === 'male' ? '#78350f' : '#92400e';
   ctx.fillRect(artifactX, size - pixel * 13 + armOffset, pixel * 1.4, pixel * 9.5);
-  // Glowing channeling crystal orb / talisman tip
-  ctx.fillStyle = gender === 'male' ? '#f59e0b' : '#34d399';
+  ctx.fillStyle = gender === 'male' ? '#f59e0b' : gender === 'isabella' ? '#f472b6' : '#34d399';
   ctx.fillRect(artifactX - pixel * 0.5, size - pixel * 14.5 + armOffset, pixel * 2.4, pixel * 2.2);
   ctx.fillStyle = '#fef08a';
   ctx.fillRect(artifactX + pixel * 0.2, size - pixel * 14 + armOffset, pixel * 0.9, pixel * 0.9);
 
   // 5. CHILEAN WOVEN PONCHO / MANTO
-  ctx.fillStyle = gender === 'male' ? '#0284c7' : '#059669';
+  ctx.fillStyle = gender === 'male' ? '#0284c7' : gender === 'isabella' ? '#be185d' : '#059669';
   ctx.fillRect(size / 2 - pixel * 5, size - pixel * 10.5, pixel * 10, pixel * 5.5);
 
   const ponchoSway = isMoving ? Math.sin(walkProgress * Math.PI * 2) * (pixel * 0.8) : 0;
-  ctx.fillStyle = gender === 'male' ? '#facc15' : '#f59e0b';
+  ctx.fillStyle = gender === 'male' ? '#facc15' : gender === 'isabella' ? '#fbcfe8' : '#f59e0b';
   ctx.fillRect(size / 2 - pixel * 5 + ponchoSway, size - pixel * 8, pixel * 10, pixel * 1.5);
-  ctx.fillStyle = gender === 'male' ? '#0f172a' : '#dc2626';
+  ctx.fillStyle = gender === 'male' ? '#0f172a' : gender === 'isabella' ? '#9333ea' : '#dc2626';
   for (let i = -4; i <= 3; i += 2) {
     ctx.fillRect(size / 2 + pixel * i + ponchoSway, size - pixel * 8, pixel, pixel * 1.5);
   }
@@ -93,11 +97,19 @@ export function drawBarbaraSprite(
   ctx.fillRect(size / 2 - pixel * 3.5, size - pixel * 14.5, pixel * 7, pixel * 4.5);
 
   // 7. HAIR
-  ctx.fillStyle = '#291e13';
+  ctx.fillStyle = gender === 'isabella' ? '#3b1e08' : '#291e13';
   if (gender === 'male') {
     ctx.fillRect(size / 2 - pixel * 4.2, size - pixel * 16, pixel * 8.4, pixel * 3);
     ctx.fillRect(size / 2 - pixel * 4.2, size - pixel * 14, pixel * 1.5, pixel * 2.5);
     ctx.fillRect(size / 2 + pixel * 2.7, size - pixel * 14, pixel * 1.5, pixel * 2.5);
+  } else if (gender === 'isabella') {
+    // Twin braided pigtails with pink hair ties
+    ctx.fillRect(size / 2 - pixel * 4.4, size - pixel * 16, pixel * 8.8, pixel * 3);
+    ctx.fillRect(size / 2 - pixel * 5.6, size - pixel * 13.5, pixel * 2.0, pixel * 4.5);
+    ctx.fillRect(size / 2 + pixel * 3.6, size - pixel * 13.5, pixel * 2.0, pixel * 4.5);
+    ctx.fillStyle = '#f472b6';
+    ctx.fillRect(size / 2 - pixel * 5.4, size - pixel * 13.8, pixel * 1.6, pixel * 1.1);
+    ctx.fillRect(size / 2 + pixel * 3.8, size - pixel * 13.8, pixel * 1.6, pixel * 1.1);
   } else {
     ctx.fillRect(size / 2 - pixel * 4.5, size - pixel * 16, pixel * 9, pixel * 3.5);
     ctx.fillRect(size / 2 - pixel * 4.5, size - pixel * 14, pixel * 2, pixel * 5.5);
@@ -112,7 +124,7 @@ export function drawBarbaraSprite(
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(size / 2 - pixel * 2.5, size - pixel * 12.5, pixel * 0.8, pixel * 0.8);
     ctx.fillRect(size / 2 + pixel * 1, size - pixel * 12.5, pixel * 0.8, pixel * 0.8);
-    if (gender === 'female') {
+    if (gender === 'female' || gender === 'isabella') {
       ctx.fillStyle = '#fda4af';
       ctx.fillRect(size / 2 - pixel * 3, size - pixel * 10.8, pixel * 1.2, pixel * 0.8);
       ctx.fillRect(size / 2 + pixel * 1.8, size - pixel * 10.8, pixel * 1.2, pixel * 0.8);
@@ -129,14 +141,14 @@ export function drawBarbaraSprite(
     ctx.fillRect(size / 2 + pixel * 1.5, size - pixel * 12.5, pixel * 0.8, pixel * 0.8);
   }
 
-  // 8. EXPLORER HAT
-  ctx.fillStyle = gender === 'male' ? '#0f172a' : '#1e293b';
+  // 8. EXPLORER HAT / CAP
+  ctx.fillStyle = gender === 'male' ? '#0f172a' : gender === 'isabella' ? '#831843' : '#1e293b';
   ctx.fillRect(size / 2 - pixel * 5, size - pixel * 16.5, pixel * 10, pixel * 2);
   ctx.fillRect(size / 2 - pixel * 3.5, size - pixel * 18, pixel * 7, pixel * 2);
 
-  // Sacred feather
+  // Feather / Ribbon
   const featherFlutter = isMoving ? Math.sin(walkProgress * Math.PI * 4) * (pixel * 0.5) : 0;
-  ctx.fillStyle = gender === 'male' ? '#38bdf8' : '#10b981';
+  ctx.fillStyle = gender === 'male' ? '#38bdf8' : gender === 'isabella' ? '#f472b6' : '#10b981';
   ctx.fillRect(size / 2 + pixel * 2 + featherFlutter, size - pixel * 20, pixel * 1.2, pixel * 2.8);
   ctx.fillStyle = '#f59e0b';
   ctx.fillRect(size / 2 + pixel * 2.2 + featherFlutter, size - pixel * 20.8, pixel * 0.8, pixel * 1.2);
@@ -957,6 +969,253 @@ export function drawCreatureSprite(
     ctx.fillRect(cx + pixel * 0.8, cy - pixel * 3.2, pixel * 1.2, pixel * 1.2);
     ctx.fillStyle = '#fef08a';
     ctx.fillRect(cx - pixel * 4.2, cy - pixel * 4.6, pixel * 1.3, pixel * 1.2);
+  } else if (baseId === 'ranita') {
+    // RANITA DE DARWIN: Small leaf-nosed emerald frog -> Forest Toad -> Mystic Emerald Anuro
+    const hop = Math.abs(Math.sin(animatedTime * 5)) * pixel * 1.1;
+    ctx.fillStyle = stage >= 3 ? '#059669' : stage === 2 ? '#15803d' : '#16a34a';
+    ctx.beginPath();
+    ctx.ellipse(cx, cy + pixel * 2 - hop, pixel * (3.8 + stage * 0.6), pixel * (2.8 + stage * 0.4), 0, 0, Math.PI * 2);
+    ctx.fill();
+    // Yellow-green leaf belly & pointed Darwin nose
+    ctx.fillStyle = '#bef264';
+    ctx.beginPath();
+    ctx.ellipse(cx - pixel * 0.5, cy + pixel * 2.8 - hop, pixel * (2.4 + stage * 0.3), pixel * 1.6, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#22c55e';
+    ctx.beginPath();
+    ctx.moveTo(cx - pixel * (3.5 + stage * 0.5), cy + pixel - hop);
+    ctx.lineTo(cx - pixel * (6.2 + stage * 0.6), cy + pixel * 1.4 - hop);
+    ctx.lineTo(cx - pixel * (3 + stage * 0.4), cy + pixel * 2.8 - hop);
+    ctx.closePath();
+    ctx.fill();
+    // Golden eyes + water aura in Stage 3
+    ctx.fillStyle = '#fef08a';
+    ctx.fillRect(cx - pixel * 3.4, cy - pixel * 0.8 - hop, pixel * 1.6, pixel * 1.6);
+    ctx.fillRect(cx - pixel * 1.2, cy - pixel * 1.0 - hop, pixel * 1.6, pixel * 1.6);
+    ctx.fillStyle = '#0f172a';
+    ctx.fillRect(cx - pixel * 3.1, cy - pixel * 0.4 - hop, pixel * 0.9, pixel * 0.9);
+    // Hind legs
+    ctx.fillStyle = '#14532d';
+    ctx.fillRect(cx + pixel * 1.5, cy + pixel * 4 - hop * 0.3, pixel * 2.6, pixel * 2.4);
+    ctx.fillRect(cx - pixel * 3.5, cy + pixel * 4.2 - hop * 0.3, pixel * 1.8, pixel * 2.2);
+    if (stage >= 3) {
+      ctx.fillStyle = 'rgba(56, 189, 248, 0.35)';
+      ctx.beginPath();
+      ctx.arc(cx, cy + pixel * 1 - hop, pixel * 7.2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  } else if (baseId === 'culpeo') {
+    // ZORRO CULPEO: Agile reddish Andean fox with fluffy white-tipped tail
+    const tailSway = Math.sin(animatedTime * 6) * pixel * 0.9;
+    // Fluffy tail
+    ctx.fillStyle = '#c2410c';
+    ctx.beginPath();
+    ctx.ellipse(cx + pixel * 4.8, cy + pixel * 1.5 + tailSway, pixel * (3.2 + stage * 0.4), pixel * (1.8 + stage * 0.3), -0.35, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = stage >= 3 ? '#e2e8f0' : '#fef3c7';
+    ctx.beginPath();
+    ctx.arc(cx + pixel * (6.8 + stage * 0.4), cy + pixel * 0.4 + tailSway, pixel * 1.5, 0, Math.PI * 2);
+    ctx.fill();
+    // Fox body
+    ctx.fillStyle = stage >= 3 ? '#9a3412' : '#ea580c';
+    ctx.fillRect(cx - pixel * 4.2, cy + pixel * 0.4, pixel * (7.5 + stage * 0.6), pixel * 4.6);
+    // Cream chest fur
+    ctx.fillStyle = '#fef3c7';
+    ctx.fillRect(cx - pixel * 4.5, cy + pixel * 1.2, pixel * 2.6, pixel * 3.5);
+    // Fox head & pointed ears
+    ctx.fillStyle = '#ea580c';
+    ctx.fillRect(cx - pixel * 6.2, cy - pixel * 3.6, pixel * 4.8, pixel * 4.2);
+    ctx.fillStyle = '#7c2d12';
+    ctx.beginPath();
+    ctx.moveTo(cx - pixel * 5.6, cy - pixel * 3.6);
+    ctx.lineTo(cx - pixel * 4.8, cy - pixel * 6.4);
+    ctx.lineTo(cx - pixel * 3.6, cy - pixel * 3.6);
+    ctx.closePath();
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(cx - pixel * 3.0, cy - pixel * 3.6);
+    ctx.lineTo(cx - pixel * 2.0, cy - pixel * 6.4);
+    ctx.lineTo(cx - pixel * 1.2, cy - pixel * 3.6);
+    ctx.closePath();
+    ctx.fill();
+    // Snout, eye & dark paws
+    ctx.fillStyle = '#0f172a';
+    ctx.fillRect(cx - pixel * 7.4, cy - pixel * 1.2, pixel * 1.6, pixel * 1.2);
+    ctx.fillStyle = '#fef08a';
+    ctx.fillRect(cx - pixel * 4.8, cy - pixel * 2.4, pixel * 1.3, pixel * 1.3);
+    ctx.fillStyle = '#292524';
+    ctx.fillRect(cx - pixel * 3.8, cy + pixel * 5, pixel * 1.6, pixel * 2.8);
+    ctx.fillRect(cx + pixel * 1.4, cy + pixel * 5, pixel * 1.6, pixel * 2.8);
+  } else if (baseId === 'gato_chileno') {
+    // GATO CHILENO (Romano / Guiña Urbano — 3 etapas)
+    const tailCurl = Math.sin(animatedTime * 6) * pixel * 1.1;
+    const bodyCol = stage >= 3 ? '#52525b' : stage === 2 ? '#78716c' : '#a1a1aa';
+    const stripeCol = stage >= 3 ? '#18181b' : '#3f3f46';
+    // Curled tabby tail
+    ctx.fillStyle = bodyCol;
+    ctx.fillRect(cx + pixel * 4, cy + pixel * 1 + tailCurl * 0.5, pixel * 3.2, pixel * 1.6);
+    ctx.fillRect(cx + pixel * 5.8, cy - pixel * 1.5 + tailCurl * 0.5, pixel * 1.6, pixel * 3);
+    // Body + tabby stripes
+    ctx.fillRect(cx - pixel * 4, cy + pixel * 0.5, pixel * (7.5 + stage * 0.6), pixel * 4.5);
+    ctx.fillStyle = stripeCol;
+    ctx.fillRect(cx - pixel * 1.5, cy + pixel * 0.5, pixel * 1.2, pixel * 3);
+    ctx.fillRect(cx + pixel * 1.2, cy + pixel * 0.5, pixel * 1.2, pixel * 3);
+    // Cat Head + pointed ears
+    ctx.fillStyle = bodyCol;
+    ctx.fillRect(cx - pixel * 5.6, cy - pixel * 3.6, pixel * 4.6, pixel * 4.2);
+    ctx.beginPath();
+    ctx.moveTo(cx - pixel * 5.4, cy - pixel * 3.6);
+    ctx.lineTo(cx - pixel * 4.6, cy - pixel * 6.2);
+    ctx.lineTo(cx - pixel * 3.4, cy - pixel * 3.6);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(cx - pixel * 2.8, cy - pixel * 3.6);
+    ctx.lineTo(cx - pixel * 1.8, cy - pixel * 6.2);
+    ctx.lineTo(cx - pixel * 1.0, cy - pixel * 3.6);
+    ctx.fill();
+    // Bright green eyes & pink nose
+    ctx.fillStyle = stage >= 3 ? '#38bdf8' : '#4ade80';
+    ctx.fillRect(cx - pixel * 4.8, cy - pixel * 2.2, pixel * 1.3, pixel * 1.3);
+    ctx.fillRect(cx - pixel * 2.6, cy - pixel * 2.2, pixel * 1.3, pixel * 1.3);
+    ctx.fillStyle = '#fb7185';
+    ctx.fillRect(cx - pixel * 5.8, cy - pixel * 0.8, pixel * 1.0, pixel * 0.9);
+    // Paws
+    ctx.fillStyle = '#f4f4f5';
+    ctx.fillRect(cx - pixel * 3.4, cy + pixel * 5, pixel * 1.6, pixel * 2.4);
+    ctx.fillRect(cx + pixel * 1.6, cy + pixel * 5, pixel * 1.6, pixel * 2.4);
+  } else if (baseId === 'condor') {
+    // CÓNDOR ANDINO (Viento / Sagrado — 2 etapas)
+    const flap = Math.sin(animatedTime * 6.5) * pixel * 1.6;
+    if (stage >= 2) {
+      ctx.fillStyle = 'rgba(250, 204, 21, 0.22)';
+      ctx.beginPath();
+      ctx.arc(cx, cy, pixel * 8.2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    // Dark plumage + massive white-trimmed wings
+    ctx.fillStyle = '#09090b';
+    ctx.beginPath();
+    ctx.ellipse(cx + pixel * 0.5, cy + pixel * 1.2, pixel * (5.2 + stage * 0.8), pixel * (3.4 + stage * 0.5), 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#f8fafc';
+    ctx.beginPath();
+    ctx.moveTo(cx - pixel * 1, cy);
+    ctx.lineTo(cx + pixel * (6.2 + stage * 1.2), cy - pixel * (4.5 + stage) + flap);
+    ctx.lineTo(cx + pixel * 5.5, cy + pixel * 2.2);
+    ctx.closePath();
+    ctx.fill();
+    // Iconic white collar ruff
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(cx - pixel * 5.2, cy - pixel * 1.2, pixel * 3.8, pixel * 2.1);
+    // Head + comb crest (stage 2)
+    ctx.fillStyle = '#7f1d1d';
+    ctx.beginPath();
+    ctx.arc(cx - pixel * 4.2, cy - pixel * 3.2, pixel * 2.4, 0, Math.PI * 2);
+    ctx.fill();
+    if (stage >= 2) {
+      ctx.fillStyle = '#dc2626';
+      ctx.fillRect(cx - pixel * 5, cy - pixel * 6.4, pixel * 2.2, pixel * 1.5);
+    }
+    ctx.fillStyle = '#facc15';
+    ctx.fillRect(cx - pixel * 7.6, cy - pixel * 3.2, pixel * 2.6, pixel * 1.4);
+  } else if (baseId === 'velociraptor') {
+    // VELOCIRAPTOR AUSTRAL (Fuego / Tierra — 1 etapa)
+    const stride = Math.sin(animatedTime * 9) * pixel * 0.8;
+    // Feathered tail & sleek body
+    ctx.fillStyle = '#b91c1c';
+    ctx.fillRect(cx + pixel * 2.5, cy + pixel * 0.5, pixel * 6, pixel * 1.8);
+    ctx.fillStyle = '#c2410c';
+    ctx.beginPath();
+    ctx.ellipse(cx, cy + pixel * 1.2, pixel * 4.4, pixel * 2.6, -0.25, 0, Math.PI * 2);
+    ctx.fill();
+    // Feather crest & sharp head
+    ctx.fillStyle = '#f97316';
+    ctx.fillRect(cx - pixel * 6.4, cy - pixel * 4.2, pixel * 4.8, pixel * 2.6);
+    ctx.fillStyle = '#facc15';
+    ctx.fillRect(cx - pixel * 3.2, cy - pixel * 5.8, pixel * 2.6, pixel * 1.8);
+    ctx.fillStyle = '#fef08a';
+    ctx.fillRect(cx - pixel * 4.8, cy - pixel * 3.6, pixel * 1.2, pixel * 1.1);
+    // Agile legs & sickle claw
+    ctx.fillStyle = '#78350f';
+    ctx.fillRect(cx - pixel * 2, cy + pixel * 3.4 + stride * 0.4, pixel * 1.6, pixel * 3.8);
+    ctx.fillRect(cx + pixel * 1.2, cy + pixel * 3.4 - stride * 0.4, pixel * 1.6, pixel * 3.8);
+    ctx.fillStyle = '#fefce8';
+    ctx.fillRect(cx - pixel * 2.6, cy + pixel * 6.4, pixel * 1.4, pixel * 1.2);
+  } else if (baseId === 'huevo_dino') {
+    // HUEVO DE DINOSAURIO -> CRÍA JURÁSICA (Tierra / Normal — 2 etapas)
+    const wobble = Math.sin(animatedTime * 6) * 0.08;
+    if (stage === 1) {
+      ctx.save();
+      ctx.translate(cx, cy + pixel * 2);
+      ctx.rotate(wobble);
+      // Prehistoric mottled amber/cream dino egg
+      ctx.fillStyle = '#fef3c7';
+      ctx.beginPath();
+      ctx.ellipse(0, 0, pixel * 4.4, pixel * 5.6, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#d97706';
+      ctx.fillRect(-pixel * 2.4, -pixel * 2.8, pixel * 1.8, pixel * 1.8);
+      ctx.fillRect(pixel * 0.8, -pixel * 0.6, pixel * 2, pixel * 2);
+      ctx.fillRect(-pixel * 1.6, pixel * 1.8, pixel * 2.2, pixel * 1.5);
+      // Cute crack gleam
+      ctx.strokeStyle = '#78350f';
+      ctx.lineWidth = pixel * 0.8;
+      ctx.beginPath();
+      ctx.moveTo(-pixel * 2.6, -pixel * 0.8);
+      ctx.lineTo(-pixel * 0.6, pixel * 0.4);
+      ctx.lineTo(pixel * 1.4, -pixel * 0.6);
+      ctx.stroke();
+      ctx.restore();
+    } else {
+      // Hatched baby dino wearing bit of eggshell!
+      ctx.fillStyle = '#ca8a04';
+      ctx.beginPath();
+      ctx.ellipse(cx + pixel * 0.6, cy + pixel * 2, pixel * 4.6, pixel * 3.2, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillRect(cx + pixel * 4.2, cy + pixel * 1.6, pixel * 3.2, pixel * 1.6);
+      ctx.fillStyle = '#eab308';
+      ctx.fillRect(cx - pixel * 5.2, cy - pixel * 3.2, pixel * 4.4, pixel * 4);
+      // Cute eggshell helmet
+      ctx.fillStyle = '#fef3c7';
+      ctx.fillRect(cx - pixel * 5.2, cy - pixel * 4.8, pixel * 4.4, pixel * 2);
+      ctx.fillStyle = '#0f172a';
+      ctx.fillRect(cx - pixel * 4.2, cy - pixel * 2.2, pixel * 1.3, pixel * 1.3);
+      ctx.fillStyle = '#854d0e';
+      ctx.fillRect(cx - pixel * 2.2, cy + pixel * 4.6, pixel * 1.6, pixel * 2.6);
+      ctx.fillRect(cx + pixel * 1.6, cy + pixel * 4.6, pixel * 1.6, pixel * 2.6);
+    }
+  } else if (baseId === 'jabali') {
+    // JABALÍ DEL BOSQUE (Tierra / Normal — 2 etapas)
+    const boarDark = stage >= 2 ? '#292524' : '#57534e';
+    const maneCol = stage >= 2 ? '#1c1917' : '#78716c';
+    ctx.fillStyle = boarDark;
+    ctx.beginPath();
+    ctx.ellipse(cx + pixel * 0.5, cy + pixel * 1.2, pixel * (4.6 + stage * 1.0), pixel * (3.2 + stage * 0.6), 0, 0, Math.PI * 2);
+    ctx.fill();
+    // Dorsal ridge bristles
+    ctx.fillStyle = maneCol;
+    ctx.fillRect(cx - pixel * 3.5, cy - pixel * (2.6 + stage * 0.6), pixel * 7, pixel * 1.8);
+    // Snout & Ears
+    ctx.fillStyle = '#fb7185';
+    ctx.fillRect(cx - pixel * (6.2 + stage * 0.6), cy + pixel * 0.4, pixel * 2.2, pixel * 2.4);
+    ctx.fillStyle = boarDark;
+    ctx.fillRect(cx - pixel * 3.8, cy - pixel * 4.2, pixel * 1.8, pixel * 2.2);
+    // Curved white tusks (prominent in Stage 2!)
+    ctx.fillStyle = '#fefce8';
+    const tuskLen = stage >= 2 ? 2.6 : 1.4;
+    ctx.fillRect(cx - pixel * (6.2 + stage * 0.4), cy - pixel * (tuskLen - 1.2), pixel * 1.2, pixel * tuskLen);
+    // Piglet stripes in Stage 1
+    if (stage === 1) {
+      ctx.fillStyle = '#d6d3d1';
+      ctx.fillRect(cx - pixel * 1.2, cy + pixel * 0.2, pixel * 4.2, pixel * 0.8);
+      ctx.fillRect(cx - pixel * 0.8, cy + pixel * 2.0, pixel * 4.2, pixel * 0.8);
+    }
+    // Eye & Hooves
+    ctx.fillStyle = '#fef08a';
+    ctx.fillRect(cx - pixel * 4.4, cy - pixel * 0.8, pixel * 1.3, pixel * 1.3);
+    ctx.fillStyle = '#18181b';
+    ctx.fillRect(cx - pixel * 3.4, cy + pixel * (4.4 + stage * 0.4), pixel * 1.8, pixel * 2.6);
+    ctx.fillRect(cx + pixel * 2.0, cy + pixel * (4.4 + stage * 0.4), pixel * 1.8, pixel * 2.6);
   } else {
     // LOICA LINE: Loica -> Loica Carmesí -> Sol de la Loica
     const flap = Math.sin(animatedTime * 8) * pixel;
@@ -1124,16 +1383,109 @@ export function drawEntitySprite(
       return;
     }
 
+    if (sprite === 'npc_enfermera') {
+      ctx.fillStyle = 'rgba(0,0,0,0.28)';
+      ctx.beginPath();
+      ctx.ellipse(x + size / 2, y + size - pixel, pixel * 4.5, pixel * 1.5, 0, 0, Math.PI * 2);
+      ctx.fill();
+      // White medical tunic
+      ctx.fillStyle = '#f8fafc';
+      ctx.fillRect(x + pixel * 3, y + pixel * 6 + idleBob, pixel * 10, pixel * 8);
+      ctx.fillStyle = '#cbd5e1';
+      ctx.fillRect(x + pixel * 3, y + pixel * 12 + idleBob, pixel * 10, pixel * 2);
+      // Red cross badge on chest
+      ctx.fillStyle = '#dc2626';
+      ctx.fillRect(x + pixel * 7.2, y + pixel * 8 + idleBob, pixel * 1.6, pixel * 3.6);
+      ctx.fillRect(x + pixel * 6.2, y + pixel * 9 + idleBob, pixel * 3.6, pixel * 1.6);
+      // Face & nurse cap
+      ctx.fillStyle = '#fed7aa';
+      ctx.fillRect(x + pixel * 4, y + pixel * 2.6 + idleBob, pixel * 8, pixel * 3.8);
+      ctx.fillStyle = '#0f172a';
+      ctx.fillRect(x + pixel * 5, y + pixel * 4 + idleBob, pixel * 1.4, pixel * 1.4);
+      ctx.fillRect(x + pixel * 9.6, y + pixel * 4 + idleBob, pixel * 1.4, pixel * 1.4);
+      ctx.fillStyle = '#f8fafc';
+      ctx.fillRect(x + pixel * 3.5, y + pixel * 0.4 + idleBob, pixel * 9, pixel * 2.4);
+      ctx.fillStyle = '#dc2626';
+      ctx.fillRect(x + pixel * 7.4, y + pixel * 0.9 + idleBob, pixel * 1.2, pixel * 1.5);
+      return;
+    }
+
+    if (sprite === 'npc_punk') {
+      ctx.fillStyle = 'rgba(0,0,0,0.3)';
+      ctx.beginPath();
+      ctx.ellipse(x + size / 2, y + size - pixel, pixel * 4.5, pixel * 1.5, 0, 0, Math.PI * 2);
+      ctx.fill();
+      // Black leather jacket + studded band
+      ctx.fillStyle = '#18181b';
+      ctx.fillRect(x + pixel * 3, y + pixel * 6 + idleBob, pixel * 10, pixel * 8);
+      ctx.fillStyle = '#a1a1aa';
+      ctx.fillRect(x + pixel * 4, y + pixel * 7 + idleBob, pixel * 2, pixel * 4);
+      ctx.fillStyle = '#dc2626';
+      ctx.fillRect(x + pixel * 6.5, y + pixel * 8 + idleBob, pixel * 3, pixel * 3);
+      // Face + tall red/magenta mohawk
+      ctx.fillStyle = '#fed7aa';
+      ctx.fillRect(x + pixel * 4, y + pixel * 2.6 + idleBob, pixel * 8, pixel * 3.8);
+      ctx.fillStyle = '#0f172a';
+      ctx.fillRect(x + pixel * 5, y + pixel * 4 + idleBob, pixel * 1.4, pixel * 1.4);
+      ctx.fillRect(x + pixel * 9.6, y + pixel * 4 + idleBob, pixel * 1.4, pixel * 1.4);
+      ctx.fillStyle = '#e11d48';
+      ctx.fillRect(x + pixel * 6.4, y - pixel * 1.4 + idleBob, pixel * 3.2, pixel * 4);
+      return;
+    }
+
+    if (sprite === 'npc_mapuche') {
+      ctx.fillStyle = 'rgba(0,0,0,0.3)';
+      ctx.beginPath();
+      ctx.ellipse(x + size / 2, y + size - pixel, pixel * 4.5, pixel * 1.5, 0, 0, Math.PI * 2);
+      ctx.fill();
+      // Woven makuñ poncho & silver trarilonko headband
+      ctx.fillStyle = '#1e293b';
+      ctx.fillRect(x + pixel * 2.8, y + pixel * 6 + idleBob, pixel * 10.4, pixel * 8);
+      ctx.fillStyle = '#b91c1c';
+      ctx.fillRect(x + pixel * 3.2, y + pixel * 9 + idleBob, pixel * 9.6, pixel * 1.8);
+      ctx.fillStyle = '#e2e8f0';
+      ctx.fillRect(x + pixel * 5, y + pixel * 6.5 + idleBob, pixel * 6, pixel * 1.4);
+      ctx.fillStyle = '#fed7aa';
+      ctx.fillRect(x + pixel * 4, y + pixel * 2.5 + idleBob, pixel * 8, pixel * 3.8);
+      ctx.fillStyle = '#0f172a';
+      ctx.fillRect(x + pixel * 5, y + pixel * 4 + idleBob, pixel * 1.4, pixel * 1.4);
+      ctx.fillRect(x + pixel * 9.6, y + pixel * 4 + idleBob, pixel * 1.4, pixel * 1.4);
+      ctx.fillStyle = '#334155';
+      ctx.fillRect(x + pixel * 3.5, y + pixel * 1 + idleBob, pixel * 9, pixel * 1.8);
+      ctx.fillStyle = '#e2e8f0';
+      ctx.fillRect(x + pixel * 3.5, y + pixel * 2 + idleBob, pixel * 9, pixel * 0.9);
+      return;
+    }
+
     const coatColor =
       sprite === 'npc_old_man' ? '#475569' :
       sprite === 'npc_ranger' ? '#047857' :
-      sprite === 'npc_miner' ? '#9a3412' :
-      sprite === 'npc_explorer' ? '#1e40af' :
+      sprite === 'npc_miner' || sprite === 'npc_obrero' ? '#c2410c' :
+      sprite === 'npc_explorer' || sprite === 'npc_arqueologo' ? '#92400e' :
+      sprite === 'npc_escolar' ? '#1d4ed8' :
+      sprite === 'npc_agricultor' ? '#15803d' :
+      sprite === 'npc_musico' ? '#6d28d9' :
+      sprite === 'npc_feriante' ? '#0d9488' :
+      sprite === 'npc_soldado' ? '#365314' :
+      sprite === 'npc_pescador_m' ? '#0369a1' :
+      sprite === 'npc_pescadora_f' ? '#0891b2' :
+      sprite === 'npc_chilote' ? '#57534e' :
+      sprite === 'npc_buzo' ? '#ca8a04' :
+      sprite === 'npc_cocinera' ? '#991b1b' :
       sprite === 'npc_villager_f' ? '#9d174d' : '#0369a1';
     const hatColor =
-      sprite === 'npc_old_man' ? '#e2e8f0' :
+      sprite === 'npc_old_man' || sprite === 'npc_cocinera' ? '#f8fafc' :
       sprite === 'npc_ranger' ? '#10b981' :
-      sprite === 'npc_miner' ? '#facc15' :
+      sprite === 'npc_obrero' || sprite === 'npc_miner' || sprite === 'npc_pescador_m' ? '#facc15' :
+      sprite === 'npc_escolar' ? '#0f172a' :
+      sprite === 'npc_agricultor' ? '#d97706' :
+      sprite === 'npc_arqueologo' ? '#78350f' :
+      sprite === 'npc_musico' ? '#312e81' :
+      sprite === 'npc_feriante' ? '#fbbf24' :
+      sprite === 'npc_soldado' ? '#1a2e05' :
+      sprite === 'npc_pescadora_f' ? '#38bdf8' :
+      sprite === 'npc_chilote' ? '#78350f' :
+      sprite === 'npc_buzo' ? '#475569' :
       sprite === 'npc_explorer' ? '#92400e' :
       sprite === 'npc_villager_f' ? '#581c87' : '#0f766e';
 
@@ -1144,6 +1496,19 @@ export function drawEntitySprite(
 
     ctx.fillStyle = coatColor;
     ctx.fillRect(x + pixel * 3, y + pixel * 6 + idleBob, pixel * 10, pixel * 8);
+    if (sprite === 'npc_cocinera') {
+      // White kitchen apron
+      ctx.fillStyle = '#f8fafc';
+      ctx.fillRect(x + pixel * 5, y + pixel * 7 + idleBob, pixel * 6, pixel * 6.5);
+    } else if (sprite === 'npc_buzo') {
+      // Diving suit visor band
+      ctx.fillStyle = '#1e293b';
+      ctx.fillRect(x + pixel * 4, y + pixel * 6.5 + idleBob, pixel * 8, pixel * 2);
+    } else if (sprite === 'npc_musico') {
+      // Guitar strap diagonal
+      ctx.fillStyle = '#f59e0b';
+      ctx.fillRect(x + pixel * 4, y + pixel * 8 + idleBob, pixel * 8, pixel * 1.4);
+    }
     ctx.fillStyle = '#fed7aa';
     ctx.fillRect(x + pixel * 4, y + pixel * 2.5 + idleBob, pixel * 8, pixel * 4);
     ctx.fillStyle = '#0f172a';
@@ -1154,7 +1519,7 @@ export function drawEntitySprite(
       ctx.fillRect(x + pixel * 5, y + pixel * 5.8 + idleBob, pixel * 6, pixel * 2);
     }
     ctx.fillStyle = hatColor;
-    ctx.fillRect(x + pixel * 2.5, y + pixel * 1 + idleBob, pixel * 11, pixel * 2);
+    ctx.fillRect(x + pixel * 2.5, y + pixel * (sprite === 'npc_cocinera' ? 0.2 : 1) + idleBob, pixel * 11, pixel * (sprite === 'npc_cocinera' ? 2.8 : 2));
     return;
   }
 
@@ -1190,11 +1555,11 @@ export function drawEntitySprite(
       return;
     }
     if (sprite === 'boss_trex') {
-      drawCreatureSprite(ctx, 'trex', 2, x, y, size, stepFrame * 0.1, false);
+      drawCreatureSprite(ctx, 'trex', 1, x, y, size, stepFrame * 0.1, false);
       return;
     }
     if (sprite === 'boss_araucaria') {
-      drawCreatureSprite(ctx, 'araucaria_madre', 3, x, y, size, stepFrame * 0.1, false);
+      drawCreatureSprite(ctx, 'araucaria_madre', 2, x, y, size, stepFrame * 0.1, false);
       return;
     }
     if (sprite === 'boss_torreon') {
@@ -1202,11 +1567,11 @@ export function drawEntitySprite(
       return;
     }
     if (sprite === 'boss_caicai') {
-      drawCreatureSprite(ctx, 'caicai', 3, x, y, size, stepFrame * 0.1, false);
+      drawCreatureSprite(ctx, 'caicai', 2, x, y, size, stepFrame * 0.1, false);
       return;
     }
     if (sprite === 'boss_viluvilu') {
-      drawCreatureSprite(ctx, 'viluvilu', 3, x, y, size, stepFrame * 0.1, false);
+      drawCreatureSprite(ctx, 'viluvilu', 2, x, y, size, stepFrame * 0.1, false);
       return;
     }
 
@@ -1239,6 +1604,81 @@ export function drawEntitySprite(
   }
 
   if (type === 'portal') {
+    if (sprite === 'portal_casa_propia') {
+      // Distinctive Protagonist Home Archway (warm timber + golden lantern + welcome mat)
+      ctx.fillStyle = '#78350f';
+      ctx.fillRect(x + pixel * 1, y + pixel * 3, pixel * 2.5, pixel * 11);
+      ctx.fillRect(x + pixel * 12.5, y + pixel * 3, pixel * 2.5, pixel * 11);
+      ctx.fillStyle = '#b91c1c';
+      ctx.fillRect(x + pixel * 0.5, y + pixel * 1, pixel * 15, pixel * 3.5);
+      ctx.fillStyle = '#facc15';
+      ctx.fillRect(x + pixel * 7, y + pixel * 2, pixel * 2, pixel * 2);
+      ctx.fillStyle = '#dc2626';
+      ctx.fillRect(x + pixel * 4.5, y + pixel * 12.5, pixel * 7, pixel * 2.5);
+      return;
+    }
+    if (sprite === 'portal_hospital') {
+      // Hospital step-over entrance mat + luminous red-cross beacon
+      const pulse = Math.sin(stepFrame * 0.4) * 0.25 + 0.75;
+      ctx.fillStyle = '#f8fafc';
+      ctx.fillRect(x + pixel * 1.5, y + pixel * 2, pixel * 13, pixel * 12);
+      ctx.strokeStyle = `rgba(220, 38, 38, ${pulse})`;
+      ctx.lineWidth = pixel * 1.2;
+      ctx.strokeRect(x + pixel * 1.5, y + pixel * 2, pixel * 13, pixel * 12);
+      ctx.fillStyle = '#dc2626';
+      ctx.fillRect(x + pixel * 6.8, y + pixel * 4, pixel * 2.4, pixel * 8);
+      ctx.fillRect(x + pixel * 4, y + pixel * 6.8, pixel * 8, pixel * 2.4);
+      return;
+    }
+    if (sprite === 'portal_santuario') {
+      // Sanctuary rune step-over portal
+      const pulse = Math.sin(stepFrame * 0.45) * 0.25 + 0.75;
+      ctx.fillStyle = '#0f172a';
+      ctx.beginPath();
+      ctx.arc(x + size / 2, y + size / 2, size * 0.45, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = `rgba(52, 211, 153, ${pulse})`;
+      ctx.lineWidth = pixel * 1.4;
+      ctx.beginPath();
+      ctx.arc(x + size / 2, y + size / 2, size * 0.36, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.fillStyle = '#fde047';
+      ctx.fillRect(x + pixel * 6.5, y + pixel * 5.5, pixel * 3, pixel * 5);
+      return;
+    }
+    if (sprite === 'portal_tienda') {
+      // Shop step-over portal mat (striped merchant awning + golden coin mat)
+      const shimmer = Math.sin(stepFrame * 0.4) * 0.2 + 0.8;
+      ctx.fillStyle = '#78350f';
+      ctx.fillRect(x + pixel * 1.5, y + pixel * 2, pixel * 13, pixel * 12);
+      ctx.fillStyle = '#dc2626';
+      ctx.fillRect(x + pixel * 1.5, y + pixel * 2, pixel * 13, pixel * 3.5);
+      ctx.fillStyle = '#f8fafc';
+      ctx.fillRect(x + pixel * 4, y + pixel * 2, pixel * 2.5, pixel * 3.5);
+      ctx.fillRect(x + pixel * 9.5, y + pixel * 2, pixel * 2.5, pixel * 3.5);
+      ctx.fillStyle = `rgba(250, 204, 21, ${shimmer})`;
+      ctx.beginPath();
+      ctx.arc(x + size / 2, y + pixel * 10, pixel * 3, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#78350f';
+      ctx.fillRect(x + pixel * 7.4, y + pixel * 8.4, pixel * 1.2, pixel * 3.2);
+      return;
+    }
+    if (sprite === 'portal_salir') {
+      // Interior welcome/exit door mat
+      ctx.fillStyle = '#3f3f46';
+      ctx.fillRect(x + pixel * 2, y + pixel * 5, pixel * 12, pixel * 9);
+      ctx.fillStyle = '#f4f4f5';
+      ctx.fillRect(x + pixel * 4, y + pixel * 7, pixel * 8, pixel * 5);
+      ctx.fillStyle = '#18181b';
+      ctx.beginPath();
+      ctx.moveTo(x + pixel * 8, y + pixel * 11.5);
+      ctx.lineTo(x + pixel * 5.5, y + pixel * 8);
+      ctx.lineTo(x + pixel * 10.5, y + pixel * 8);
+      ctx.closePath();
+      ctx.fill();
+      return;
+    }
     ctx.fillStyle = '#78350f';
     ctx.fillRect(x + pixel * 6, y + pixel * 7, pixel * 4, pixel * 8);
     ctx.fillStyle = '#d97706';
@@ -1473,6 +1913,53 @@ export function drawEntitySprite(
       ctx.fillStyle = '#15803d';
       ctx.fillRect(x + pixel * 2, y + pixel * 4, pixel * 3, pixel * 3);
       ctx.fillRect(x + pixel * 11, y + pixel * 4, pixel * 3, pixel * 3);
+    } else if (sprite.includes('evolucion')) {
+      // Sanctum of Evolution (Glowing ancient stone arch + floating golden crystal)
+      const pulse = Math.sin(stepFrame * 0.4) * pixel * 1.2;
+      ctx.fillStyle = 'rgba(16, 185, 129, 0.28)';
+      ctx.beginPath();
+      ctx.arc(x + size / 2, y + size / 2, size * 0.48, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#475569';
+      ctx.fillRect(x + pixel * 2, y + pixel * 4, pixel * 3, pixel * 11);
+      ctx.fillRect(x + pixel * 11, y + pixel * 4, pixel * 3, pixel * 11);
+      ctx.fillStyle = '#64748b';
+      ctx.fillRect(x + pixel * 1.5, y + pixel * 2, pixel * 13, pixel * 3);
+      ctx.fillStyle = '#34d399';
+      ctx.fillRect(x + pixel * 6.5, y + pixel * 7 + pulse * 0.5, pixel * 3, pixel * 4);
+      ctx.fillStyle = '#fef08a';
+      ctx.fillRect(x + pixel * 7.2, y + pixel * 8 + pulse * 0.5, pixel * 1.6, pixel * 2);
+    } else if (sprite.includes('chimenea')) {
+      // Cozy home fireplace with animated embers
+      const flicker = Math.sin(stepFrame * 1.4) * pixel * 0.8;
+      ctx.fillStyle = '#78350f';
+      ctx.fillRect(x + pixel * 1, y + pixel * 2, pixel * 14, pixel * 13);
+      ctx.fillStyle = '#292524';
+      ctx.fillRect(x + pixel * 3.5, y + pixel * 6, pixel * 9, pixel * 8);
+      ctx.fillStyle = '#ea580c';
+      ctx.fillRect(x + pixel * 5, y + pixel * 9, pixel * 6, pixel * 5);
+      ctx.fillStyle = '#facc15';
+      ctx.fillRect(x + pixel * 6 + flicker * 0.5, y + pixel * 10 - Math.abs(flicker), pixel * 4, pixel * 3);
+    } else if (sprite.includes('mesa')) {
+      // Cozy home dining table with cup & bread
+      ctx.fillStyle = '#92400e';
+      ctx.fillRect(x + pixel * 1.5, y + pixel * 4, pixel * 13, pixel * 8);
+      ctx.fillStyle = '#b45309';
+      ctx.fillRect(x + pixel * 2.5, y + pixel * 4.5, pixel * 11, pixel * 5.5);
+      ctx.fillStyle = '#f8fafc';
+      ctx.fillRect(x + pixel * 4.5, y + pixel * 5.5, pixel * 3, pixel * 2.5);
+      ctx.fillStyle = '#d97706';
+      ctx.fillRect(x + pixel * 9, y + pixel * 5.8, pixel * 3, pixel * 2);
+    } else if (sprite.includes('planta')) {
+      // Potted indoor plant
+      ctx.fillStyle = '#b45309';
+      ctx.fillRect(x + pixel * 4.5, y + pixel * 9.5, pixel * 7, pixel * 5);
+      ctx.fillStyle = '#15803d';
+      ctx.beginPath();
+      ctx.arc(x + pixel * 8, y + pixel * 6.5, pixel * 4.2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#4ade80';
+      ctx.fillRect(x + pixel * 6.5, y + pixel * 4, pixel * 3, pixel * 2.5);
     } else if (sprite.includes('libro')) {
       ctx.fillStyle = '#78350f';
       ctx.fillRect(x + pixel * 3, y + pixel * 7, pixel * 10, pixel * 7);
@@ -1481,12 +1968,137 @@ export function drawEntitySprite(
       ctx.fillStyle = '#52525b';
       ctx.fillRect(x + pixel * 5, y + pixel * 5.5, pixel * 6, pixel * 1);
       ctx.fillRect(x + pixel * 5, y + pixel * 7, pixel * 4, pixel * 1);
+    } else if (sprite === 'deco_cama_hospital') {
+      // Clean hospital bed with crisp white sheets, blue blanket & red cross headboard
+      ctx.fillStyle = '#94a3b8';
+      ctx.fillRect(x + pixel * 1.5, y + pixel * 2, pixel * 13, pixel * 12);
+      ctx.fillStyle = '#f8fafc';
+      ctx.fillRect(x + pixel * 2.5, y + pixel * 3, pixel * 11, pixel * 4);
+      ctx.fillStyle = '#0284c7';
+      ctx.fillRect(x + pixel * 2.5, y + pixel * 7, pixel * 11, pixel * 6);
+      ctx.fillStyle = '#dc2626';
+      ctx.fillRect(x + pixel * 7.2, y + pixel * 1.5, pixel * 1.6, pixel * 2.2);
+    } else if (sprite === 'deco_monitor_medico') {
+      // Vital signs monitor with animated ECG wave
+      const beat = Math.sin(stepFrame * 0.9) * pixel * 1.5;
+      ctx.fillStyle = '#334155';
+      ctx.fillRect(x + pixel * 3, y + pixel * 2, pixel * 10, pixel * 11);
+      ctx.fillStyle = '#0f172a';
+      ctx.fillRect(x + pixel * 4, y + pixel * 3.5, pixel * 8, pixel * 6);
+      ctx.strokeStyle = '#4ade80';
+      ctx.lineWidth = pixel * 0.9;
+      ctx.beginPath();
+      ctx.moveTo(x + pixel * 4.5, y + pixel * 6.5);
+      ctx.lineTo(x + pixel * 7, y + pixel * 6.5);
+      ctx.lineTo(x + pixel * 8, y + pixel * 4.5 + beat * 0.4);
+      ctx.lineTo(x + pixel * 9.5, y + pixel * 8);
+      ctx.lineTo(x + pixel * 11.5, y + pixel * 6.5);
+      ctx.stroke();
+      ctx.fillStyle = '#64748b';
+      ctx.fillRect(x + pixel * 5, y + pixel * 13, pixel * 6, pixel * 2);
+    } else if (sprite === 'deco_botiquin') {
+      // Wall medicine shelf & healing capsules
+      ctx.fillStyle = '#cbd5e1';
+      ctx.fillRect(x + pixel * 2, y + pixel * 2, pixel * 12, pixel * 12);
+      ctx.fillStyle = '#f8fafc';
+      ctx.fillRect(x + pixel * 3, y + pixel * 3, pixel * 10, pixel * 10);
+      ctx.fillStyle = '#ef4444';
+      ctx.fillRect(x + pixel * 4, y + pixel * 4.5, pixel * 2, pixel * 3);
+      ctx.fillStyle = '#38bdf8';
+      ctx.fillRect(x + pixel * 7, y + pixel * 4.5, pixel * 2, pixel * 3);
+      ctx.fillStyle = '#10b981';
+      ctx.fillRect(x + pixel * 10, y + pixel * 4.5, pixel * 2, pixel * 3);
+      ctx.fillStyle = '#94a3b8';
+      ctx.fillRect(x + pixel * 3, y + pixel * 8.5, pixel * 10, pixel * 1.2);
+    } else if (sprite === 'deco_cristal_ancestral') {
+      // Glowing floating crystal pillar in Evolution Sanctuary
+      const hover = Math.sin(stepFrame * 0.5) * pixel * 1.3;
+      ctx.fillStyle = 'rgba(16, 185, 129, 0.25)';
+      ctx.beginPath();
+      ctx.arc(x + size / 2, y + size / 2, size * 0.45, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#475569';
+      ctx.fillRect(x + pixel * 4, y + pixel * 11, pixel * 8, pixel * 4);
+      ctx.fillStyle = '#34d399';
+      ctx.beginPath();
+      ctx.moveTo(x + pixel * 8, y + pixel * 1.5 + hover);
+      ctx.lineTo(x + pixel * 12, y + pixel * 6.5 + hover);
+      ctx.lineTo(x + pixel * 8, y + pixel * 11 + hover);
+      ctx.lineTo(x + pixel * 4, y + pixel * 6.5 + hover);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = '#fef08a';
+      ctx.fillRect(x + pixel * 7.2, y + pixel * 5 + hover, pixel * 1.6, pixel * 2.5);
+    } else if (sprite === 'deco_san_cristobal') {
+      // Cerro San Cristóbal white summit monument & cablecar tower silhouette
+      ctx.fillStyle = '#64748b';
+      ctx.beginPath();
+      ctx.moveTo(x + pixel * 8, y + pixel * 5);
+      ctx.lineTo(x + pixel * 15, y + pixel * 15);
+      ctx.lineTo(x + pixel * 1, y + pixel * 15);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = '#f8fafc';
+      ctx.fillRect(x + pixel * 7.2, y + pixel * 1, pixel * 1.6, pixel * 5.5);
+      ctx.fillRect(x + pixel * 5.8, y + pixel * 2.2, pixel * 4.4, pixel * 1.3);
+    } else if (sprite === 'deco_cerro_blanco') {
+      // Cerro Blanco northern limestone hill
+      ctx.fillStyle = '#94a3b8';
+      ctx.beginPath();
+      ctx.moveTo(x + pixel * 8, y + pixel * 3);
+      ctx.lineTo(x + pixel * 15, y + pixel * 15);
+      ctx.lineTo(x + pixel * 1, y + pixel * 15);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = '#f1f5f9';
+      ctx.beginPath();
+      ctx.moveTo(x + pixel * 8, y + pixel * 3);
+      ctx.lineTo(x + pixel * 11.5, y + pixel * 9);
+      ctx.lineTo(x + pixel * 4.5, y + pixel * 9);
+      ctx.closePath();
+      ctx.fill();
+    } else if (sprite === 'deco_cerro_santa_isabel') {
+      // Cerro Santa Isabel southern wooded hill
+      ctx.fillStyle = '#15803d';
+      ctx.beginPath();
+      ctx.moveTo(x + pixel * 8, y + pixel * 3.5);
+      ctx.lineTo(x + pixel * 15, y + pixel * 15);
+      ctx.lineTo(x + pixel * 1, y + pixel * 15);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = '#fde047';
+      ctx.fillRect(x + pixel * 7.2, y + pixel * 2, pixel * 1.6, pixel * 2.5);
+    } else if (sprite === 'deco_mostrador') {
+      // Shop interior wooden counter with cash box & bottles
+      ctx.fillStyle = '#78350f';
+      ctx.fillRect(x + pixel * 0.5, y + pixel * 3, pixel * 15, pixel * 11);
+      ctx.fillStyle = '#b45309';
+      ctx.fillRect(x + pixel * 1.5, y + pixel * 4, pixel * 13, pixel * 4);
+      ctx.fillStyle = '#facc15';
+      ctx.fillRect(x + pixel * 6, y + pixel * 4.5, pixel * 4, pixel * 2.5);
+    } else if (sprite === 'deco_estanteria') {
+      // Shop interior shelf with potions, mana & resonance orbs
+      ctx.fillStyle = '#57534e';
+      ctx.fillRect(x + pixel * 1.5, y + pixel * 1.5, pixel * 13, pixel * 13);
+      ctx.fillStyle = '#292524';
+      ctx.fillRect(x + pixel * 2.5, y + pixel * 2.5, pixel * 11, pixel * 4.5);
+      ctx.fillRect(x + pixel * 2.5, y + pixel * 8.5, pixel * 11, pixel * 4.5);
+      ctx.fillStyle = '#ef4444';
+      ctx.fillRect(x + pixel * 3.5, y + pixel * 3.5, pixel * 2, pixel * 3);
+      ctx.fillStyle = '#38bdf8';
+      ctx.fillRect(x + pixel * 7, y + pixel * 3.5, pixel * 2, pixel * 3);
+      ctx.fillStyle = '#facc15';
+      ctx.fillRect(x + pixel * 10.5, y + pixel * 3.5, pixel * 2, pixel * 3);
+      ctx.fillStyle = '#34d399';
+      ctx.fillRect(x + pixel * 4.5, y + pixel * 9.5, pixel * 2.5, pixel * 3);
+      ctx.fillStyle = '#c084fc';
+      ctx.fillRect(x + pixel * 9, y + pixel * 9.5, pixel * 2.5, pixel * 3);
     } else if (sprite.includes('cama') || type === 'shrine') {
       ctx.fillStyle = '#78350f';
       ctx.fillRect(x + pixel * 2, y + pixel * 3, pixel * 12, pixel * 11);
       ctx.fillStyle = '#e4e4e7';
       ctx.fillRect(x + pixel * 3.5, y + pixel * 4, pixel * 9, pixel * 3.5);
-      ctx.fillStyle = '#52525b';
+      ctx.fillStyle = '#be123c';
       ctx.fillRect(x + pixel * 3.5, y + pixel * 7.5, pixel * 9, pixel * 5.5);
     } else {
       const bob = Math.sin(stepFrame * 0.8) * pixel * 1.5;

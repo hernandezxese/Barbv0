@@ -1,9 +1,6 @@
 /**
  * Deep Evolution Sanctuary for Crónicas Elementales del Sur
- * Features:
- * - Overflow-safe 3-stage evolutionary tree (Stages 1, 2, 3 fit cleanly on mobile without clipping)
- * - Elemental Essence catalyst requirements (Pewén resin, thermal drops, basalt, blue ice)
- * - Interactive evolution ceremony with canvas particle spirals and stat upgrades
+ * Supports 1-stage, 2-stage, and 3-stage evolutionary lines dynamically.
  */
 
 import React, { useState, useEffect, useRef } from 'react';
@@ -32,8 +29,9 @@ export const EvolutionSanctuary: React.FC<EvolutionSanctuaryProps> = ({
   const selectedSpirit = partySpirits.find(s => s.uid === selectedSpiritUid) || partySpirits[0];
   const evolutionCanvasRef = useRef<HTMLCanvasElement | null>(null);
 
+  const maxStages = selectedSpirit?.evolutionLine.length || 1;
   const currentStageNum = selectedSpirit?.currentStage || 1;
-  const nextStageNum = currentStageNum < 3 ? currentStageNum + 1 : null;
+  const nextStageNum = currentStageNum < maxStages ? currentStageNum + 1 : null;
   const currentStageData = selectedSpirit?.evolutionLine[currentStageNum - 1];
   const nextStageData = nextStageNum ? selectedSpirit?.evolutionLine[nextStageNum - 1] : null;
 
@@ -106,6 +104,9 @@ export const EvolutionSanctuary: React.FC<EvolutionSanctuaryProps> = ({
     }, 2600);
   };
 
+  const gridColsClass =
+    maxStages === 1 ? 'grid-cols-1' : maxStages === 2 ? 'grid-cols-2' : 'grid-cols-3';
+
   return (
     <div className="fixed inset-0 z-50 bg-zinc-950/95 backdrop-blur-md flex flex-col justify-between overflow-y-auto select-none p-2.5 sm:p-4 text-zinc-100">
       {/* Header */}
@@ -136,9 +137,10 @@ export const EvolutionSanctuary: React.FC<EvolutionSanctuaryProps> = ({
         <div className="md:col-span-4 bg-zinc-900 border border-zinc-700 rounded-2xl p-2.5 sm:p-3.5 flex flex-col gap-2">
           <span className="font-pixel text-[10px] text-zinc-400">ESPÍRITUS EN TU EQUIPO:</span>
           <div className="flex md:flex-col gap-1.5 overflow-x-auto md:overflow-x-hidden md:overflow-y-auto md:max-h-72 pb-1 md:pb-0">
-            {partySpirits.map((spirit) => {
+            {partySpirits.map(spirit => {
+              const totalStages = spirit.evolutionLine.length;
               const isSelected = spirit.uid === selectedSpirit?.uid;
-              const hasNext = spirit.currentStage < 3;
+              const hasNext = spirit.currentStage < totalStages;
               const nextStage = hasNext ? spirit.evolutionLine[spirit.currentStage] : null;
               const ready = hasNext && nextStage && spirit.level >= nextStage.requiredLevel;
 
@@ -165,7 +167,7 @@ export const EvolutionSanctuary: React.FC<EvolutionSanctuaryProps> = ({
                         {spirit.name}
                       </span>
                       <span className="font-mono text-[10px] text-zinc-400 block truncate">
-                        Nv.{spirit.level} · Et.{spirit.currentStage}/3
+                        Nv.{spirit.level} · Et.{spirit.currentStage}/{totalStages}
                       </span>
                     </div>
                   </div>
@@ -181,12 +183,11 @@ export const EvolutionSanctuary: React.FC<EvolutionSanctuaryProps> = ({
           </div>
         </div>
 
-        {/* Center / Right Column: Evolution Altar & Overflow-Safe 3-Stage Stepper */}
+        {/* Center / Right Column: Evolution Altar & Dynamic Stepper */}
         <div className="md:col-span-8 bg-zinc-900 border border-zinc-700 rounded-2xl p-3 sm:p-4 flex flex-col justify-between overflow-hidden min-w-0">
           {selectedSpirit && (
             <div className="min-w-0">
-              {/* 3-Column Overflow-Safe Evolution Tree Stepper */}
-              <div className="grid grid-cols-3 gap-1.5 sm:gap-2 p-2 bg-zinc-950 border border-zinc-800 rounded-xl mb-3 text-xs font-mono">
+              <div className={`grid ${gridColsClass} gap-1.5 sm:gap-2 p-2 bg-zinc-950 border border-zinc-800 rounded-xl mb-3 text-xs font-mono`}>
                 {selectedSpirit.evolutionLine.map((stage, idx) => {
                   const stageNum = idx + 1;
                   const isCurrent = stageNum === selectedSpirit.currentStage;
@@ -232,7 +233,7 @@ export const EvolutionSanctuary: React.FC<EvolutionSanctuaryProps> = ({
                 <div className="flex-1 text-xs min-w-0 w-full">
                   <div className="mb-2">
                     <span className="text-[9px] uppercase font-mono text-zinc-400 font-bold tracking-wider">
-                      Etapa {currentStageNum}/3 · {currentStageData?.title}
+                      Etapa {currentStageNum}/{maxStages} · {currentStageData?.title}
                     </span>
                     <h3 className="font-pixel text-xs sm:text-sm text-zinc-100 mb-0.5 truncate">
                       {evolutionStep === 'completed' && nextStageData ? nextStageData.name : selectedSpirit.name}
@@ -271,7 +272,9 @@ export const EvolutionSanctuary: React.FC<EvolutionSanctuaryProps> = ({
                     </div>
                   ) : (
                     <div className="p-2.5 bg-zinc-900 border border-zinc-600 rounded-lg text-zinc-200 text-center font-mono text-[11px]">
-                      ¡Este espíritu alcanzó su Etapa 3 máxima como Titán Ancestral!
+                      {maxStages === 1
+                        ? 'Esta especie no posee evoluciones adicionales (Etapa Única).'
+                        : `¡Este espíritu alcanzó su Etapa ${maxStages} máxima como Titán Ancestral!`}
                     </div>
                   )}
                 </div>
@@ -304,7 +307,7 @@ export const EvolutionSanctuary: React.FC<EvolutionSanctuaryProps> = ({
 
       {/* Footer */}
       <div className="max-w-5xl w-full mx-auto pt-2 border-t border-zinc-800 text-center text-[10px] font-mono text-zinc-500">
-        Recolecta esencias regionales en cofres para despertar las Etapas 2 y 3 de tus criaturas.
+        Recolecta esencias regionales en cofres para despertar las evoluciones de tus criaturas.
       </div>
     </div>
   );

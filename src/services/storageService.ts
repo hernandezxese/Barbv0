@@ -1,10 +1,10 @@
 /**
  * Storage Service for Crónicas Elementales del Sur
  * Supports 3 distinct save slots (Slot 1, Slot 2, Slot 3) with timestamps,
- * party summary, region location, and backwards-compatible migration across all 5 regions.
+ * party summary, region location, medals, and backwards-compatible migration.
  */
 
-import { BarbaraHero, SpiritCreature, InventoryItem, RegionId } from '../types/game';
+import { BarbaraHero, HeroGender, InventoryItem, MedalRecord, REGION_MEDALS, RegionId, SpiritCreature } from '../types/game';
 
 export interface SavedGameData {
   version: number;
@@ -17,6 +17,14 @@ export interface SavedGameData {
   inventory: Record<string, InventoryItem>;
   clearedEntityIds: string[];
   playerSpawnPos: { x: number; y: number };
+  interiorReturnLocation?: {
+    regionId: RegionId;
+    x: number;
+    y: number;
+    shopVendorName?: string;
+    shopSubtitle?: string;
+  };
+  revealedTiles?: Record<string, string[]>;
   hasCompletedStory?: boolean;
 }
 
@@ -30,6 +38,7 @@ export interface SlotSummary {
   leaderSpiritName: string;
   leaderSpiritIcon: string;
   gold: number;
+  medalsCount: number;
   hasCompletedStory?: boolean;
 }
 
@@ -40,10 +49,63 @@ function migrateRegionId(id: string): RegionId {
   if (id === 'pucon') return 'araucania';
   if (id === 'villarrica') return 'losrios';
   if (id === 'hornopiren') return 'loslagos';
-  if (id === 'casa' || id === 'santiago' || id === 'biobio' || id === 'araucania' || id === 'losrios' || id === 'loslagos') {
+  if (
+    id === 'casa' ||
+    id === 'santiago' ||
+    id === 'biobio' ||
+    id === 'araucania' ||
+    id === 'losrios' ||
+    id === 'loslagos' ||
+    id === 'hospital' ||
+    id === 'santuario' ||
+    id === 'tienda'
+  ) {
     return id;
   }
   return 'santiago';
+}
+
+function normalizeGender(g?: string): HeroGender {
+  if (g === 'male' || g === 'isabella') return g;
+  return 'female';
+}
+
+function normalizeHero(raw: any): BarbaraHero {
+  const medals: string[] = Array.isArray(raw?.medals) ? raw.medals : [];
+  let medalRecords: MedalRecord[] = Array.isArray(raw?.medalRecords) ? raw.medalRecords : [];
+  if (medals.length > 0 && medalRecords.length === 0) {
+    medalRecords = medals.map((mId, idx) => {
+      const info = REGION_MEDALS.find(m => m.id === mId);
+      return {
+        medalId: mId,
+        bossName: info?.bossName || 'Guardián Regional',
+        regionLabel: info?.regionLabel || 'Chile',
+        order: idx + 1,
+        earnedAt: new Date().toISOString(),
+      };
+    });
+  }
+
+  return {
+    name: raw?.name || 'Bárbara',
+    gender: normalizeGender(raw?.gender),
+    level: raw?.level || 1,
+    exp: raw?.exp || 0,
+    maxExp: raw?.maxExp || 100,
+    currentHp: raw?.currentHp ?? 120,
+    maxHp: raw?.maxHp ?? 120,
+    limitGauge: raw?.limitGauge ?? 100,
+    resonanceOrbs: raw?.resonanceOrbs ?? 6,
+    gold: raw?.gold ?? 250,
+    activeSpiritUids: Array.isArray(raw?.activeSpiritUids) ? raw.activeSpiritUids : [],
+    medals,
+    medalRecords,
+    bestiaryCompleted: Boolean(raw?.bestiaryCompleted),
+    seenSpeciesIds: Array.isArray(raw?.seenSpeciesIds) ? Array.from(new Set(raw.seenSpeciesIds)) : [],
+    registeredEvolutionKeys: Array.isArray(raw?.registeredEvolutionKeys) ? Array.from(new Set(raw.registeredEvolutionKeys)) : [],
+    battlesWon: typeof raw?.battlesWon === 'number' ? raw.battlesWon : 0,
+    spiritsCaptured: typeof raw?.spiritsCaptured === 'number' ? raw.spiritsCaptured : 0,
+  };
 }
 
 export const storageService = {
@@ -55,8 +117,10 @@ export const storageService = {
     try {
       const payload: SavedGameData = {
         ...data,
+        barbara: normalizeHero(data.barbara),
+        revealedTiles: data.revealedTiles || {},
         slotId,
-        version: 4,
+        version: 7,
         savedAt: new Date().toISOString(),
       };
       localStorage.setItem(this.getSlotKey(slotId), JSON.stringify(payload));
@@ -84,8 +148,32 @@ export const storageService = {
 
       parsed.currentRegionId = migrateRegionId(parsed.currentRegionId);
       parsed.unlockedRegions = Array.from(
-        new Set((parsed.unlockedRegions || ['santiago']).map(migrateRegionId))
+        new Set((parsed.unlockedRegions || ['casa', 'santiago']).map(migrateRegionId))
       );
+      if (parsed.interiorReturnLocation) {
+        parsed.interiorReturnLocation = {
+          ...parsed.interiorReturnLocation,
+          regionId: migrateRegionId(parsed.interiorReturnLocation.regionId),
+        };
+      }
+      if (!parsed.revealedTiles || typeof parsed.revealedTiles !== 'object') {
+        parsed.revealedTiles = {};
+      }
+      parsed.barbara = normalizeHero(parsed.barbara);
+      // Backfill seen & registered evolution keys from owned partySpirits for legacy saves
+      const ownedParty = Array.isArray(parsed.partySpirits) ? parsed.partySpirits : [];
+      const seenSet = new Set<string>(parsed.barbara.seenSpeciesIds || []);
+      const evoSet = new Set<string>(parsed.barbara.registeredEvolutionKeys || []);
+      ownedParty.forEach(s => {
+        if (s?.baseId) {
+          seenSet.add(s.baseId);
+          for (let st = 1; st <= (s.currentStage || 1); st++) {
+            evoSet.add(`${s.baseId}:${st}`);
+          }
+        }
+      });
+      parsed.barbara.seenSpeciesIds = Array.from(seenSet);
+      parsed.barbara.registeredEvolutionKeys = Array.from(evoSet);
       return parsed;
     } catch (e) {
       console.error(`Error loading game from slot ${slotId}:`, e);
@@ -121,6 +209,7 @@ export const storageService = {
       leaderSpiritName: leader?.name || 'Compañero',
       leaderSpiritIcon: leaderIcon,
       gold: data.barbara?.gold || 0,
+      medalsCount: data.barbara?.medals?.length || 0,
       hasCompletedStory: Boolean(data.hasCompletedStory),
     };
   },

@@ -1,6 +1,6 @@
 /**
  * Retro Chiptune & Synthesizer Audio Engine for Bárbara: Crónicas Elementales del Sur
- * Inspired by GameBoy Advance Pokémon FireRed and SNES Final Fantasy III soundfonts
+ * Hardened for iOS Safari / Android Chrome gesture unlock + procedural BGM + regional ambient layers.
  */
 
 class SoundEngine {
@@ -8,8 +8,9 @@ class SoundEngine {
   private isMuted: boolean = false;
   private volume: number = 0.4;
   private currentTrack: string | null = null;
-  private bgmInterval: any = null;
-  private initialized: boolean = false;
+  private currentAmbient: string | null = null;
+  private bgmInterval: ReturnType<typeof setInterval> | null = null;
+  private ambientInterval: ReturnType<typeof setInterval> | null = null;
   private unlocked: boolean = false;
 
   constructor() {
@@ -17,6 +18,7 @@ class SoundEngine {
       const unlockHandler = () => {
         this.unlockMobileAudio();
       };
+      window.addEventListener('touchend', unlockHandler, { passive: true });
       window.addEventListener('touchstart', unlockHandler, { passive: true });
       window.addEventListener('pointerdown', unlockHandler, { passive: true });
       window.addEventListener('click', unlockHandler, { passive: true });
@@ -29,8 +31,9 @@ class SoundEngine {
   }
 
   private initContext() {
+    if (typeof window === 'undefined') return;
     if (!this.ctx) {
-      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
       if (AudioCtx) {
         this.ctx = new AudioCtx();
       }
@@ -42,19 +45,37 @@ class SoundEngine {
 
   public unlockMobileAudio() {
     this.initContext();
-    if (!this.ctx || this.unlocked) return;
+    if (!this.ctx) return;
+
+    const wasUnlocked = this.unlocked;
     try {
-      // Play a 1-sample silent buffer inside a direct touch/click gesture to unlock iOS Safari & Android Chrome audio
-      const buffer = this.ctx.createBuffer(1, 1, 22050);
-      const source = this.ctx.createBufferSource();
-      source.buffer = buffer;
-      source.connect(this.ctx.destination);
-      source.start(0);
-      if (this.ctx.state === 'suspended') {
-        this.ctx.resume().catch(() => {});
+      if (this.ctx.state === 'suspended' || (this.ctx.state as string) === 'interrupted') {
+        this.ctx.resume().then(() => {
+          if (!this.isMuted && this.currentTrack && !this.bgmInterval) {
+            this.playBgm(this.currentTrack, true);
+          }
+          if (!this.isMuted && this.currentAmbient && !this.ambientInterval) {
+            this.startAmbient(this.currentAmbient, true);
+          }
+        }).catch(() => {});
       }
-      this.unlocked = true;
-      this.initialized = true;
+
+      if (!wasUnlocked) {
+        // 1-sample silent trigger inside touch/click gesture unlocks iOS WebAudio reliably
+        const buffer = this.ctx.createBuffer(1, 1, 22050);
+        const source = this.ctx.createBufferSource();
+        source.buffer = buffer;
+        source.connect(this.ctx.destination);
+        source.start(0);
+        this.unlocked = true;
+
+        if (!this.isMuted && this.currentTrack) {
+          this.playBgm(this.currentTrack, true);
+        }
+        if (!this.isMuted && this.currentAmbient) {
+          this.startAmbient(this.currentAmbient, true);
+        }
+      }
     } catch {
       // Safe fallback
     }
@@ -62,17 +83,27 @@ class SoundEngine {
 
   public init() {
     this.unlockMobileAudio();
-    this.initialized = true;
   }
 
   public toggleMute(): boolean {
     this.unlockMobileAudio();
     this.isMuted = !this.isMuted;
-    if (this.isMuted && this.bgmInterval) {
-      clearInterval(this.bgmInterval);
-      this.bgmInterval = null;
-    } else if (!this.isMuted && this.currentTrack) {
-      this.playBgm(this.currentTrack, true);
+    if (this.isMuted) {
+      if (this.bgmInterval) {
+        clearInterval(this.bgmInterval);
+        this.bgmInterval = null;
+      }
+      if (this.ambientInterval) {
+        clearInterval(this.ambientInterval);
+        this.ambientInterval = null;
+      }
+    } else {
+      if (this.currentTrack) {
+        this.playBgm(this.currentTrack, true);
+      }
+      if (this.currentAmbient) {
+        this.startAmbient(this.currentAmbient, true);
+      }
     }
     return this.isMuted;
   }
@@ -85,7 +116,6 @@ class SoundEngine {
     this.volume = Math.max(0, Math.min(1, val));
   }
 
-  // Play a single procedural retro tone
   private playTone(freq: number, type: OscillatorType, duration: number, delay = 0, gainLevel = 1) {
     if (this.isMuted) return;
     this.initContext();
@@ -102,7 +132,7 @@ class SoundEngine {
       osc.frequency.setValueAtTime(freq, this.ctx.currentTime + delay);
 
       const startTime = this.ctx.currentTime + delay;
-      const peakGain = Math.max(0.001, this.volume * gainLevel * 0.16);
+      const peakGain = Math.max(0.0005, this.volume * gainLevel * 0.16);
       gain.gain.setValueAtTime(peakGain, startTime);
       gain.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);
 
@@ -110,14 +140,13 @@ class SoundEngine {
       gain.connect(this.ctx.destination);
 
       osc.start(startTime);
-      osc.stop(startTime + duration + 0.02);
+      osc.stop(startTime + duration + 0.03);
     } catch {
       // Audio safety fallback
     }
   }
 
-  // Noise generator for hits, rustling, and volcanic sounds
-  private playNoise(duration: number, delay = 0, filterFreq = 1000) {
+  private playNoise(duration: number, delay = 0, filterFreq = 1000, filterType: BiquadFilterType = 'lowpass', gainLevel = 0.2) {
     if (this.isMuted) return;
     this.initContext();
     if (!this.ctx) return;
@@ -137,12 +166,12 @@ class SoundEngine {
       whiteNoise.buffer = buffer;
 
       const filter = this.ctx.createBiquadFilter();
-      filter.type = 'lowpass';
+      filter.type = filterType;
       filter.frequency.setValueAtTime(filterFreq, this.ctx.currentTime + delay);
 
       const gain = this.ctx.createGain();
       const startTime = this.ctx.currentTime + delay;
-      gain.gain.setValueAtTime(Math.max(0.001, this.volume * 0.2), startTime);
+      gain.gain.setValueAtTime(Math.max(0.0005, this.volume * gainLevel), startTime);
       gain.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);
 
       whiteNoise.connect(filter);
@@ -158,13 +187,13 @@ class SoundEngine {
   // --- Sound Effects (SFX) ---
 
   public playSelect() {
-    this.playTone(523.25, 'triangle', 0.06); // C5
-    this.playTone(659.25, 'triangle', 0.08, 0.05); // E5
+    this.playTone(523.25, 'triangle', 0.06);
+    this.playTone(659.25, 'triangle', 0.08, 0.05);
   }
 
   public playConfirm() {
-    this.playTone(440, 'square', 0.08); // A4
-    this.playTone(880, 'square', 0.12, 0.06); // A5
+    this.playTone(440, 'square', 0.08);
+    this.playTone(880, 'square', 0.12, 0.06);
   }
 
   public playCancel() {
@@ -173,14 +202,13 @@ class SoundEngine {
   }
 
   public playStep() {
-    this.playTone(120, 'triangle', 0.04, 0, 0.3);
+    this.playTone(120, 'triangle', 0.04, 0, 0.25);
   }
 
   public playEncounter() {
-    // Classic Pokémon battle encounter sting
     for (let i = 0; i < 5; i++) {
-      this.playTone(300 + i * 150, 'sawtooth', 0.06, i * 0.05, 0.9);
-      this.playTone(600 - i * 80, 'square', 0.06, i * 0.05, 0.7);
+      this.playTone(300 + i * 150, 'sawtooth', 0.06, i * 0.05, 0.85);
+      this.playTone(600 - i * 80, 'square', 0.06, i * 0.05, 0.65);
     }
   }
 
@@ -215,7 +243,7 @@ class SoundEngine {
   }
 
   public playHeal() {
-    const notes = [523.25, 659.25, 783.99, 1046.5]; // C5, E5, G5, C6
+    const notes = [523.25, 659.25, 783.99, 1046.5];
     notes.forEach((f, idx) => {
       this.playTone(f, 'sine', 0.2, idx * 0.08, 0.8);
     });
@@ -228,8 +256,8 @@ class SoundEngine {
 
   public playCriticalHit() {
     this.playNoise(0.18, 0, 1800);
-    this.playTone(260, 'sawtooth', 0.12, 0, 1.2);
-    this.playTone(130, 'square', 0.18, 0.06, 1.2);
+    this.playTone(260, 'sawtooth', 0.12, 0, 1.15);
+    this.playTone(130, 'square', 0.18, 0.06, 1.15);
   }
 
   public playCaptureSuccess() {
@@ -252,7 +280,6 @@ class SoundEngine {
   }
 
   public playEvolutionSequence() {
-    // Ethereal rising chime arpeggio
     const arp = [392, 493.88, 587.33, 739.99, 880, 987.77, 1174.66, 1479.98];
     arp.forEach((f, idx) => {
       this.playTone(f, 'triangle', 0.2, idx * 0.07, 0.9);
@@ -266,10 +293,14 @@ class SoundEngine {
     this.playTone(659.25, 'triangle', 0.2, 0.18, 0.9);
   }
 
+  public playThunderRumble() {
+    this.playNoise(0.55, 0, 260, 'lowpass', 0.14);
+    this.playTone(64, 'sawtooth', 0.4, 0.05, 0.35);
+  }
+
   // --- Animal & Wildlife Sound Effects ---
 
   public playDogBark() {
-    // Playful double-bark
     this.playTone(380, 'sawtooth', 0.08, 0, 0.9);
     this.playTone(280, 'sawtooth', 0.12, 0.04, 0.7);
     this.playTone(420, 'sawtooth', 0.08, 0.16, 0.9);
@@ -277,7 +308,6 @@ class SoundEngine {
   }
 
   public playBirdChirp() {
-    // High-pitched sweet chirping trill (Chucao / Picaflor / Loica)
     this.playTone(1480, 'sine', 0.06, 0, 0.8);
     this.playTone(1850, 'sine', 0.08, 0.05, 0.9);
     this.playTone(2200, 'sine', 0.06, 0.11, 0.7);
@@ -285,34 +315,29 @@ class SoundEngine {
   }
 
   public playDuckQuack() {
-    // Playful nasal quack
     this.playTone(290, 'sawtooth', 0.14, 0, 0.9);
     this.playNoise(0.08, 0.02, 600);
     this.playTone(240, 'sawtooth', 0.18, 0.08, 0.8);
   }
 
   public playFrogCroak() {
-    // Deep resonant frog ribbit
     this.playTone(110, 'triangle', 0.12, 0, 1.2);
     this.playTone(140, 'sawtooth', 0.14, 0.04, 0.9);
     this.playTone(95, 'triangle', 0.18, 0.12, 1.1);
   }
 
   public playSalamanderHiss() {
-    // Fiery volcanic ember sizzle
     this.playNoise(0.2, 0, 1800);
     this.playTone(440, 'sine', 0.15, 0.02, 0.4);
   }
 
   public playOtterSqueak() {
-    // High playful river otter (huillín) chirp
     this.playTone(980, 'sine', 0.07, 0, 0.8);
     this.playTone(1320, 'sine', 0.09, 0.05, 0.9);
     this.playTone(1100, 'triangle', 0.1, 0.12, 0.6);
   }
 
   public playPenguinHonk() {
-    // Patagonian penguin honk
     this.playTone(260, 'sawtooth', 0.16, 0, 1.0);
     this.playTone(340, 'square', 0.12, 0.06, 0.8);
     this.playTone(210, 'sawtooth', 0.15, 0.14, 0.9);
@@ -334,16 +359,75 @@ class SoundEngine {
       this.playDuckQuack();
     } else if (s.includes('ranita') || s.includes('rana') || s.includes('frog')) {
       this.playFrogCroak();
-    } else if (s.includes('salamandra') || s.includes('igneo')) {
+    } else if (s.includes('salamandra') || s.includes('igneo') || s.includes('pillan')) {
       this.playSalamanderHiss();
     } else if (s.includes('huillin') || s.includes('nutria') || s.includes('otter')) {
       this.playOtterSqueak();
     } else if (s.includes('pinguino') || s.includes('penguin')) {
       this.playPenguinHonk();
     } else {
-      // Default bird / nature sound
       this.playBirdChirp();
     }
+  }
+
+  // --- Regional Ambient Soundscape Synthesizer ---
+
+  public startAmbient(regionId: string, force = false) {
+    if (!force && this.currentAmbient === regionId && this.ambientInterval) {
+      return;
+    }
+    if (this.ambientInterval) {
+      clearInterval(this.ambientInterval);
+      this.ambientInterval = null;
+    }
+    this.currentAmbient = regionId;
+    if (this.isMuted) return;
+
+    let tick = 0;
+    this.ambientInterval = setInterval(() => {
+      if (this.isMuted) return;
+      tick++;
+
+      if (regionId === 'santiago') {
+        // Light park breeze + occasional bird chirp
+        if (tick % 4 === 1) {
+          this.playNoise(0.45, 0, 650, 'bandpass', 0.03);
+        }
+        if (tick % 7 === 0) {
+          this.playTone(1680, 'sine', 0.05, 0, 0.12);
+          this.playTone(1960, 'sine', 0.06, 0.08, 0.1);
+        }
+      } else if (regionId === 'biobio') {
+        // Misty overcast valley wind + intermittent light drizzle
+        this.playNoise(0.65, 0, 380, 'lowpass', 0.045);
+        if (tick % 4 === 0 || tick % 4 === 1) {
+          this.playNoise(0.35, 0.1, 1350, 'bandpass', 0.032);
+        }
+      } else if (regionId === 'araucania') {
+        // Steady rain mist + subtle volcanic ember crackle
+        this.playNoise(0.55, 0, 1400, 'bandpass', 0.04);
+        if (tick % 3 === 0) {
+          this.playNoise(0.05, 0.1, 2600, 'highpass', 0.025);
+        }
+      } else if (regionId === 'losrios') {
+        // Wind-blown Valdivian rain patter
+        this.playNoise(0.6, 0, 1800, 'bandpass', 0.055);
+      } else if (regionId === 'loslagos') {
+        // Heavy southern storm rain + occasional distant thunder
+        this.playNoise(0.65, 0, 1100, 'lowpass', 0.065);
+        if (tick % 9 === 0) {
+          this.playThunderRumble();
+        }
+      }
+    }, 950);
+  }
+
+  public stopAmbient() {
+    if (this.ambientInterval) {
+      clearInterval(this.ambientInterval);
+      this.ambientInterval = null;
+    }
+    this.currentAmbient = null;
   }
 
   // --- Background Music System (Procedural Retro Tracks) ---
@@ -361,113 +445,126 @@ class SoundEngine {
     this.currentTrack = trackName;
     if (this.isMuted) return;
 
-    // Define regional musical motives
     let step = 0;
 
     if (trackName === 'title') {
-      // Epic adventure theme (Santiago to Patagonia journey)
-      const chordRoots = [261.63, 329.63, 392.0, 440.0]; // C - E - G - A
+      const chordRoots = [261.63, 329.63, 392.0, 440.0];
       this.bgmInterval = setInterval(() => {
         if (this.isMuted) return;
         const root = chordRoots[Math.floor(step / 4) % chordRoots.length];
         const arpFreq = root * (1 + (step % 4) * 0.25);
-        this.playTone(arpFreq, 'triangle', 0.25, 0, 0.4);
+        this.playTone(arpFreq, 'triangle', 0.25, 0, 0.35);
         if (step % 2 === 0) {
-          this.playTone(root / 2, 'sine', 0.4, 0, 0.5);
+          this.playTone(root / 2, 'sine', 0.4, 0, 0.45);
         }
         step++;
       }, 260);
-
     } else if (trackName === 'casa') {
-      // Cozy home chime melody (Stage 0)
       const melody = [392.0, 440.0, 523.25, 440.0, 392.0, 329.63, 293.66, 329.63];
       this.bgmInterval = setInterval(() => {
         if (this.isMuted) return;
         const note = melody[step % melody.length];
-        this.playTone(note, 'sine', 0.32, 0, 0.28);
+        this.playTone(note, 'sine', 0.32, 0, 0.25);
         if (step % 4 === 0) {
-          this.playTone(note / 2, 'triangle', 0.45, 0, 0.25);
+          this.playTone(note / 2, 'triangle', 0.45, 0, 0.22);
         }
         step++;
       }, 360);
-
+    } else if (trackName === 'hospital') {
+      const melody = [523.25, 659.25, 587.33, 659.25, 783.99, 659.25, 587.33, 523.25];
+      this.bgmInterval = setInterval(() => {
+        if (this.isMuted) return;
+        const note = melody[step % melody.length];
+        this.playTone(note, 'sine', 0.36, 0, 0.22);
+        if (step % 4 === 0) {
+          this.playTone(note / 2, 'sine', 0.5, 0, 0.16);
+        }
+        step++;
+      }, 420);
+    } else if (trackName === 'santuario') {
+      const melody = [440.0, 523.25, 659.25, 880.0, 783.99, 659.25, 523.25, 493.88];
+      this.bgmInterval = setInterval(() => {
+        if (this.isMuted) return;
+        const note = melody[step % melody.length];
+        this.playTone(note, 'triangle', 0.38, 0, 0.24);
+        this.playTone(note * 1.5, 'sine', 0.42, 0.08, 0.14);
+        step++;
+      }, 400);
+    } else if (trackName === 'tienda') {
+      const melody = [523.25, 659.25, 783.99, 659.25, 587.33, 698.46, 659.25, 523.25];
+      this.bgmInterval = setInterval(() => {
+        if (this.isMuted) return;
+        const note = melody[step % melody.length];
+        this.playTone(note, 'triangle', 0.28, 0, 0.24);
+        if (step % 2 === 0) {
+          this.playTone(note / 2, 'sine', 0.35, 0, 0.2);
+        }
+        step++;
+      }, 330);
     } else if (trackName === 'santiago') {
-      // Lively Chilean urban-mountain starter theme
       const melody = [261.63, 293.66, 329.63, 392.0, 329.63, 293.66, 349.23, 329.63];
       this.bgmInterval = setInterval(() => {
         if (this.isMuted) return;
         const note = melody[step % melody.length];
-        this.playTone(note, 'triangle', 0.22, 0, 0.35);
+        this.playTone(note, 'triangle', 0.22, 0, 0.32);
         if (step % 4 === 0) {
-          this.playTone(note / 2, 'sine', 0.4, 0, 0.4);
+          this.playTone(note / 2, 'sine', 0.4, 0, 0.36);
         }
         step++;
       }, 300);
-
     } else if (trackName === 'biobio') {
-      // Autumnal flowing river & ancient Araucaria canopy theme
       const melody = [293.66, 349.23, 392.0, 440.0, 392.0, 349.23, 329.63, 293.66];
       this.bgmInterval = setInterval(() => {
         if (this.isMuted) return;
         const note = melody[step % melody.length];
-        this.playTone(note, 'triangle', 0.28, 0, 0.35);
+        this.playTone(note, 'triangle', 0.28, 0, 0.32);
         if (step % 2 === 0) {
-          this.playTone(note * 0.5, 'sine', 0.36, 0.04, 0.3);
+          this.playTone(note * 0.5, 'sine', 0.36, 0.04, 0.28);
         }
         step++;
       }, 330);
-
     } else if (trackName === 'araucania' || trackName === 'pucon' || trackName === 'villarrica') {
-      // Intense volcanic & lakeside Araucanía motif
       const bassNotes = [110, 116.54, 123.47, 110, 98, 110, 130.81, 123.47];
       this.bgmInterval = setInterval(() => {
         if (this.isMuted) return;
         const note = bassNotes[step % bassNotes.length];
-        this.playTone(note, 'sawtooth', 0.18, 0, 0.42);
+        this.playTone(note, 'sawtooth', 0.18, 0, 0.38);
         if (step % 2 === 1) {
-          this.playTone(note * 3, 'square', 0.12, 0, 0.22);
+          this.playTone(note * 3, 'square', 0.12, 0, 0.2);
         }
         step++;
       }, 250);
-
     } else if (trackName === 'losrios') {
-      // Calming rainy Valdivian jungle flute-like chimes
       const melody = [329.63, 392.0, 440.0, 523.25, 493.88, 392.0, 329.63, 261.63];
       this.bgmInterval = setInterval(() => {
         if (this.isMuted) return;
         const note = melody[step % melody.length];
-        this.playTone(note, 'sine', 0.35, 0, 0.4);
-        this.playTone(note * 0.75, 'triangle', 0.3, 0.05, 0.25);
+        this.playTone(note, 'sine', 0.35, 0, 0.36);
+        this.playTone(note * 0.75, 'triangle', 0.3, 0.05, 0.22);
         step++;
       }, 360);
-
     } else if (trackName === 'loslagos' || trackName === 'hornopiren') {
-      // Primeval Alerce forest & Austral glacial sanctuary
       const etherChords = [440, 523.25, 659.25, 783.99, 880, 783.99, 659.25, 587.33];
       this.bgmInterval = setInterval(() => {
         if (this.isMuted) return;
         const note = etherChords[step % etherChords.length];
-        this.playTone(note, 'sine', 0.5, 0, 0.35);
-        this.playTone(note / 2, 'triangle', 0.6, 0.1, 0.3);
+        this.playTone(note, 'sine', 0.5, 0, 0.32);
+        this.playTone(note / 2, 'triangle', 0.6, 0.1, 0.28);
         step++;
       }, 420);
-
     } else if (trackName === 'battle') {
-      // High-octane Pokémon / Final Fantasy turn-based battle theme
       const battleBass = [130.81, 130.81, 155.56, 174.61, 164.81, 146.83, 130.81, 196.0];
       this.bgmInterval = setInterval(() => {
         if (this.isMuted) return;
         const note = battleBass[step % battleBass.length];
-        this.playTone(note, 'sawtooth', 0.14, 0, 0.4);
-        this.playTone(note * 2, 'square', 0.1, 0.05, 0.3);
+        this.playTone(note, 'sawtooth', 0.14, 0, 0.38);
+        this.playTone(note * 2, 'square', 0.1, 0.05, 0.28);
         if (step % 4 === 0) {
           this.playNoise(0.06, 0, 2000);
         }
         step++;
       }, 190);
-
     } else if (trackName === 'victory') {
-      // Iconic Final Fantasy style fanfare
       const fanfare = [
         { f: 523.25, d: 0.15 }, { f: 523.25, d: 0.15 }, { f: 523.25, d: 0.15 },
         { f: 523.25, d: 0.4 }, { f: 415.3, d: 0.4 }, { f: 466.16, d: 0.4 },
@@ -477,8 +574,8 @@ class SoundEngine {
         if (this.isMuted) return;
         if (step < fanfare.length) {
           const item = fanfare[step];
-          this.playTone(item.f, 'square', item.d, 0, 0.5);
-          this.playTone(item.f * 1.5, 'triangle', item.d, 0, 0.35);
+          this.playTone(item.f, 'square', item.d, 0, 0.45);
+          this.playTone(item.f * 1.5, 'triangle', item.d, 0, 0.3);
           step++;
         }
       }, 240);
